@@ -2,7 +2,6 @@ services:
   - type: web
     name: newsbot-app
     runtime: python
-    plan: free
     region: oregon
     buildCommand: pip install .
     startCommand: python -m uvicorn newsbot.main:app --host 0.0.0.0 --port $PORT
