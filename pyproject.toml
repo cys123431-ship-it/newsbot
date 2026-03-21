@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "newsbot"
+version = "0.1.0"
+description = "Personal news aggregator for finance, tech, military, crypto, and Korean society news."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "apscheduler>=3.10,<4.0",
+  "fastapi>=0.115,<1.0",
+  "feedparser>=6.0,<7.0",
+  "httpx>=0.28,<1.0",
+  "jinja2>=3.1,<4.0",
+  "pydantic>=2.10,<3.0",
+  "sqlalchemy>=2.0,<3.0",
+  "telethon>=1.39,<2.0",
+  "uvicorn>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9.0",
+]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+newsbot = ["templates/*.html", "static/*.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>북마크</h2>
+  {% for article in articles %}
+  <article class="card">
+    <div class="meta">
+      <span class="badge">{{ category_labels[article.primary_category] }}</span>
+      <span>{{ article.source_name }}</span>
+    </div>
+    <h3><a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a></h3>
+    <p>{{ article.short_summary }}</p>
+  </article>
+  {% else %}
+  <p class="empty">아직 북마크한 뉴스가 없습니다.</p>
+  {% endfor %}
+</section>
+{% endblock %}
+

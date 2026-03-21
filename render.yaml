@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: newsbot-app
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install .
+    startCommand: python -m uvicorn newsbot.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: NEWSBOT_DATABASE_URL
+        value: sqlite:///./newsbot.db
+      - key: NEWSBOT_BOOTSTRAP_ON_STARTUP
+        value: "true"
+      - key: NEWSBOT_ENABLE_SCHEDULER
+        value: "true"
+      - key: NEWSBOT_REQUEST_TIMEOUT_SEC
+        value: "10"
+      - key: NEWSBOT_MAX_RETRIES
+        value: "3"
+      - key: NEWSBOT_AUTO_DISABLE_AFTER_FAILURES
+        value: "5"
+      - key: NEWSBOT_TELEGRAM_INPUT_ENABLED
+        value: "false"

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>소스 상태</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>키</th>
+        <th>이름</th>
+        <th>분류</th>
+        <th>주기</th>
+        <th>실패</th>
+        <th>상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for source in sources %}
+      <tr>
+        <td>{{ source.source_key }}</td>
+        <td>{{ source.name }}</td>
+        <td>{{ category_labels.get(source.category, source.category or "자동 분류") }}</td>
+        <td>{{ source.poll_interval_sec }}초</td>
+        <td>{{ source.consecutive_failures }}</td>
+        <td>{{ "활성" if source.enabled else "비활성" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+

@@ -1,0 +1,125 @@
+"""Server-rendered pages."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from newsbot.api.deps import get_session
+from newsbot.categories import ALL_CATEGORIES
+from newsbot.categories import CATEGORY_LABELS
+from newsbot.models import FetchRun
+from newsbot.services.query import build_health_summary
+from newsbot.services.query import list_articles
+from newsbot.services.query import list_bookmarked_articles
+from newsbot.services.query import list_sources
+
+
+router = APIRouter()
+templates = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parent.parent / "templates")
+)
+
+
+def _render_article_page(
+    request: Request,
+    session: Session,
+    *,
+    category: str | None,
+    q: str | None,
+    source: str | None,
+) -> HTMLResponse:
+    articles, next_cursor = list_articles(
+        session,
+        category=category,
+        source_key=source,
+        query_text=q,
+    )
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "request": request,
+            "articles": articles,
+            "next_cursor": next_cursor,
+            "categories": ALL_CATEGORIES,
+            "category_labels": CATEGORY_LABELS,
+            "active_category": category,
+            "active_query": q or "",
+            "active_source": source or "",
+            "sources": list_sources(session),
+            "page_title": "전체 뉴스" if category is None else CATEGORY_LABELS[category],
+        },
+    )
+
+
+@router.get("/", response_class=HTMLResponse)
+def index(
+    request: Request,
+    q: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
+    return _render_article_page(request, session, category=None, q=q, source=source)
+
+
+@router.get("/category/{category}", response_class=HTMLResponse)
+def category_page(
+    request: Request,
+    category: str,
+    q: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
+    return _render_article_page(request, session, category=category, q=q, source=source)
+
+
+@router.get("/bookmarks", response_class=HTMLResponse)
+def bookmarks(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse(
+        request,
+        "bookmarks.html",
+        {
+            "request": request,
+            "articles": list_bookmarked_articles(session),
+            "category_labels": CATEGORY_LABELS,
+        },
+    )
+
+
+@router.get("/sources", response_class=HTMLResponse)
+def sources(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse(
+        request,
+        "sources.html",
+        {
+            "request": request,
+            "sources": list_sources(session),
+            "category_labels": CATEGORY_LABELS,
+        },
+    )
+
+
+@router.get("/admin/health", response_class=HTMLResponse)
+def admin_health(request: Request, session: Session = Depends(get_session)):
+    fetch_runs = list(
+        session.scalars(select(FetchRun).order_by(FetchRun.started_at.desc()).limit(20))
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin_health.html",
+        {
+            "request": request,
+            "summary": build_health_summary(session),
+            "fetch_runs": fetch_runs,
+        },
+    )
+

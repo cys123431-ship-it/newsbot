@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timezone
+
+import httpx
+from sqlalchemy import func
+from sqlalchemy import select
+
+from newsbot.contracts import ArticleCandidate
+from newsbot.models import Article
+from newsbot.models import ArticleAlias
+from newsbot.models import Bookmark
+from newsbot.models import Source
+from newsbot.services import ingest
+
+
+class FakeRssAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        return [
+            ArticleCandidate(
+                source_key="coindesk-rss",
+                source_name="CoinDesk",
+                title="Bitcoin jumps after ETF inflow surprise",
+                url="https://www.coindesk.com/markets/2026/03/21/bitcoin-jumps/?utm_source=x",
+                published_at=datetime(2026, 3, 21, 10, 0, tzinfo=timezone.utc),
+                summary="ETF flows pushed bitcoin higher.",
+                category="crypto",
+                language="en",
+                trust_level=90,
+            )
+        ]
+
+
+class FakeTelegramAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        return [
+            ArticleCandidate(
+                source_key="telegram-dada-news2",
+                source_name="Telegram @dada_news2",
+                title="Bitcoin jumps after ETF inflow surprise",
+                url="https://www.coindesk.com/markets/2026/03/21/bitcoin-jumps/",
+                published_at=datetime(2026, 3, 21, 10, 5, tzinfo=timezone.utc),
+                summary="Telegram mirror",
+                language="en",
+                trust_level=55,
+            )
+        ]
+
+
+class TimeoutAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        raise httpx.ReadTimeout("timed out")
+
+
+class ExplodingTelegramAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        raise AssertionError("bootstrap should not call telegram adapters")
+
+
+def test_fetch_persist_and_render_article(client, app, monkeypatch):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
+    session_factory = app.state.session_factory
+
+    result = asyncio.run(
+        ingest.fetch_single_source(session_factory, app.state.settings, "coindesk-rss")
+    )
+
+    assert result == {"fetched": 1, "inserted": 1}
+    response = client.get("/api/articles?category=crypto")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["title"] == "Bitcoin jumps after ETF inflow surprise"
+
+    article_id = payload["items"][0]["id"]
+    bookmark_response = client.post(f"/api/bookmarks/{article_id}")
+    assert bookmark_response.status_code == 200
+
+    with session_factory() as session:
+        assert session.scalar(select(func.count(Bookmark.id))) == 1
+
+
+def test_direct_source_and_telegram_source_merge_into_one_article(app, monkeypatch):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
+    monkeypatch.setitem(ingest.ADAPTERS, "telegram_channel", FakeTelegramAdapter())
+    session_factory = app.state.session_factory
+
+    asyncio.run(
+        ingest.fetch_single_source(session_factory, app.state.settings, "coindesk-rss")
+    )
+    asyncio.run(
+        ingest.fetch_single_source(
+            session_factory, app.state.settings, "telegram-dada-news2"
+        )
+    )
+
+    with session_factory() as session:
+        assert session.scalar(select(func.count(Article.id))) == 1
+        assert session.scalar(select(func.count(ArticleAlias.id))) == 2
+
+
+def test_fetch_failure_does_not_break_and_increments_source_failures(app, monkeypatch):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", TimeoutAdapter())
+    session_factory = app.state.session_factory
+
+    result = asyncio.run(
+        ingest.fetch_single_source(session_factory, app.state.settings, "coindesk-rss")
+    )
+    assert result == {"fetched": 0, "inserted": 0}
+
+    with session_factory() as session:
+        source = session.scalar(select(Source).where(Source.source_key == "coindesk-rss"))
+        assert source.consecutive_failures == 1
+
+
+def test_bootstrap_initial_content_skips_telegram_sources(app, monkeypatch):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
+    monkeypatch.setitem(ingest.ADAPTERS, "html_discovery", FakeRssAdapter())
+    monkeypatch.setitem(ingest.ADAPTERS, "telegram_channel", ExplodingTelegramAdapter())
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        session.query(Article).delete()
+        session.commit()
+
+    result = asyncio.run(
+        ingest.bootstrap_initial_content(session_factory, app.state.settings)
+    )
+
+    assert "telegram-dada-news2" not in result
+    with session_factory() as session:
+        assert session.scalar(select(func.count(Article.id))) >= 1

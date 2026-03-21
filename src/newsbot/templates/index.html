@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h2>{{ page_title }}</h2>
+    <p>코인, 미국 금융, 테크, 군사, 한국 사회 뉴스를 빠르게 모읍니다.</p>
+  </div>
+  <div class="category-tabs">
+    <a href="/" class="{% if not active_category %}active{% endif %}">전체</a>
+    {% for category in categories %}
+    <a
+      href="/category/{{ category }}"
+      class="{% if active_category == category %}active{% endif %}"
+      >{{ category_labels[category] }}</a
+    >
+    {% endfor %}
+  </div>
+</section>
+
+<form class="filters" method="get">
+  <input type="text" name="q" value="{{ active_query }}" placeholder="제목 검색" />
+  <select name="source">
+    <option value="">모든 소스</option>
+    {% for source in sources %}
+    <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
+      {{ source.name }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit">검색</button>
+</form>
+
+<section class="article-list">
+  {% for article in articles %}
+  <article class="article-row">
+    <div class="meta compact-meta">
+      <span class="badge">{{ category_labels[article.primary_category] }}</span>
+      <span>{{ article.source_name }}</span>
+      <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+    </div>
+    <h3 class="article-title">
+      <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+    </h3>
+    <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+      {{ article.canonical_url }}
+    </a>
+  </article>
+  {% else %}
+  <p class="empty">표시할 뉴스가 없습니다.</p>
+  {% endfor %}
+</section>
+{% endblock %}
