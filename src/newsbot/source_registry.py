@@ -23,6 +23,7 @@ class SourceDefinition:
     trust_level: int
     discovery_only: bool = False
     allow_page_fetch: bool = False
+    static_enabled: bool = True
     dedupe_strategy: str = "default"
     config: dict[str, Any] = field(default_factory=dict)
 
@@ -156,8 +157,29 @@ SOURCE_DEFINITIONS = [
         trust_level=70,
         discovery_only=True,
         config={
-            "queries": ["사회", "사건", "재난", "노동", "교육", "복지"],
-            "display": 15,
+            "queries": [
+                "사건 사고",
+                "재난 안전",
+                "노동 현장",
+                "교육 현장",
+                "복지 현장",
+                "의료 현장",
+                "교통 안전",
+                "지역 사회",
+            ],
+            "display": 10,
+        },
+    ),
+    SourceDefinition(
+        source_key="sbs-society-rss",
+        name="SBS Society",
+        adapter_type="rss",
+        category=CATEGORY_KR_SOCIETY,
+        poll_interval_sec=300,
+        base_url="https://news.sbs.co.kr",
+        trust_level=82,
+        config={
+            "feed_url": "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=03&plink=RSSREADER"
         },
     ),
     SourceDefinition(
@@ -169,6 +191,7 @@ SOURCE_DEFINITIONS = [
         base_url="https://finance.yahoo.com",
         trust_level=40,
         discovery_only=True,
+        static_enabled=False,
         config={
             "page_url": "https://finance.yahoo.com/",
             "allowed_domains": ["finance.yahoo.com"],
@@ -184,6 +207,7 @@ SOURCE_DEFINITIONS = [
         base_url="https://www.financialjuice.com",
         trust_level=35,
         discovery_only=True,
+        static_enabled=False,
         config={
             "page_url": "https://www.financialjuice.com/home",
             "allowed_domains": ["www.financialjuice.com", "financialjuice.com"],
@@ -198,6 +222,7 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/dada_news2",
         trust_level=55,
+        static_enabled=False,
         config={"channel": "dada_news2"},
     ),
     SourceDefinition(
@@ -208,6 +233,7 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/news_kor",
         trust_level=55,
+        static_enabled=False,
         config={"channel": "news_kor"},
     ),
     SourceDefinition(
@@ -218,6 +244,7 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/clawnewssummary",
         trust_level=55,
+        static_enabled=False,
         config={"channel": "clawnewssummary"},
     ),
 ]
@@ -228,4 +255,3 @@ def get_source_definition(source_key: str) -> SourceDefinition:
         if source_definition.source_key == source_key:
             return source_definition
     raise KeyError(f"Unknown source_key: {source_key}")
-

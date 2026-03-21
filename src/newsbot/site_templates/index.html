@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>newsbot</title>
+    <meta
+      name="description"
+      content="코인, 미국 금융, 테크, 군사, 한국 사회 뉴스를 압축형 피드로 모아보는 개인용 뉴스 사이트"
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">newsbot</p>
+        <h1>한 화면으로 훑는 개인 뉴스 피드</h1>
+        <p class="lede">제목과 링크만 빠르게 훑고, 카테고리와 소스로 바로 좁혀볼 수 있게 구성했습니다.</p>
+      </div>
+      <div class="masthead-meta">
+        <span>기사 {{ article_count }}건</span>
+        <span>마지막 갱신 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="toolbar">
+        <div id="category-filters" class="pill-row">
+          <button type="button" class="pill is-active" data-category="all">전체</button>
+          {% for category in categories %}
+          <button type="button" class="pill" data-category="{{ category.key }}">
+            {{ category.label }}
+            <span>{{ category.count }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <div class="search-row">
+          <label class="sr-only" for="search-input">제목 검색</label>
+          <input id="search-input" type="search" placeholder="제목 검색" />
+          <label class="sr-only" for="source-select">소스 선택</label>
+          <select id="source-select">
+            <option value="all">모든 소스</option>
+          </select>
+          <button id="reset-button" type="button" class="reset-button">초기화</button>
+        </div>
+
+        <p id="status-line" class="status-line">전체 뉴스 {{ article_count }}건</p>
+
+        <details class="health-panel">
+          <summary>수집 상태 보기</summary>
+          <div class="health-list">
+            {% for status in source_statuses %}
+            <div class="health-row">
+              <strong>{{ status.source_name }}</strong>
+              <span class="health-state health-{{ status.status }}">{{ status.status }}</span>
+              <span>수집 {{ status.fetched_count }}</span>
+              <span>채택 {{ status.accepted_count }}</span>
+              <span>게시 {{ status.published_count }}</span>
+              {% if status.error %}
+              <span class="health-error">{{ status.error }}</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+      </section>
+
+      <section id="news-sections" class="section-stack">
+        {% for section in initial_sections %}
+        <section class="news-section" data-category="{{ section.key }}">
+          <div class="section-head">
+            <h2>{{ section.label }}</h2>
+            <span>{{ section.count }}건</span>
+          </div>
+          <div class="news-list">
+            {% for article in section.articles %}
+            <article class="news-row">
+              <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                {{ article.title }}
+              </a>
+              <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                {{ article.link_label }}
+              </a>
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+      </section>
+
+      <noscript class="noscript-note">검색과 필터는 자바스크립트가 켜져 있어야 동작합니다.</noscript>
+    </main>
+
+    <script id="site-data" type="application/json">{{ payload_json | safe }}</script>
+    <script src="assets/app.js"></script>
+  </body>
+</html>

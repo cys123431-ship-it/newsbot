@@ -1,0 +1,64 @@
+name: Publish Static Site
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEWSBOT_ENABLE_SCHEDULER: "false"
+      NEWSBOT_BOOTSTRAP_ON_STARTUP: "false"
+      NEWSBOT_TELEGRAM_INPUT_ENABLED: "false"
+      NEWSBOT_NAVER_CLIENT_ID: ${{ secrets.NEWSBOT_NAVER_CLIENT_ID }}
+      NEWSBOT_NAVER_CLIENT_SECRET: ${{ secrets.NEWSBOT_NAVER_CLIENT_SECRET }}
+      NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH: "20"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build static site
+        run: python -m newsbot.site_builder
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

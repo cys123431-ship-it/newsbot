@@ -32,7 +32,12 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-newsbot = ["templates/*.html", "static/*.css"]
+newsbot = [
+  "templates/*.html",
+  "static/*.css",
+  "site_assets/*",
+  "site_templates/*.html",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

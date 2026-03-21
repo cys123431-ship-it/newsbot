@@ -28,3 +28,15 @@ def test_classify_telegram_candidate_using_keywords():
     source_definition = get_source_definition("telegram-dada-news2")
     assert classify_candidate(candidate, source_definition) == "crypto"
 
+
+def test_korean_society_rejects_political_headline():
+    candidate = ArticleCandidate(
+        source_key="naver-kr-society",
+        source_name="NAVER News Search",
+        title="여야, 교육 정책 두고 국회 공방",
+        url="https://www.yna.co.kr/view/AKR20260321000100004",
+        summary="정치권 충돌이 이어졌다.",
+        tags=["교육 현장"],
+    )
+    source_definition = get_source_definition("naver-kr-society")
+    assert classify_candidate(candidate, source_definition) is None

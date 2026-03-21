@@ -77,6 +77,21 @@ class Settings:
     naver_client_secret: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_NAVER_CLIENT_SECRET")
     )
+    static_output_dir: str = field(
+        default_factory=lambda: os.getenv("NEWSBOT_STATIC_OUTPUT_DIR", "site-dist")
+    )
+    static_fetch_concurrency: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_FETCH_CONCURRENCY", 5)
+    )
+    static_min_articles_to_publish: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH", 20)
+    )
+    static_max_articles_per_source: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_MAX_ARTICLES_PER_SOURCE", 18)
+    )
+    static_max_total_articles: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_MAX_TOTAL_ARTICLES", 140)
+    )
 
 
 @lru_cache(maxsize=1)
