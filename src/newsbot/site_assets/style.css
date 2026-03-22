@@ -131,7 +131,8 @@ a {
 .search-row input,
 .search-row select,
 .reset-button,
-.copy-button {
+.copy-button,
+.export-button {
   min-height: 2.7rem;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -167,6 +168,23 @@ a {
 .copy-button.is-error {
   background: #9f4733;
   border-color: #9f4733;
+}
+
+.export-button {
+  cursor: pointer;
+  background: #fff;
+}
+
+.export-button.is-done {
+  background: #215f98;
+  border-color: #215f98;
+  color: #fff;
+}
+
+.export-button.is-error {
+  background: #9f4733;
+  border-color: #9f4733;
+  color: #fff;
 }
 
 .status-line {
@@ -255,6 +273,13 @@ a {
   border-bottom: 1px solid rgba(217, 207, 191, 0.65);
 }
 
+.news-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
 .news-row:last-child {
   border-bottom: 0;
 }
@@ -278,6 +303,32 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.mini-export-button {
+  min-height: 2rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mini-export-button.is-done {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .empty-state {

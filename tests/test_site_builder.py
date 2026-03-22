@@ -152,7 +152,10 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
     assert (output_dir / "data" / "site-data.json").exists()
-    assert 'id="copy-all-button"' in (output_dir / "index.html").read_text(encoding="utf-8")
+    html = (output_dir / "index.html").read_text(encoding="utf-8")
+    assert 'id="copy-all-button"' in html
+    assert 'id="export-word-button"' in html
+    assert 'id="export-excel-button"' in html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] == 2

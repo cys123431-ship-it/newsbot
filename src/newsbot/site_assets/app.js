@@ -6,6 +6,8 @@ const refs = {
   searchInput: document.getElementById("search-input"),
   resetButton: document.getElementById("reset-button"),
   copyAllButton: document.getElementById("copy-all-button"),
+  exportWordButton: document.getElementById("export-word-button"),
+  exportExcelButton: document.getElementById("export-excel-button"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
 };
@@ -182,7 +184,13 @@ function renderSections(articles) {
               .map(
                 (article) => `
                   <article class="news-row">
-                    <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
+                    <div class="news-topline">
+                      <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
+                      <div class="row-actions">
+                        <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="${escapeHtml(article.canonical_url)}">Word</button>
+                        <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
+                      </div>
+                    </div>
                     <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.link_label)}</a>
                   </article>
                 `,
@@ -244,6 +252,145 @@ async function copyCurrentView() {
   }
 }
 
+function getExportArticles(scope, articleUrl) {
+  if (scope === "single") {
+    return payload.articles.filter((article) => article.canonical_url === articleUrl);
+  }
+  return getFilteredArticles();
+}
+
+function buildExportMeta(article) {
+  return {
+    category: categoryLabels[article.primary_category] || article.primary_category,
+    source: article.source_name,
+    publishedAt: article.published_at || "",
+    title: article.title,
+    url: article.canonical_url,
+  };
+}
+
+function buildWordHtml(articles, title) {
+  const rows = articles
+    .map((article) => {
+      const item = buildExportMeta(article);
+      return `
+        <div style="margin-bottom:18px;">
+          <h3 style="margin:0 0 8px 0; font-size:16px;">${escapeHtml(item.title)}</h3>
+          <p style="margin:0 0 4px 0;"><strong>카테고리:</strong> ${escapeHtml(item.category)}</p>
+          <p style="margin:0 0 4px 0;"><strong>소스:</strong> ${escapeHtml(item.source)}</p>
+          <p style="margin:0 0 4px 0;"><strong>업데이트:</strong> ${escapeHtml(item.publishedAt)}</p>
+          <p style="margin:0;"><strong>링크:</strong> <a href="${escapeHtml(item.url)}">${escapeHtml(item.url)}</a></p>
+        </div>
+      `;
+    })
+    .join("");
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        ${rows}
+      </body>
+    </html>
+  `;
+}
+
+function buildExcelHtml(articles, title) {
+  const rows = articles
+    .map((article) => {
+      const item = buildExportMeta(article);
+      return `
+        <tr>
+          <td>${escapeHtml(item.category)}</td>
+          <td>${escapeHtml(item.source)}</td>
+          <td>${escapeHtml(item.publishedAt)}</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td>${escapeHtml(item.url)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+      </head>
+      <body>
+        <table border="1">
+          <caption>${escapeHtml(title)}</caption>
+          <thead>
+            <tr>
+              <th>카테고리</th>
+              <th>소스</th>
+              <th>게시 시각</th>
+              <th>제목</th>
+              <th>링크</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function buildExportTitle(scope, format, articleUrl) {
+  if (scope === "single") {
+    const article = payload.articles.find((item) => item.canonical_url === articleUrl);
+    return article ? `${article.title} (${format})` : `newsbot article (${format})`;
+  }
+  const categoryPart = state.category === "all" ? "all" : state.category;
+  const sourcePart = state.source === "all" ? "all" : state.source;
+  return `newsbot-${categoryPart}-${sourcePart}-${format}`;
+}
+
+function sanitizeFilename(value, extension) {
+  const sanitized = value
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+  return `${sanitized || "newsbot-export"}.${extension}`;
+}
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob(["\ufeff", content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportArticles(scope, format, articleUrl = "") {
+  const articles = getExportArticles(scope, articleUrl);
+  if (!articles.length) {
+    return false;
+  }
+  const title = buildExportTitle(scope, format, articleUrl);
+  if (format === "word") {
+    downloadFile(
+      sanitizeFilename(title, "doc"),
+      buildWordHtml(articles, title),
+      "application/msword;charset=utf-8",
+    );
+    return true;
+  }
+  downloadFile(
+    sanitizeFilename(title, "xls"),
+    buildExcelHtml(articles, title),
+    "application/vnd.ms-excel;charset=utf-8",
+  );
+  return true;
+}
+
 async function writeClipboardText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -279,6 +426,23 @@ function setCopyButtonState(label, state) {
   }, 2200);
 }
 
+function flashButtonState(button, label, state) {
+  const originalLabel = button.dataset.originalLabel || button.textContent;
+  button.dataset.originalLabel = originalLabel;
+  button.textContent = label;
+  button.classList.remove("is-done", "is-error");
+  if (state === "done") {
+    button.classList.add("is-done");
+  }
+  if (state === "error") {
+    button.classList.add("is-error");
+  }
+  window.setTimeout(() => {
+    button.textContent = originalLabel;
+    button.classList.remove("is-done", "is-error");
+  }, 1800);
+}
+
 refs.sourceSelect.addEventListener("change", (event) => {
   state.source = event.target.value;
   render();
@@ -298,6 +462,27 @@ refs.resetButton.addEventListener("click", () => {
 
 refs.copyAllButton.addEventListener("click", () => {
   void copyCurrentView();
+});
+
+refs.exportWordButton.addEventListener("click", () => {
+  const ok = exportArticles("current", "word");
+  flashButtonState(refs.exportWordButton, ok ? "저장 완료" : "저장할 뉴스 없음", ok ? "done" : "error");
+});
+
+refs.exportExcelButton.addEventListener("click", () => {
+  const ok = exportArticles("current", "excel");
+  flashButtonState(refs.exportExcelButton, ok ? "저장 완료" : "저장할 뉴스 없음", ok ? "done" : "error");
+});
+
+refs.newsSections.addEventListener("click", (event) => {
+  const button = event.target.closest(".mini-export-button");
+  if (!button) {
+    return;
+  }
+  const format = button.dataset.exportFormat;
+  const articleUrl = button.dataset.articleUrl || "";
+  const ok = exportArticles("single", format, articleUrl);
+  flashButtonState(button, ok ? "완료" : "없음", ok ? "done" : "error");
 });
 
 render();
