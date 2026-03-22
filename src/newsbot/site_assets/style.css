@@ -130,7 +130,8 @@ a {
 
 .search-row input,
 .search-row select,
-.reset-button {
+.reset-button,
+.copy-button {
   min-height: 2.7rem;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -149,6 +150,23 @@ a {
 
 .reset-button {
   cursor: pointer;
+}
+
+.copy-button {
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.copy-button.is-done {
+  background: #215f98;
+  border-color: #215f98;
+}
+
+.copy-button.is-error {
+  background: #9f4733;
+  border-color: #9f4733;
 }
 
 .status-line {

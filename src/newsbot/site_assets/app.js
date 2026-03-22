@@ -5,6 +5,7 @@ const refs = {
   sourceSelect: document.getElementById("source-select"),
   searchInput: document.getElementById("search-input"),
   resetButton: document.getElementById("reset-button"),
+  copyAllButton: document.getElementById("copy-all-button"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
 };
@@ -204,6 +205,80 @@ function render() {
   renderSections(articles);
 }
 
+async function copyCurrentView() {
+  const sections = Array.from(refs.newsSections.querySelectorAll(".news-section"));
+  const lines = [];
+
+  sections.forEach((section) => {
+    const titleNode = section.querySelector(".section-head h2");
+    const rowNodes = Array.from(section.querySelectorAll(".news-row"));
+    if (!titleNode || !rowNodes.length) {
+      return;
+    }
+    lines.push(titleNode.textContent.trim());
+    rowNodes.forEach((row) => {
+      const newsTitle = row.querySelector(".news-title")?.textContent?.trim() || "";
+      const newsLink = row.querySelector(".news-link")?.textContent?.trim() || "";
+      if (newsTitle) {
+        lines.push(newsTitle);
+      }
+      if (newsLink) {
+        lines.push(newsLink);
+      }
+      lines.push("");
+    });
+  });
+
+  const text = lines.join("\n").trim();
+  if (!text) {
+    setCopyButtonState("복사할 뉴스 없음", "error");
+    return;
+  }
+
+  try {
+    await writeClipboardText(text);
+    setCopyButtonState("복사 완료", "done");
+  } catch (error) {
+    console.error(error);
+    setCopyButtonState("복사 실패", "error");
+  }
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+let copyButtonResetTimer;
+
+function setCopyButtonState(label, state) {
+  refs.copyAllButton.textContent = label;
+  refs.copyAllButton.classList.remove("is-done", "is-error");
+  if (state === "done") {
+    refs.copyAllButton.classList.add("is-done");
+  }
+  if (state === "error") {
+    refs.copyAllButton.classList.add("is-error");
+  }
+  window.clearTimeout(copyButtonResetTimer);
+  copyButtonResetTimer = window.setTimeout(() => {
+    refs.copyAllButton.textContent = "현재 화면 전체 복사";
+    refs.copyAllButton.classList.remove("is-done", "is-error");
+  }, 2200);
+}
+
 refs.sourceSelect.addEventListener("change", (event) => {
   state.source = event.target.value;
   render();
@@ -219,6 +294,10 @@ refs.resetButton.addEventListener("click", () => {
   state.source = "all";
   state.q = "";
   render();
+});
+
+refs.copyAllButton.addEventListener("click", () => {
+  void copyCurrentView();
 });
 
 render();
