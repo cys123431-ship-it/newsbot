@@ -10,6 +10,7 @@ from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
 import json
+from math import ceil
 from pathlib import Path
 import shutil
 from typing import Any
@@ -24,11 +25,12 @@ from newsbot.config import Settings
 from newsbot.config import get_settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.services.classifier import classify_candidate
+from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.ingest import ADAPTERS
 from newsbot.services.ingest import _fetch_with_retries
-from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.source_registry import SourceDefinition
 from newsbot.source_registry import get_source_definitions
+from newsbot.text_tools import build_title_hash
 from newsbot.text_tools import similar_titles
 
 
@@ -80,6 +82,30 @@ class StaticArticle:
             "sort_timestamp": self.sort_timestamp,
         }
 
+    @classmethod
+    def from_public_dict(cls, raw: dict[str, Any]) -> StaticArticle:
+        title = str(raw.get("title") or "").strip()
+        source_name = str(raw.get("source_name") or "").strip() or "Unknown"
+        source_names = tuple(
+            str(name).strip()
+            for name in raw.get("source_names", [])
+            if str(name).strip()
+        ) or (source_name,)
+        normalized_title = " ".join(title.split()).lower()
+        return cls(
+            title=title,
+            canonical_url=str(raw.get("canonical_url") or "").strip(),
+            source_key=str(raw.get("source_key") or "").strip(),
+            source_name=source_name,
+            primary_category=str(raw.get("primary_category") or "").strip(),
+            published_at=_parse_optional_datetime(raw.get("published_at")),
+            trust_level=int(raw.get("trust_level") or 0),
+            language=str(raw.get("language") or "unknown"),
+            normalized_title=normalized_title,
+            title_hash=build_title_hash(title),
+            source_names=source_names,
+        )
+
 
 @dataclass(slots=True)
 class SourceBuildStatus:
@@ -107,6 +133,7 @@ def list_static_sources(
 async def collect_site_payload(
     settings: Settings,
     *,
+    archive_articles: list[StaticArticle] | None = None,
     source_definitions: list[SourceDefinition] | None = None,
     adapters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -138,7 +165,7 @@ async def collect_site_payload(
         gathered_articles.extend(source_articles)
 
     deduped_articles = dedupe_static_articles(
-        gathered_articles,
+        [*(archive_articles or []), *gathered_articles],
         max_total=settings.static_max_total_articles,
     )
     published_counts = Counter(article.source_key for article in deduped_articles)
@@ -163,6 +190,7 @@ async def collect_site_payload(
     payload = {
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "article_count": len(deduped_articles),
+        "page_size": settings.article_page_size,
         "healthy_source_count": sum(status.status == "ok" for status in statuses),
         "failed_source_count": sum(status.status == "failed" for status in statuses),
         "categories": _build_category_payload(category_counts),
@@ -307,6 +335,17 @@ def _allow_static_candidate(candidate: ArticleCandidate) -> bool:
     return True
 
 
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    return datetime.fromisoformat(text)
+
+
 def _article_sort_key(article: StaticArticle) -> tuple[int, int, str]:
     return (
         article.sort_timestamp,
@@ -329,12 +368,48 @@ def _build_category_payload(category_counts: Counter[str]) -> list[dict[str, Any
     ]
 
 
+def _paginate_articles(
+    articles: list[dict[str, Any]],
+    *,
+    page: int,
+    page_size: int,
+) -> list[dict[str, Any]]:
+    if page_size <= 0:
+        return articles
+    start = max(page - 1, 0) * page_size
+    return articles[start : start + page_size]
+
+
+def _build_page_tokens(total_pages: int, current_page: int) -> list[int | None]:
+    if total_pages <= 7:
+        return list(range(1, total_pages + 1))
+
+    pages = {1, total_pages, current_page - 1, current_page, current_page + 1}
+    if current_page <= 3:
+        pages.update({2, 3, 4})
+    if current_page >= total_pages - 2:
+        pages.update({total_pages - 3, total_pages - 2, total_pages - 1})
+
+    tokens: list[int | None] = []
+    previous_page: int | None = None
+    for page in sorted(candidate for candidate in pages if 1 <= candidate <= total_pages):
+        if previous_page is not None and page - previous_page > 1:
+            tokens.append(None)
+        tokens.append(page)
+        previous_page = page
+    return tokens
+
+
 def _build_initial_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
     categories = {entry["key"]: entry for entry in payload["categories"]}
     articles_by_category: dict[str, list[dict[str, Any]]] = {
         category_key: [] for category_key in categories
     }
-    for article in payload["articles"]:
+    for article in _paginate_articles(
+        payload["articles"],
+        page=1,
+        page_size=int(payload.get("page_size") or 25),
+    ):
         articles_by_category.setdefault(article["primary_category"], []).append(article)
     sections: list[dict[str, Any]] = []
     for category_key, category in categories.items():
@@ -361,9 +436,11 @@ def build_static_site(
 ) -> dict[str, Any]:
     active_settings = settings or get_settings()
     destination = Path(output_dir or active_settings.static_output_dir)
+    archive_articles = _load_archive_articles(active_settings, destination)
     payload = asyncio.run(
         collect_site_payload(
             active_settings,
+            archive_articles=archive_articles,
             source_definitions=source_definitions,
             adapters=adapters,
         )
@@ -395,6 +472,11 @@ def _write_static_site(output_dir: Path, payload: dict[str, Any]) -> None:
         generated_at=payload["generated_at"],
         categories=payload["categories"],
         initial_sections=_build_initial_sections(payload),
+        initial_total_pages=max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
+        initial_pagination_tokens=_build_page_tokens(
+            max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
+            1,
+        ),
         source_statuses=payload["source_statuses"],
         payload_json=payload_json,
     )
@@ -406,6 +488,59 @@ def _write_static_site(output_dir: Path, payload: dict[str, Any]) -> None:
         encoding="utf-8",
     )
     (output_dir / ".nojekyll").write_text("", encoding="utf-8")
+
+
+def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticArticle]:
+    payload = _load_archive_payload_from_path(output_dir / "data" / "site-data.json")
+    if payload is None and settings.static_archive_url:
+        payload = _load_archive_payload_from_url(
+            settings.static_archive_url,
+            timeout_seconds=settings.request_timeout_sec,
+        )
+    if not payload:
+        return []
+    raw_articles = payload.get("articles")
+    if not isinstance(raw_articles, list):
+        return []
+
+    archive_articles: list[StaticArticle] = []
+    for raw_article in raw_articles:
+        if not isinstance(raw_article, dict):
+            continue
+        try:
+            article = StaticArticle.from_public_dict(raw_article)
+        except Exception:
+            continue
+        if article.title and article.canonical_url and article.primary_category:
+            archive_articles.append(article)
+    return archive_articles
+
+
+def _load_archive_payload_from_path(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _load_archive_payload_from_url(
+    url: str,
+    *,
+    timeout_seconds: int,
+) -> dict[str, Any] | None:
+    try:
+        response = httpx.get(
+            url,
+            follow_redirects=True,
+            timeout=timeout_seconds,
+            headers={"User-Agent": "newsbot-static/0.1"},
+        )
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, json.JSONDecodeError):
+        return None
 
 
 def main() -> None:

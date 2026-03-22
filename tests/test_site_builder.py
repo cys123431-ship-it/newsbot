@@ -142,6 +142,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     )
 
     assert payload["article_count"] == 2
+    assert payload["page_size"] == 25
     assert payload["failed_source_count"] == 1
     assert [article["primary_category"] for article in payload["articles"]] == [
         "crypto",
@@ -157,10 +158,62 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="export-word-button"' in html
     assert 'id="export-excel-button"' in html
     assert 'id="refresh-spotlight"' in html
+    assert 'id="pagination-nav"' in html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] == 2
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
+
+
+class FakeFollowupCryptoAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        return [
+            ArticleCandidate(
+                source_key="coindesk-rss",
+                source_name="CoinDesk",
+                title="Ether traders eye renewed ETF demand",
+                url="https://www.coindesk.com/markets/2026/03/22/ether-etf-demand/",
+                published_at=datetime(2026, 3, 22, 7, 30, tzinfo=timezone.utc),
+                summary="A newer archived story should be inserted ahead of older ones.",
+                language="en",
+                trust_level=90,
+            ),
+        ]
+
+
+def test_build_static_site_merges_existing_archive_before_writing(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+
+    build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeCryptoAdapter()},
+    )
+
+    payload = build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeFollowupCryptoAdapter()},
+    )
+
+    assert payload["article_count"] == 2
+    assert [article["title"] for article in payload["articles"]] == [
+        "Ether traders eye renewed ETF demand",
+        "Bitcoin jumps after ETF inflow surprise",
+    ]
 
 
 def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_path):

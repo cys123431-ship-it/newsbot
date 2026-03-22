@@ -149,3 +149,36 @@ def test_bootstrap_initial_content_skips_telegram_sources(app, monkeypatch):
     assert "telegram-dada-news2" not in result
     with session_factory() as session:
         assert session.scalar(select(func.count(Article.id))) >= 1
+
+
+def test_category_page_uses_numbered_pagination(client, app):
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        for index in range(27):
+            session.add(
+                Article(
+                    title=f"Crypto archive story {index:02d}",
+                    canonical_url=f"https://example.com/crypto/{index:02d}",
+                    source_key="coindesk-rss",
+                    source_name="CoinDesk",
+                    published_at=datetime(2026, 3, 22, 12, index, tzinfo=timezone.utc),
+                    primary_category="crypto",
+                    language="en",
+                    trust_level=90,
+                    title_hash=f"hash-{index:02d}",
+                    normalized_title=f"crypto archive story {index:02d}",
+                )
+            )
+        session.commit()
+
+    first_page = client.get("/category/crypto?page=1")
+    assert first_page.status_code == 200
+    assert "총 27건 · 1/2 페이지" in first_page.text
+    assert 'href="/category/crypto?page=2"' in first_page.text
+    assert "Crypto archive story 26" in first_page.text
+
+    second_page = client.get("/category/crypto?page=2")
+    assert second_page.status_code == 200
+    assert "총 27건 · 2/2 페이지" in second_page.text
+    assert "Crypto archive story 01" in second_page.text

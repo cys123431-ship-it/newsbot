@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from math import ceil
 
 from sqlalchemy import desc
 from sqlalchemy import func
@@ -21,6 +22,26 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _apply_article_filters(
+    statement,
+    *,
+    category: str | None = None,
+    source_key: str | None = None,
+    query_text: str | None = None,
+    since: datetime | None = None,
+):
+    if category:
+        statement = statement.where(Article.primary_category == category)
+    if source_key:
+        statement = statement.where(Article.source_key == source_key)
+    if query_text:
+        like_value = f"%{query_text}%"
+        statement = statement.where(Article.title.ilike(like_value))
+    if since:
+        statement = statement.where(Article.published_at >= since)
+    return statement
+
+
 def list_articles(
     session: Session,
     *,
@@ -31,22 +52,57 @@ def list_articles(
     cursor: str | None = None,
     limit: int = 30,
 ) -> tuple[list[Article], str | None]:
-    statement = select(Article)
-    if category:
-        statement = statement.where(Article.primary_category == category)
-    if source_key:
-        statement = statement.where(Article.source_key == source_key)
-    if query_text:
-        like_value = f"%{query_text}%"
-        statement = statement.where(Article.title.ilike(like_value))
-    if since:
-        statement = statement.where(Article.published_at >= since)
+    statement = _apply_article_filters(
+        select(Article),
+        category=category,
+        source_key=source_key,
+        query_text=query_text,
+        since=since,
+    )
     if cursor:
         statement = statement.where(Article.id < int(cursor))
     statement = statement.order_by(desc(Article.published_at), desc(Article.id)).limit(limit + 1)
     items = list(session.scalars(statement))
     next_cursor = str(items[-1].id) if len(items) > limit else None
     return items[:limit], next_cursor
+
+
+def paginate_articles(
+    session: Session,
+    *,
+    category: str | None = None,
+    source_key: str | None = None,
+    query_text: str | None = None,
+    since: datetime | None = None,
+    page: int = 1,
+    page_size: int = 25,
+) -> tuple[list[Article], int, int, int]:
+    total_count = session.scalar(
+        _apply_article_filters(
+            select(func.count(Article.id)),
+            category=category,
+            source_key=source_key,
+            query_text=query_text,
+            since=since,
+        )
+    ) or 0
+    total_pages = max(1, ceil(total_count / page_size)) if page_size > 0 else 1
+    current_page = min(max(page, 1), total_pages)
+    offset = (current_page - 1) * page_size
+    statement = (
+        _apply_article_filters(
+            select(Article),
+            category=category,
+            source_key=source_key,
+            query_text=query_text,
+            since=since,
+        )
+        .order_by(desc(Article.published_at), desc(Article.id))
+        .offset(offset)
+        .limit(page_size)
+    )
+    items = list(session.scalars(statement))
+    return items, int(total_count), int(total_pages), current_page
 
 
 def list_bookmarked_articles(session: Session) -> list[Article]:

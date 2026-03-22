@@ -105,6 +105,20 @@
         {% endfor %}
       </section>
 
+      <nav id="pagination-nav" class="pagination-nav" aria-label="기사 페이지 이동">
+        {% if initial_total_pages > 1 %}
+          {% for token in initial_pagination_tokens %}
+            {% if token is none %}
+            <span class="pagination-chip pagination-ellipsis">…</span>
+            {% else %}
+            <a class="pagination-chip {% if token == 1 %}is-active{% endif %}" href="?page={{ token }}">
+              {{ token }}
+            </a>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      </nav>
+
       <noscript class="noscript-note">검색과 필터는 자바스크립트가 켜져 있어야 동작합니다.</noscript>
     </main>
 

@@ -14,17 +14,26 @@ const refs = {
   refreshTime: document.getElementById("refresh-time"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
+  paginationNav: document.getElementById("pagination-nav"),
 };
 
 const categoryLabels = Object.fromEntries(
   payload.categories.map((entry) => [entry.key, entry.label]),
 );
 
+const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
+
+function parsePositiveInt(value, fallback = 1) {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const params = new URLSearchParams(window.location.search);
 const state = {
   category: params.get("category") || "all",
   source: params.get("source") || "all",
   q: params.get("q") || "",
+  page: parsePositiveInt(params.get("page"), 1),
 };
 
 function escapeHtml(value) {
@@ -112,6 +121,9 @@ function syncUrl() {
   if (state.q.trim()) {
     nextParams.set("q", state.q.trim());
   }
+  if (state.page > 1) {
+    nextParams.set("page", String(state.page));
+  }
   const nextQuery = nextParams.toString();
   const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
@@ -150,6 +162,7 @@ function createCategoryButton(category, label, count) {
   button.innerHTML = `${escapeHtml(label)} <span>${count}</span>`;
   button.addEventListener("click", () => {
     state.category = category;
+    state.page = 1;
     render();
   });
   return button;
@@ -178,7 +191,45 @@ function renderSourceOptions() {
   refs.sourceSelect.value = state.source;
 }
 
-function renderStatusLine(articles) {
+function getPaginationMeta(totalItems) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  state.page = Math.min(Math.max(state.page, 1), totalPages);
+  const start = (state.page - 1) * PAGE_SIZE;
+  return {
+    page: state.page,
+    totalPages,
+    totalItems,
+    start,
+    end: start + PAGE_SIZE,
+  };
+}
+
+function getPageTokens(totalPages, currentPage) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  if (currentPage <= 3) {
+    [2, 3, 4].forEach((page) => pages.add(page));
+  }
+  if (currentPage >= totalPages - 2) {
+    [totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => pages.add(page));
+  }
+  const tokens = [];
+  const sortedPages = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((left, right) => left - right);
+  sortedPages.forEach((page) => {
+    const previousPage = tokens[tokens.length - 1];
+    if (typeof previousPage === "number" && page - previousPage > 1) {
+      tokens.push("ellipsis");
+    }
+    tokens.push(page);
+  });
+  return tokens;
+}
+
+function renderStatusLine(articles, pagination) {
   const pieces = [];
   if (state.category === "all") {
     pieces.push("전체");
@@ -194,7 +245,55 @@ function renderStatusLine(articles) {
   if (state.q.trim()) {
     pieces.push(`검색어 "${state.q.trim()}"`);
   }
-  refs.statusLine.textContent = `${pieces.join(" · ")} · ${articles.length}건`;
+  refs.statusLine.textContent =
+    `${pieces.join(" · ")} · ${articles.length}건 · ${pagination.page}/${pagination.totalPages} 페이지`;
+}
+
+function createPageButton(label, page, active = false, step = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `pagination-chip${active ? " is-active" : ""}${step ? " is-step" : ""}`;
+  button.textContent = label;
+  button.dataset.page = String(page);
+  return button;
+}
+
+function renderPagination(pagination) {
+  if (!refs.paginationNav) {
+    return;
+  }
+  if (pagination.totalItems === 0 || pagination.totalPages <= 1) {
+    refs.paginationNav.innerHTML = "";
+    refs.paginationNav.hidden = true;
+    return;
+  }
+
+  refs.paginationNav.hidden = false;
+  refs.paginationNav.innerHTML = "";
+  if (pagination.page > 1) {
+    refs.paginationNav.appendChild(
+      createPageButton("이전", pagination.page - 1, false, true),
+    );
+  }
+
+  getPageTokens(pagination.totalPages, pagination.page).forEach((token) => {
+    if (token === "ellipsis") {
+      const marker = document.createElement("span");
+      marker.className = "pagination-chip pagination-ellipsis";
+      marker.textContent = "…";
+      refs.paginationNav.appendChild(marker);
+      return;
+    }
+    refs.paginationNav.appendChild(
+      createPageButton(String(token), token, token === pagination.page),
+    );
+  });
+
+  if (pagination.page < pagination.totalPages) {
+    refs.paginationNav.appendChild(
+      createPageButton("다음", pagination.page + 1, false, true),
+    );
+  }
 }
 
 function renderSections(articles) {
@@ -236,14 +335,16 @@ function renderSections(articles) {
 }
 
 function render() {
-  syncUrl();
   renderRefreshSpotlight();
   renderSourceOptions();
   renderCategoryFilters();
   refs.searchInput.value = state.q;
   const articles = getFilteredArticles();
-  renderStatusLine(articles);
-  renderSections(articles);
+  const pagination = getPaginationMeta(articles.length);
+  syncUrl();
+  renderStatusLine(articles, pagination);
+  renderSections(articles.slice(pagination.start, pagination.end));
+  renderPagination(pagination);
 }
 
 async function copyCurrentView() {
@@ -482,11 +583,13 @@ function flashButtonState(button, label, state) {
 
 refs.sourceSelect.addEventListener("change", (event) => {
   state.source = event.target.value;
+  state.page = 1;
   render();
 });
 
 refs.searchInput.addEventListener("input", (event) => {
   state.q = event.target.value;
+  state.page = 1;
   render();
 });
 
@@ -494,6 +597,7 @@ refs.resetButton.addEventListener("click", () => {
   state.category = "all";
   state.source = "all";
   state.q = "";
+  state.page = 1;
   render();
 });
 
@@ -520,6 +624,20 @@ refs.newsSections.addEventListener("click", (event) => {
   const articleUrl = button.dataset.articleUrl || "";
   const ok = exportArticles("single", format, articleUrl);
   flashButtonState(button, ok ? "완료" : "없음", ok ? "done" : "error");
+});
+
+refs.paginationNav?.addEventListener("click", (event) => {
+  const button = event.target.closest(".pagination-chip");
+  if (!button) {
+    return;
+  }
+  const nextPage = parsePositiveInt(button.dataset.page, state.page);
+  if (nextPage === state.page) {
+    return;
+  }
+  state.page = nextPage;
+  render();
+  refs.paginationNav.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 
 render();

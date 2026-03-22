@@ -30,6 +30,8 @@
   <button type="submit">검색</button>
 </form>
 
+<p class="pagination-summary">총 {{ total_count }}건 · {{ current_page }}/{{ total_pages }} 페이지</p>
+
 <section class="article-list">
   {% for article in articles %}
   <article class="article-row">
@@ -49,4 +51,24 @@
   <p class="empty">표시할 뉴스가 없습니다.</p>
   {% endfor %}
 </section>
+
+{% if total_pages > 1 %}
+<nav class="pagination-nav" aria-label="기사 페이지 이동">
+  {% if prev_page_url %}
+  <a class="pagination-link pagination-step" href="{{ prev_page_url }}">이전</a>
+  {% endif %}
+  {% for item in pagination_items %}
+  {% if item.kind == "ellipsis" %}
+  <span class="pagination-ellipsis">…</span>
+  {% else %}
+  <a class="pagination-link {% if item.active %}is-active{% endif %}" href="{{ item.url }}">
+    {{ item.label }}
+  </a>
+  {% endif %}
+  {% endfor %}
+  {% if next_page_url %}
+  <a class="pagination-link pagination-step" href="{{ next_page_url }}">다음</a>
+  {% endif %}
+</nav>
+{% endif %}
 {% endblock %}

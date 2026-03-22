@@ -30,6 +30,8 @@ jobs:
       NEWSBOT_NAVER_CLIENT_ID: ${{ secrets.NEWSBOT_NAVER_CLIENT_ID }}
       NEWSBOT_NAVER_CLIENT_SECRET: ${{ secrets.NEWSBOT_NAVER_CLIENT_SECRET }}
       NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH: "20"
+      NEWSBOT_STATIC_MAX_TOTAL_ARTICLES: "2000"
+      NEWSBOT_STATIC_ARCHIVE_URL: "https://cys123431-ship-it.github.io/newsbot/data/site-data.json"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

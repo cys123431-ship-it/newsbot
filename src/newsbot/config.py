@@ -83,6 +83,9 @@ class Settings:
     static_output_dir: str = field(
         default_factory=lambda: os.getenv("NEWSBOT_STATIC_OUTPUT_DIR", "site-dist")
     )
+    article_page_size: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_ARTICLE_PAGE_SIZE", 25)
+    )
     static_fetch_concurrency: int = field(
         default_factory=lambda: _int_env("NEWSBOT_STATIC_FETCH_CONCURRENCY", 5)
     )
@@ -94,6 +97,9 @@ class Settings:
     )
     static_max_total_articles: int = field(
         default_factory=lambda: _int_env("NEWSBOT_STATIC_MAX_TOTAL_ARTICLES", 140)
+    )
+    static_archive_url: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_STATIC_ARCHIVE_URL")
     )
 
 
