@@ -26,12 +26,17 @@ def _apply_article_filters(
     statement,
     *,
     category: str | None = None,
+    categories: list[str] | tuple[str, ...] | None = None,
     source_key: str | None = None,
     query_text: str | None = None,
     since: datetime | None = None,
 ):
     if category:
         statement = statement.where(Article.primary_category == category)
+    if categories is not None:
+        if not categories:
+            return statement.where(False)
+        statement = statement.where(Article.primary_category.in_(categories))
     if source_key:
         statement = statement.where(Article.source_key == source_key)
     if query_text:
@@ -46,6 +51,7 @@ def list_articles(
     session: Session,
     *,
     category: str | None = None,
+    categories: list[str] | tuple[str, ...] | None = None,
     source_key: str | None = None,
     query_text: str | None = None,
     since: datetime | None = None,
@@ -55,6 +61,7 @@ def list_articles(
     statement = _apply_article_filters(
         select(Article),
         category=category,
+        categories=categories,
         source_key=source_key,
         query_text=query_text,
         since=since,
@@ -71,6 +78,7 @@ def paginate_articles(
     session: Session,
     *,
     category: str | None = None,
+    categories: list[str] | tuple[str, ...] | None = None,
     source_key: str | None = None,
     query_text: str | None = None,
     since: datetime | None = None,
@@ -81,6 +89,7 @@ def paginate_articles(
         _apply_article_filters(
             select(func.count(Article.id)),
             category=category,
+            categories=categories,
             source_key=source_key,
             query_text=query_text,
             since=since,
@@ -93,6 +102,7 @@ def paginate_articles(
         _apply_article_filters(
             select(Article),
             category=category,
+            categories=categories,
             source_key=source_key,
             query_text=query_text,
             since=since,

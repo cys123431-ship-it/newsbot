@@ -13,7 +13,10 @@
         <p>개인용 뉴스 어그리게이터</p>
       </div>
       <nav>
-        <a href="/">전체</a>
+        <a href="/" class="{% if active_nav == 'all' %}is-active{% endif %}">전체</a>
+        <a href="/hub/kr" class="{% if active_nav == 'kr' %}is-active{% endif %}">한국</a>
+        <a href="/hub/us" class="{% if active_nav == 'us' %}is-active{% endif %}">미국</a>
+        <a href="/hub/global" class="{% if active_nav == 'global' %}is-active{% endif %}">글로벌</a>
         <a href="/bookmarks">북마크</a>
         <a href="/sources">소스</a>
         <a href="/admin/health">헬스</a>

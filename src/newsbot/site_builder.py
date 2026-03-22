@@ -373,9 +373,11 @@ def _coerce_metadata_entry(raw: Any) -> dict[str, Any]:
     for key in (
         "key",
         "label",
+        "headline",
         "hub",
         "hub_key",
         "hub_label",
+        "section_label",
         "description",
         "order",
         "sort_order",
@@ -470,7 +472,12 @@ def _get_category_payload_entries() -> list[dict[str, Any]]:
             entries.append(
                 {
                     "key": key,
-                    "label": str(entry.get("label") or category_labels.get(key) or key),
+                    "label": str(
+                        entry.get("section_label")
+                        or entry.get("label")
+                        or category_labels.get(key)
+                        or key
+                    ),
                     "hub": hub_key,
                     "hub_label": str(entry.get("hub_label") or hub_definition["label"]),
                     "description": str(entry.get("description") or ""),

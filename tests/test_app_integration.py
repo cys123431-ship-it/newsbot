@@ -182,3 +182,51 @@ def test_category_page_uses_numbered_pagination(client, app):
     assert second_page.status_code == 200
     assert "총 27건 · 2/2 페이지" in second_page.text
     assert "Crypto archive story 01" in second_page.text
+
+
+def test_hub_routes_render_hub_and_section_navigation(client, app):
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        session.add_all(
+            [
+                Article(
+                    title="Korea economy headline",
+                    canonical_url="https://example.com/kr-economy",
+                    source_key="sample-kr-economy",
+                    source_name="Sample KR Economy",
+                    published_at=datetime(2026, 3, 22, 13, 0, tzinfo=timezone.utc),
+                    primary_category="kr-economy",
+                    language="ko",
+                    trust_level=70,
+                    title_hash="kr-economy-hash",
+                    normalized_title="korea economy headline",
+                ),
+                Article(
+                    title="US politics headline",
+                    canonical_url="https://example.com/us-politics",
+                    source_key="sample-us-politics",
+                    source_name="Sample US Politics",
+                    published_at=datetime(2026, 3, 22, 13, 5, tzinfo=timezone.utc),
+                    primary_category="us-politics",
+                    language="en",
+                    trust_level=70,
+                    title_hash="us-politics-hash",
+                    normalized_title="us politics headline",
+                ),
+            ]
+        )
+        session.commit()
+
+    hub_response = client.get("/hub/kr")
+    assert hub_response.status_code == 200
+    assert "한국 페이지" in hub_response.text
+    assert 'href="/hub/kr/kr-economy"' in hub_response.text
+    assert "Korea economy headline" in hub_response.text
+    assert "US politics headline" not in hub_response.text
+
+    section_response = client.get("/hub/us/us-politics")
+    assert section_response.status_code == 200
+    assert "미국 페이지" in section_response.text
+    assert "US politics headline" in section_response.text
+    assert "Korea economy headline" not in section_response.text

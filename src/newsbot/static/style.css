@@ -50,6 +50,16 @@ main {
   gap: 1rem;
 }
 
+.site-header nav a {
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+}
+
+.site-header nav a.is-active {
+  background: rgba(74, 116, 230, 0.12);
+  color: var(--accent);
+}
+
 .site-refresh {
   display: flex;
   align-items: center;
@@ -119,7 +129,49 @@ main {
   box-shadow: 0 20px 45px rgba(78, 101, 145, 0.08);
 }
 
+.hero-hub {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: flex-end;
+}
+
+.hero-copy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hero-copy h2,
+.hero-copy p,
+.hero-meta {
+  margin: 0;
+}
+
+.hero-kicker {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hero-meta {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.hub-shell {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+
 .category-tabs,
+.hub-tabs,
+.section-tabs,
 .filters,
 .card-actions,
 .meta,
@@ -130,6 +182,8 @@ main {
 }
 
 .category-tabs a,
+.hub-tabs a,
+.section-tabs a,
 .filters button,
 .card-actions button,
 .card-actions a {
@@ -139,9 +193,20 @@ main {
   background: white;
 }
 
-.category-tabs a.active {
+.category-tabs a.active,
+.hub-tabs a.active,
+.section-tabs a.active {
   background: var(--accent);
   color: white;
+}
+
+.hub-tabs a,
+.section-tabs a {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.section-tabs a:not(.active) {
+  border-color: rgba(74, 116, 230, 0.12);
 }
 
 .filters {
@@ -310,5 +375,14 @@ td {
     align-items: flex-start;
     margin-left: 1rem;
     margin-right: 1rem;
+  }
+
+  .hero-hub {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-meta {
+    text-align: left;
   }
 }

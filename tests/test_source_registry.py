@@ -18,5 +18,35 @@ def test_env_telegram_channels_are_added_to_source_definitions(monkeypatch):
 
     assert "telegram-env-fresh-news" in env_sources
     assert env_sources["telegram-env-fresh-news"].config["channel"] == "fresh_news"
+    assert env_sources["telegram-env-fresh-news"].config["hub"] == "global"
     assert "telegram-env-market-watch" in env_sources
     assert env_sources["telegram-env-market-watch"].config["channel"] == "market_watch"
+
+
+def test_source_registry_exposes_large_kr_and_us_hubs():
+    definitions = get_source_definitions()
+    kr_sources = [definition for definition in definitions if definition.config.get("hub") == "kr"]
+    us_sources = [definition for definition in definitions if definition.config.get("hub") == "us"]
+
+    assert len(kr_sources) >= 20
+    assert len(us_sources) >= 25
+
+    source_keys = {definition.source_key for definition in definitions}
+    assert "sbs-politics-rss" in source_keys
+    assert "khan-local-rss" in source_keys
+    assert "donga-culture-rss" in source_keys
+    assert "nyt-world-rss" in source_keys
+    assert "cnn-money-rss" in source_keys
+    assert "axios-feed" in source_keys
+
+
+def test_source_registry_attaches_hub_section_and_publisher_group():
+    definitions = {definition.source_key: definition for definition in get_source_definitions()}
+
+    assert definitions["sbs-economy-rss"].config["hub"] == "kr"
+    assert definitions["sbs-economy-rss"].config["section"] == "economy"
+    assert definitions["sbs-economy-rss"].config["publisher_group"] == "broadcast"
+
+    assert definitions["wapo-business-rss"].config["hub"] == "us"
+    assert definitions["wapo-business-rss"].config["section"] == "economy"
+    assert definitions["wapo-business-rss"].config["publisher_group"] == "newspaper"

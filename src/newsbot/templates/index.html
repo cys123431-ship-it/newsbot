@@ -1,20 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero">
-  <div>
+<section class="hero hero-hub">
+  <div class="hero-copy">
+    <p class="hero-kicker">{{ page_section_label if page_section_label else "newsbot hub" }}</p>
     <h2>{{ page_title }}</h2>
-    <p>코인, 미국 금융, 테크, 군사, 한국 사회 뉴스를 빠르게 모읍니다.</p>
+    <p>{{ page_description }}</p>
   </div>
-  <div class="category-tabs">
-    <a href="/" class="{% if not active_category %}active{% endif %}">전체</a>
-    {% for category in categories %}
-    <a
-      href="/category/{{ category }}"
-      class="{% if active_category == category %}active{% endif %}"
-      >{{ category_labels[category] }}</a
-    >
+  <div class="hero-meta">
+    <span>총 {{ total_count }}건</span>
+    <span>{{ current_page }}/{{ total_pages }} 페이지</span>
+  </div>
+</section>
+
+<section class="hub-shell">
+  <nav class="hub-tabs" aria-label="허브 선택">
+    {% for item in hub_items %}
+    <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
     {% endfor %}
-  </div>
+  </nav>
+
+  {% if section_items %}
+  <nav class="section-tabs" aria-label="세부 섹션 선택">
+    <a href="/hub/{{ active_hub }}" class="{% if not active_section %}active{% endif %}">전체</a>
+    {% for item in section_items %}
+    <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
 </section>
 
 <form class="filters" method="get">
@@ -36,7 +48,7 @@
   {% for article in articles %}
   <article class="article-row">
     <div class="meta compact-meta">
-      <span class="badge">{{ category_labels[article.primary_category] }}</span>
+      <span class="badge">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
       <span>{{ article.source_name }}</span>
       <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
     </div>
