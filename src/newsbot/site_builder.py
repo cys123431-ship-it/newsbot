@@ -16,6 +16,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 import httpx
 from jinja2 import Environment
@@ -38,6 +39,7 @@ from newsbot.text_tools import similar_titles
 PACKAGE_DIR = Path(__file__).resolve().parent
 SITE_TEMPLATE_DIR = PACKAGE_DIR / "site_templates"
 SITE_ASSET_DIR = PACKAGE_DIR / "site_assets"
+REMOVED_ARTICLES_LOG_FILENAME = "removed-articles.txt"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +144,7 @@ async def collect_site_payload(
     archive_articles: list[StaticArticle] | None = None,
     source_definitions: list[SourceDefinition] | None = None,
     adapters: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[StaticArticle]]:
     active_sources = list_static_sources(source_definitions)
     active_adapters = adapters or ADAPTERS
     semaphore = asyncio.Semaphore(settings.static_fetch_concurrency)
@@ -170,7 +172,7 @@ async def collect_site_payload(
         statuses.append(status)
         gathered_articles.extend(source_articles)
 
-    deduped_articles = dedupe_static_articles(
+    deduped_articles, evicted_articles = dedupe_static_articles(
         [*(archive_articles or []), *gathered_articles],
         max_total=settings.static_max_total_articles,
     )
@@ -201,6 +203,8 @@ async def collect_site_payload(
     payload = {
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "article_count": len(deduped_articles),
+        "removed_article_count": len(evicted_articles),
+        "removed_articles_log_path": f"data/{REMOVED_ARTICLES_LOG_FILENAME}",
         "page_size": settings.article_page_size,
         "healthy_source_count": sum(status.status == "ok" for status in statuses),
         "failed_source_count": sum(status.status == "failed" for status in statuses),
@@ -215,7 +219,7 @@ async def collect_site_payload(
             f"Refusing to publish only {payload['article_count']} articles; "
             f"minimum is {settings.static_min_articles_to_publish}."
         )
-    return payload
+    return payload, evicted_articles
 
 
 async def _collect_source(
@@ -276,7 +280,7 @@ def dedupe_static_articles(
     articles: list[StaticArticle],
     *,
     max_total: int,
-) -> list[StaticArticle]:
+) -> tuple[list[StaticArticle], list[StaticArticle]]:
     deduped: list[StaticArticle] = []
     url_index: dict[str, int] = {}
     hash_index: dict[str, list[int]] = {}
@@ -305,7 +309,7 @@ def dedupe_static_articles(
         url_index[deduped[existing_index].canonical_url] = existing_index
 
     deduped.sort(key=_article_sort_key, reverse=True)
-    return deduped[:max_total]
+    return deduped[:max_total], deduped[max_total:]
 
 
 def _merge_articles(current: StaticArticle, incoming: StaticArticle) -> StaticArticle:
@@ -665,7 +669,8 @@ def build_static_site(
     active_settings = settings or get_settings()
     destination = Path(output_dir or active_settings.static_output_dir)
     archive_articles = _load_archive_articles(active_settings, destination)
-    payload = asyncio.run(
+    existing_removed_log = _load_removed_article_log(active_settings, destination)
+    payload, evicted_articles = asyncio.run(
         collect_site_payload(
             active_settings,
             archive_articles=archive_articles,
@@ -673,11 +678,21 @@ def build_static_site(
             adapters=adapters,
         )
     )
-    _write_static_site(destination, payload)
+    removed_log = _build_removed_article_log(
+        existing_removed_log,
+        evicted_articles,
+        generated_at=payload["generated_at"],
+    )
+    _write_static_site(destination, payload, removed_log=removed_log)
     return payload
 
 
-def _write_static_site(output_dir: Path, payload: dict[str, Any]) -> None:
+def _write_static_site(
+    output_dir: Path,
+    payload: dict[str, Any],
+    *,
+    removed_log: str,
+) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -720,6 +735,10 @@ def _write_static_site(output_dir: Path, payload: dict[str, Any]) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    (output_dir / "data" / REMOVED_ARTICLES_LOG_FILENAME).write_text(
+        removed_log,
+        encoding="utf-8",
+    )
     (output_dir / ".nojekyll").write_text("", encoding="utf-8")
 
 
@@ -749,12 +768,36 @@ def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticA
     return archive_articles
 
 
+def _load_removed_article_log(settings: Settings, output_dir: Path) -> str:
+    text = _load_text_from_path(output_dir / "data" / REMOVED_ARTICLES_LOG_FILENAME)
+    if text is None and settings.static_archive_url:
+        log_url = _derive_related_data_url(
+            settings.static_archive_url,
+            REMOVED_ARTICLES_LOG_FILENAME,
+        )
+        if log_url:
+            text = _load_text_from_url(
+                log_url,
+                timeout_seconds=settings.request_timeout_sec,
+            )
+    return text or ""
+
+
 def _load_archive_payload_from_path(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _load_text_from_path(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
         return None
 
 
@@ -774,6 +817,85 @@ def _load_archive_payload_from_url(
         return response.json()
     except (httpx.HTTPError, json.JSONDecodeError):
         return None
+
+
+def _load_text_from_url(
+    url: str,
+    *,
+    timeout_seconds: int,
+) -> str | None:
+    try:
+        response = httpx.get(
+            url,
+            follow_redirects=True,
+            timeout=timeout_seconds,
+            headers={"User-Agent": "newsbot-static/0.1"},
+        )
+        response.raise_for_status()
+        return response.text
+    except httpx.HTTPError:
+        return None
+
+
+def _derive_related_data_url(source_url: str, filename: str) -> str | None:
+    parsed = urlsplit(source_url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    parts = [part for part in parsed.path.split("/") if part]
+    if not parts:
+        return None
+    parts[-1] = filename
+    return urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            "/" + "/".join(parts),
+            "",
+            "",
+        )
+    )
+
+
+def _build_removed_article_log(
+    existing_log: str,
+    removed_articles: list[StaticArticle],
+    *,
+    generated_at: str,
+) -> str:
+    normalized_existing = existing_log.rstrip()
+    if not removed_articles:
+        return f"{normalized_existing}\n" if normalized_existing else ""
+
+    seen_urls = {
+        line.strip()
+        for line in existing_log.splitlines()
+        if line.strip().startswith(("http://", "https://"))
+    }
+    fresh_articles = [
+        article for article in removed_articles if article.canonical_url not in seen_urls
+    ]
+    if not fresh_articles:
+        return f"{normalized_existing}\n" if normalized_existing else ""
+
+    timestamp = _parse_optional_datetime(generated_at) or datetime.now(tz=timezone.utc)
+    month_key = timestamp.astimezone(timezone.utc).strftime("%Y-%m")
+
+    lines: list[str] = []
+    if normalized_existing:
+        lines.append(normalized_existing)
+
+    if f"[{month_key}]" not in existing_log:
+        if lines:
+            lines.append("")
+        lines.append(f"[{month_key}]")
+
+    for article in fresh_articles:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append(f"- {article.title}")
+        lines.append(article.canonical_url)
+
+    return "\n".join(lines).strip() + "\n"
 
 
 def main() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
 
@@ -143,6 +144,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     )
 
     assert payload["article_count"] >= 2
+    assert payload["removed_article_count"] == 0
     assert payload["page_size"] == 25
     assert payload["failed_source_count"] == 1
     assert {"kr", "global"}.issubset({hub["key"] for hub in payload["hubs"]})
@@ -156,6 +158,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
     assert (output_dir / "data" / "site-data.json").exists()
+    assert (output_dir / "data" / "removed-articles.txt").exists()
     html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="copy-all-button"' in html
     assert 'id="export-word-button"' in html
@@ -163,10 +166,12 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="refresh-spotlight"' in html
     assert 'id="pagination-nav"' in html
     assert 'id="hub-filters"' in html
+    assert 'id="recency-filters"' in html
     assert 'id="hub-title"' in html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] >= 2
+    assert file_payload["removed_articles_log_path"] == "data/removed-articles.txt"
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
 
@@ -221,6 +226,43 @@ def test_build_static_site_merges_existing_archive_before_writing(tmp_path):
         "Bitcoin jumps after ETF inflow surprise",
     ]
     assert all(article["hub"] == "global" for article in payload["articles"])
+
+
+def test_build_static_site_logs_evicted_articles_in_text_archive(tmp_path):
+    settings = replace(_settings(tmp_path), static_max_total_articles=1)
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+
+    build_static_site(
+        settings,
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeCryptoAdapter()},
+    )
+
+    payload = build_static_site(
+        settings,
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeFollowupCryptoAdapter()},
+    )
+
+    assert payload["article_count"] == 1
+    assert payload["removed_article_count"] == 1
+    removed_log = (tmp_path / "site-dist" / "data" / "removed-articles.txt").read_text(
+        encoding="utf-8"
+    )
+    assert "Bitcoin jumps after ETF inflow surprise" in removed_log
+    assert "https://www.coindesk.com/markets/2026/03/21/bitcoin-jumps" in removed_log
 
 
 def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_path):

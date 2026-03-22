@@ -3,6 +3,7 @@ const payload = JSON.parse(document.getElementById("site-data").textContent);
 const refs = {
   hubFilters: document.getElementById("hub-filters"),
   categoryFilters: document.getElementById("category-filters"),
+  recencyFilters: document.getElementById("recency-filters"),
   sourceSelect: document.getElementById("source-select"),
   searchInput: document.getElementById("search-input"),
   resetButton: document.getElementById("reset-button"),
@@ -30,6 +31,14 @@ const categoryMap = Object.fromEntries(categories.map((entry) => [entry.key, ent
 const categoryLabels = Object.fromEntries(
   categories.map((entry) => [entry.key, entry.label]),
 );
+const RECENCY_OPTIONS = [
+  { key: "all", label: "전체 기간" },
+  { key: "today", label: "오늘" },
+  { key: "yesterday", label: "어제" },
+  { key: "week", label: "이번 주" },
+  { key: "older", label: "이전" },
+  { key: "unknown", label: "시간 미상" },
+];
 
 const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
 
@@ -51,6 +60,7 @@ const incomingHub = params.get("hub") || inferHubForSection(incomingSection);
 const state = {
   hub: incomingHub,
   section: incomingSection,
+  recency: params.get("period") || "all",
   source: params.get("source") || "all",
   q: params.get("q") || "",
   page: parsePositiveInt(params.get("page"), 1),
@@ -58,6 +68,9 @@ const state = {
 
 if (state.section !== "all" && state.hub === "all") {
   state.hub = inferHubForSection(state.section);
+}
+if (!RECENCY_OPTIONS.some((entry) => entry.key === state.recency)) {
+  state.recency = "all";
 }
 
 function escapeHtml(value) {
@@ -71,6 +84,58 @@ function escapeHtml(value) {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function getStartOfDay(date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function getStartOfWeek(date) {
+  const next = getStartOfDay(date);
+  const day = next.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  next.setDate(next.getDate() - diff);
+  return next;
+}
+
+function parsePublishedAt(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getArticleRecencyKey(article) {
+  const publishedAt = parsePublishedAt(article.published_at);
+  if (!publishedAt) {
+    return "unknown";
+  }
+
+  const now = new Date();
+  const startToday = getStartOfDay(now);
+  const startTomorrow = new Date(startToday);
+  startTomorrow.setDate(startTomorrow.getDate() + 1);
+  const startYesterday = new Date(startToday);
+  startYesterday.setDate(startYesterday.getDate() - 1);
+  const startWeek = getStartOfWeek(now);
+
+  if (publishedAt >= startToday && publishedAt < startTomorrow) {
+    return "today";
+  }
+  if (publishedAt >= startYesterday && publishedAt < startToday) {
+    return "yesterday";
+  }
+  if (publishedAt >= startWeek) {
+    return "week";
+  }
+  return "older";
+}
+
+function getRecencyLabel(key) {
+  return RECENCY_OPTIONS.find((entry) => entry.key === key)?.label || "전체 기간";
 }
 
 function formatRefreshTimestamp(timestamp) {
@@ -125,35 +190,53 @@ function getHubDescription(hubKey) {
   );
 }
 
-function getFilteredArticles() {
+function articleMatchesScope(article) {
+  if (state.hub !== "all" && article.hub !== state.hub) {
+    return false;
+  }
+  if (state.section !== "all" && article.primary_category !== state.section) {
+    return false;
+  }
+  return true;
+}
+
+function articleMatchesSourceAndQuery(article) {
+  if (state.source !== "all" && article.source_key !== state.source) {
+    return false;
+  }
   const query = normalize(state.q);
+  if (!query) {
+    return true;
+  }
+  return normalize(article.title).includes(query);
+}
+
+function articleMatchesRecency(article) {
+  if (state.recency === "all") {
+    return true;
+  }
+  return getArticleRecencyKey(article) === state.recency;
+}
+
+function getFilteredArticles() {
   return payload.articles.filter((article) => {
-    if (state.hub !== "all" && article.hub !== state.hub) {
-      return false;
-    }
-    if (state.section !== "all" && article.primary_category !== state.section) {
-      return false;
-    }
-    if (state.source !== "all" && article.source_key !== state.source) {
-      return false;
-    }
-    if (!query) {
-      return true;
-    }
-    return normalize(article.title).includes(query);
+    return (
+      articleMatchesScope(article) &&
+      articleMatchesSourceAndQuery(article) &&
+      articleMatchesRecency(article)
+    );
   });
 }
 
 function getSourceAndQueryFilteredArticles() {
-  const query = normalize(state.q);
   return payload.articles.filter((article) => {
-    if (state.source !== "all" && article.source_key !== state.source) {
-      return false;
-    }
-    if (!query) {
-      return true;
-    }
-    return normalize(article.title).includes(query);
+    return articleMatchesSourceAndQuery(article);
+  });
+}
+
+function getScopedSourceAndQueryFilteredArticles() {
+  return payload.articles.filter((article) => {
+    return articleMatchesScope(article) && articleMatchesSourceAndQuery(article);
   });
 }
 
@@ -202,6 +285,9 @@ function syncUrl() {
   }
   if (state.section !== "all") {
     nextParams.set("section", state.section);
+  }
+  if (state.recency !== "all") {
+    nextParams.set("period", state.recency);
   }
   if (state.source !== "all") {
     nextParams.set("source", state.source);
@@ -324,6 +410,38 @@ function renderCategoryFilters() {
   });
 }
 
+function renderRecencyFilters() {
+  const counts = new Map(RECENCY_OPTIONS.map((entry) => [entry.key, 0]));
+  getScopedSourceAndQueryFilteredArticles().forEach((article) => {
+    const recencyKey = getArticleRecencyKey(article);
+    counts.set(recencyKey, (counts.get(recencyKey) || 0) + 1);
+  });
+  counts.set(
+    "all",
+    Array.from(counts.entries())
+      .filter(([key]) => key !== "all")
+      .reduce((sum, [, count]) => sum + count, 0),
+  );
+
+  refs.recencyFilters.innerHTML = "";
+  RECENCY_OPTIONS.forEach((option) => {
+    refs.recencyFilters.appendChild(
+      createPillButton({
+        datasetKey: "recency",
+        datasetValue: option.key,
+        label: option.label,
+        count: counts.get(option.key) || 0,
+        active: state.recency === option.key,
+        onClick: () => {
+          state.recency = option.key;
+          state.page = 1;
+          render();
+        },
+      }),
+    );
+  });
+}
+
 function renderHubHero(articles) {
   const hubTitle = getHubTitle(state.hub);
   const category = state.section !== "all" ? categoryMap[state.section] : null;
@@ -420,6 +538,9 @@ function renderStatusLine(articles, pagination) {
       pieces.push(source.name);
     }
   }
+  if (state.recency !== "all") {
+    pieces.push(getRecencyLabel(state.recency));
+  }
   if (state.q.trim()) {
     pieces.push(`검색어 "${state.q.trim()}"`);
   }
@@ -488,6 +609,7 @@ function renderSections(articles) {
                     <div class="news-topline">
                       <div class="news-copy">
                         <p class="news-meta-line">${escapeHtml(article.source_name)} · ${escapeHtml(article.section_label || categoryLabels[article.primary_category] || article.primary_category)}</p>
+                        <span class="news-recency-badge">${escapeHtml(getRecencyLabel(getArticleRecencyKey(article)))}</span>
                         <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
                       </div>
                       <div class="row-actions">
@@ -511,6 +633,7 @@ function render() {
   renderRefreshSpotlight();
   renderHubFilters();
   renderCategoryFilters();
+  renderRecencyFilters();
   renderSourceOptions();
   refs.searchInput.value = state.q;
   const articles = getFilteredArticles();
@@ -776,6 +899,7 @@ refs.searchInput.addEventListener("input", (event) => {
 refs.resetButton.addEventListener("click", () => {
   state.hub = "all";
   state.section = "all";
+  state.recency = "all";
   state.source = "all";
   state.q = "";
   state.page = 1;
