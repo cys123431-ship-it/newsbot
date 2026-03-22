@@ -223,7 +223,7 @@ function renderSections(articles) {
                         <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
                       </div>
                     </div>
-                    <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.link_label)}</a>
+                    <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.canonical_url)}</a>
                   </article>
                 `,
               )
