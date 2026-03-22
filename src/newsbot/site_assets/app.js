@@ -259,7 +259,11 @@ async function copyCurrentView() {
     lines.push(titleNode.textContent.trim());
     rowNodes.forEach((row) => {
       const newsTitle = row.querySelector(".news-title")?.textContent?.trim() || "";
-      const newsLink = row.querySelector(".news-link")?.textContent?.trim() || "";
+      const newsLinkNode = row.querySelector(".news-link");
+      const newsLink =
+        newsLinkNode?.getAttribute("href")?.trim() ||
+        newsLinkNode?.textContent?.trim() ||
+        "";
       if (newsTitle) {
         lines.push(newsTitle);
       }
