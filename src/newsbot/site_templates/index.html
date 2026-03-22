@@ -25,6 +25,18 @@
     </header>
 
     <main class="shell">
+      <section id="refresh-spotlight" class="refresh-spotlight">
+        <div class="refresh-pulse" aria-hidden="true"></div>
+        <div class="refresh-copy">
+          <p id="refresh-label" class="refresh-label">방금 갱신</p>
+          <strong id="refresh-title" class="refresh-title">새로 반영된 기사 묶음을 보고 있어요.</strong>
+          <p class="refresh-meta">
+            <span>{{ article_count }}건 정리</span>
+            <span>마지막 갱신 <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+          </p>
+        </div>
+      </section>
+
       <section class="toolbar">
         <div id="category-filters" class="pill-row">
           <button type="button" class="pill is-active" data-category="all">전체</button>

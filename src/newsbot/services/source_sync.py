@@ -6,11 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from newsbot.models import Source
-from newsbot.source_registry import SOURCE_DEFINITIONS
+from newsbot.source_registry import get_source_definitions
 
 
 def sync_sources(session: Session) -> None:
-    for source_definition in SOURCE_DEFINITIONS:
+    for source_definition in get_source_definitions():
         source = session.scalar(
             select(Source).where(Source.source_key == source_definition.source_key)
         )
@@ -31,4 +31,3 @@ def sync_sources(session: Session) -> None:
         source.dedupe_strategy = source_definition.dedupe_strategy
         source.config_json = dict(source_definition.config)
     session.commit()
-

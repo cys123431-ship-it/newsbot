@@ -27,8 +27,8 @@ from newsbot.services.classifier import classify_candidate
 from newsbot.services.ingest import ADAPTERS
 from newsbot.services.ingest import _fetch_with_retries
 from newsbot.services.dedupe import canonicalize_candidate
-from newsbot.source_registry import SOURCE_DEFINITIONS
 from newsbot.source_registry import SourceDefinition
+from newsbot.source_registry import get_source_definitions
 from newsbot.text_tools import similar_titles
 
 
@@ -100,7 +100,7 @@ class SourceBuildStatus:
 def list_static_sources(
     source_definitions: list[SourceDefinition] | None = None,
 ) -> list[SourceDefinition]:
-    definitions = source_definitions or SOURCE_DEFINITIONS
+    definitions = source_definitions or get_source_definitions()
     return [definition for definition in definitions if definition.static_enabled]
 
 

@@ -19,7 +19,24 @@
         <a href="/admin/health">헬스</a>
       </nav>
     </header>
+    {% if refresh_notice %}
+    <section class="site-refresh site-refresh-{{ refresh_notice.tone }}">
+      <div class="site-refresh-badge" aria-hidden="true"></div>
+      <div class="site-refresh-copy">
+        <span class="site-refresh-kicker">갱신 상태</span>
+        <strong>{{ refresh_notice.headline }}</strong>
+        <p>
+          {{ refresh_notice.detail }}
+          {% if refresh_notice.refreshed_at %}
+          마지막 확인
+          <time datetime="{{ refresh_notice.refreshed_at.isoformat() }}">
+            {{ refresh_notice.refreshed_at.strftime("%Y-%m-%d %H:%M %Z") }}
+          </time>
+          {% endif %}
+        </p>
+      </div>
+    </section>
+    {% endif %}
     <main>{% block content %}{% endblock %}</main>
   </body>
 </html>
-

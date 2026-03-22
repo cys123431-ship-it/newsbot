@@ -84,6 +84,21 @@ def test_fetch_persist_and_render_article(client, app, monkeypatch):
         assert session.scalar(select(func.count(Bookmark.id))) == 1
 
 
+def test_refresh_notice_is_visible_across_pages(client, app, monkeypatch):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
+    session_factory = app.state.session_factory
+
+    asyncio.run(
+        ingest.fetch_single_source(session_factory, app.state.settings, "coindesk-rss")
+    )
+
+    for path in ["/", "/sources", "/admin/health"]:
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "새로 갱신됐어요" in response.text
+        assert "최근 15분 동안 새 기사 1건을 반영했습니다." in response.text
+
+
 def test_direct_source_and_telegram_source_merge_into_one_article(app, monkeypatch):
     monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
     monkeypatch.setitem(ingest.ADAPTERS, "telegram_channel", FakeTelegramAdapter())

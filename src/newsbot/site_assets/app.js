@@ -8,6 +8,10 @@ const refs = {
   copyAllButton: document.getElementById("copy-all-button"),
   exportWordButton: document.getElementById("export-word-button"),
   exportExcelButton: document.getElementById("export-excel-button"),
+  refreshSpotlight: document.getElementById("refresh-spotlight"),
+  refreshLabel: document.getElementById("refresh-label"),
+  refreshTitle: document.getElementById("refresh-title"),
+  refreshTime: document.getElementById("refresh-time"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
 };
@@ -34,6 +38,34 @@ function escapeHtml(value) {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function formatRefreshTimestamp(timestamp) {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function renderRefreshSpotlight() {
+  const generatedAt = new Date(payload.generated_at);
+  const ageMinutes = Number.isNaN(generatedAt.getTime())
+    ? null
+    : Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 60000));
+  const isFresh = ageMinutes !== null && ageMinutes <= 20;
+
+  refs.refreshSpotlight.classList.toggle("is-fresh", Boolean(isFresh));
+  refs.refreshSpotlight.classList.toggle("is-stale", !isFresh);
+  refs.refreshLabel.textContent = isFresh ? "방금 갱신" : "최근 갱신";
+  refs.refreshTitle.textContent = isFresh
+    ? "새로 반영된 기사 묶음을 보고 있어요."
+    : "최근 갱신 기준 기사 묶음을 보고 있어요.";
+  refs.refreshTime.textContent = formatRefreshTimestamp(payload.generated_at);
+  refs.refreshTime.dateTime = payload.generated_at;
 }
 
 function getFilteredArticles() {
@@ -205,6 +237,7 @@ function renderSections(articles) {
 
 function render() {
   syncUrl();
+  renderRefreshSpotlight();
   renderSourceOptions();
   renderCategoryFilters();
   refs.searchInput.value = state.q;

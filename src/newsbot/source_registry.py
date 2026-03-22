@@ -3,13 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
+import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from newsbot.categories import CATEGORY_CRYPTO
 from newsbot.categories import CATEGORY_KR_SOCIETY
 from newsbot.categories import CATEGORY_MILITARY
 from newsbot.categories import CATEGORY_TECH_IT
 from newsbot.categories import CATEGORY_US_FINANCE
+from newsbot.config import _load_dotenv
+
+
+_load_dotenv()
+
+_ENV_TELEGRAM_CHANNEL_KEYS = (
+    "NEWSBOT_TELEGRAM_NEWS_CHANNELS",
+    "NEWSBOT_TELEGRAM_NEWS_CHANNEL",
+    "NEWSBOT_TELEGRAM_EXTRA_CHANNELS",
+)
+_ENV_CHANNEL_SPLIT_PATTERN = re.compile(r"[\n,;]+")
+_TELEGRAM_CHANNEL_PATTERN = re.compile(r"^[A-Za-z0-9_]{5,64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +43,7 @@ class SourceDefinition:
     config: dict[str, Any] = field(default_factory=dict)
 
 
-SOURCE_DEFINITIONS = [
+BASE_SOURCE_DEFINITIONS = [
     SourceDefinition(
         source_key="coindesk-rss",
         name="CoinDesk",
@@ -247,8 +262,85 @@ SOURCE_DEFINITIONS = [
 ]
 
 
+def _normalize_telegram_channel(value: str) -> str | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    if normalized.startswith(("http://", "https://")):
+        parsed = urlsplit(normalized)
+        if parsed.netloc.lower() not in {
+            "t.me",
+            "www.t.me",
+            "telegram.me",
+            "www.telegram.me",
+        }:
+            return None
+        normalized = parsed.path.strip("/")
+
+    normalized = normalized.lstrip("@").strip("/")
+    if not normalized or normalized.startswith("+"):
+        return None
+    normalized = normalized.split("/", 1)[0]
+    if not _TELEGRAM_CHANNEL_PATTERN.fullmatch(normalized):
+        return None
+    return normalized
+
+
+def _iter_env_telegram_channels() -> list[str]:
+    channels: list[str] = []
+    seen: set[str] = set()
+    for key in _ENV_TELEGRAM_CHANNEL_KEYS:
+        raw_value = os.getenv(key, "")
+        if not raw_value.strip():
+            continue
+        for part in _ENV_CHANNEL_SPLIT_PATTERN.split(raw_value):
+            channel = _normalize_telegram_channel(part)
+            if channel is None:
+                continue
+            normalized_key = channel.lower()
+            if normalized_key in seen:
+                continue
+            seen.add(normalized_key)
+            channels.append(channel)
+    return channels
+
+
+def _build_env_telegram_source(channel: str) -> SourceDefinition:
+    slug = channel.lower().replace("_", "-")
+    return SourceDefinition(
+        source_key=f"telegram-env-{slug}",
+        name=f"Telegram @{channel}",
+        adapter_type="telegram_channel",
+        category=None,
+        poll_interval_sec=180,
+        base_url=f"https://t.me/{channel}",
+        trust_level=55,
+        config={"channel": channel},
+    )
+
+
+def get_source_definitions() -> list[SourceDefinition]:
+    definitions = list(BASE_SOURCE_DEFINITIONS)
+    existing_channels = {
+        str(source_definition.config.get("channel", "")).lower()
+        for source_definition in definitions
+        if source_definition.adapter_type == "telegram_channel"
+    }
+    for channel in _iter_env_telegram_channels():
+        channel_key = channel.lower()
+        if channel_key in existing_channels:
+            continue
+        definitions.append(_build_env_telegram_source(channel))
+        existing_channels.add(channel_key)
+    return definitions
+
+
+SOURCE_DEFINITIONS = get_source_definitions()
+
+
 def get_source_definition(source_key: str) -> SourceDefinition:
-    for source_definition in SOURCE_DEFINITIONS:
+    for source_definition in get_source_definitions():
         if source_definition.source_key == source_key:
             return source_definition
     raise KeyError(f"Unknown source_key: {source_key}")

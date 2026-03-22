@@ -50,6 +50,66 @@ main {
   gap: 1rem;
 }
 
+.site-refresh {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 1100px;
+  margin: 1rem auto 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid rgba(15, 108, 95, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(15, 108, 95, 0.09), rgba(240, 195, 106, 0.18)),
+    rgba(255, 253, 247, 0.9);
+  box-shadow: 0 18px 46px rgba(55, 48, 40, 0.09);
+  animation: refresh-enter 360ms ease-out;
+}
+
+.site-refresh-badge {
+  flex: 0 0 0.95rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(15, 108, 95, 0.35);
+  animation: refresh-pulse 1.9s ease-out infinite;
+}
+
+.site-refresh-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.site-refresh-kicker {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.site-refresh-copy strong,
+.site-refresh-copy p {
+  margin: 0;
+}
+
+.site-refresh-copy strong {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.site-refresh-copy p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-refresh-idle .site-refresh-badge,
+.site-refresh-waiting .site-refresh-badge {
+  background: #b58b47;
+  box-shadow: 0 0 0 0 rgba(181, 139, 71, 0.28);
+}
+
 .hero,
 .panel {
   padding: 1rem 1.1rem;
@@ -173,9 +233,41 @@ td {
   vertical-align: top;
 }
 
+@keyframes refresh-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(15, 108, 95, 0.3);
+    transform: scale(1);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(15, 108, 95, 0);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(15, 108, 95, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes refresh-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 720px) {
   .site-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .site-refresh {
+    align-items: flex-start;
+    margin-left: 1rem;
+    margin-right: 1rem;
   }
 }

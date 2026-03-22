@@ -18,6 +18,7 @@ from newsbot.categories import ALL_CATEGORIES
 from newsbot.categories import CATEGORY_LABELS
 from newsbot.models import FetchRun
 from newsbot.services.query import build_health_summary
+from newsbot.services.query import build_refresh_notice
 from newsbot.services.query import list_articles
 from newsbot.services.query import list_bookmarked_articles
 from newsbot.services.query import list_sources
@@ -57,6 +58,7 @@ def _render_article_page(
             "active_source": source or "",
             "sources": list_sources(session),
             "page_title": "전체 뉴스" if category is None else CATEGORY_LABELS[category],
+            "refresh_notice": build_refresh_notice(session),
         },
     )
 
@@ -91,6 +93,7 @@ def bookmarks(request: Request, session: Session = Depends(get_session)):
             "request": request,
             "articles": list_bookmarked_articles(session),
             "category_labels": CATEGORY_LABELS,
+            "refresh_notice": build_refresh_notice(session),
         },
     )
 
@@ -104,6 +107,7 @@ def sources(request: Request, session: Session = Depends(get_session)):
             "request": request,
             "sources": list_sources(session),
             "category_labels": CATEGORY_LABELS,
+            "refresh_notice": build_refresh_notice(session),
         },
     )
 
@@ -120,6 +124,6 @@ def admin_health(request: Request, session: Session = Depends(get_session)):
             "request": request,
             "summary": build_health_summary(session),
             "fetch_runs": fetch_runs,
+            "refresh_notice": build_refresh_notice(session),
         },
     )
-

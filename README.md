@@ -59,9 +59,12 @@ GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니
 - `NEWSBOT_TELEGRAM_API_ID`
 - `NEWSBOT_TELEGRAM_API_HASH`
 - `NEWSBOT_TELEGRAM_SESSION_STRING`
+- `NEWSBOT_TELEGRAM_NEWS_CHANNELS`
 - `NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH`
 - `NEWSBOT_STATIC_MAX_ARTICLES_PER_SOURCE`
 - `NEWSBOT_STATIC_MAX_TOTAL_ARTICLES`
+
+`NEWSBOT_TELEGRAM_NEWS_CHANNELS`에는 추가로 읽고 싶은 공개 텔레그램 채널을 쉼표나 줄바꿈으로 넣을 수 있습니다. `@channel_name` 또는 `https://t.me/channel_name` 형식을 지원합니다.
 
 ## 테스트
 
