@@ -12,10 +12,12 @@
   </head>
   <body>
     <header class="masthead">
-      <div>
+      <div class="masthead-copy">
         <p class="eyebrow">newsbot</p>
-        <h1>한 화면으로 훑는 개인 뉴스 피드</h1>
-        <p class="lede">제목과 링크만 빠르게 훑고, 카테고리와 소스로 바로 좁혀볼 수 있게 구성했습니다.</p>
+        <h1>대한민국과 미국을 한 화면에서 읽는 뉴스 허브</h1>
+        <p class="lede">
+          국내 언론사와 미국 주요 신문·방송 네트워크 보도를 허브별로 모아, 섹션 단위로 빠르게 넘겨볼 수 있게 구성했습니다.
+        </p>
       </div>
       <div class="masthead-meta">
         <span>기사 {{ article_count }}건</span>
@@ -37,9 +39,33 @@
         </div>
       </section>
 
+      <section class="hub-hero">
+        <div class="hub-hero-copy">
+          <p id="hub-kicker" class="hub-kicker">뉴스 허브</p>
+          <h2 id="hub-title" class="hub-title">{{ initial_hub.label }}</h2>
+          <p id="hub-description" class="hub-description">
+            {{ initial_hub.description if initial_hub.description else "허브를 골라 한국·미국·글로벌 전문 소스를 각각 탐색할 수 있습니다." }}
+          </p>
+        </div>
+        <div class="hub-hero-meta">
+          <span id="hub-count-chip" class="hub-count-chip">기사 {{ article_count }}건</span>
+          <span id="hub-range-chip" class="hub-range-chip">허브별 섹션 탐색</span>
+        </div>
+      </section>
+
       <section class="toolbar">
-        <div id="category-filters" class="pill-row">
-          <button type="button" class="pill is-active" data-category="all">전체</button>
+        <div id="hub-filters" class="pill-row hub-row">
+          <button type="button" class="pill is-active" data-hub="all">전체 허브</button>
+          {% for hub in hubs %}
+          <button type="button" class="pill" data-hub="{{ hub.key }}">
+            {{ hub.label }}
+            <span>{{ hub.count }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <div id="category-filters" class="pill-row section-row">
+          <button type="button" class="pill is-active" data-category="all">전체 섹션</button>
           {% for category in categories %}
           <button type="button" class="pill" data-category="{{ category.key }}">
             {{ category.label }}
@@ -86,7 +112,12 @@
         {% for section in initial_sections %}
         <section class="news-section" data-category="{{ section.key }}">
           <div class="section-head">
-            <h2>{{ section.label }}</h2>
+            <div>
+              {% if section.eyebrow %}
+              <p class="section-kicker">{{ section.eyebrow }}</p>
+              {% endif %}
+              <h2>{{ section.label }}</h2>
+            </div>
             <span>{{ section.count }}건</span>
           </div>
           <div class="news-list">

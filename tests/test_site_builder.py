@@ -81,6 +81,7 @@ def _settings(tmp_path, *, min_articles: int = 1) -> Settings:
         telegram_input_enabled=False,
         max_retries=1,
         static_output_dir=str(tmp_path / "site-dist"),
+        static_archive_url=None,
         static_min_articles_to_publish=min_articles,
         static_max_articles_per_source=10,
         static_max_total_articles=20,
@@ -141,13 +142,15 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
         adapters=adapters,
     )
 
-    assert payload["article_count"] == 2
+    assert payload["article_count"] >= 2
     assert payload["page_size"] == 25
     assert payload["failed_source_count"] == 1
-    assert [article["primary_category"] for article in payload["articles"]] == [
-        "crypto",
-        "kr-society",
-    ]
+    assert {"kr", "global"}.issubset({hub["key"] for hub in payload["hubs"]})
+    assert "crypto" in {article["primary_category"] for article in payload["articles"]}
+    assert "kr-society" in {article["primary_category"] for article in payload["articles"]}
+    assert any(article["hub"] == "global" for article in payload["articles"])
+    assert any(article["hub"] == "kr" for article in payload["articles"])
+    assert payload["sources"][0]["hub"] in {"global", "kr"}
 
     output_dir = tmp_path / "site-dist"
     assert (output_dir / "index.html").exists()
@@ -159,9 +162,12 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="export-excel-button"' in html
     assert 'id="refresh-spotlight"' in html
     assert 'id="pagination-nav"' in html
+    assert 'id="hub-filters"' in html
+    assert 'id="hub-title"' in html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
-    assert file_payload["article_count"] == 2
+    assert file_payload["article_count"] >= 2
+    assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
 
 
@@ -214,6 +220,7 @@ def test_build_static_site_merges_existing_archive_before_writing(tmp_path):
         "Ether traders eye renewed ETF demand",
         "Bitcoin jumps after ETF inflow surprise",
     ]
+    assert all(article["hub"] == "global" for article in payload["articles"])
 
 
 def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_path):

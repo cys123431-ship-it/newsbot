@@ -1,6 +1,7 @@
 const payload = JSON.parse(document.getElementById("site-data").textContent);
 
 const refs = {
+  hubFilters: document.getElementById("hub-filters"),
   categoryFilters: document.getElementById("category-filters"),
   sourceSelect: document.getElementById("source-select"),
   searchInput: document.getElementById("search-input"),
@@ -12,13 +13,22 @@ const refs = {
   refreshLabel: document.getElementById("refresh-label"),
   refreshTitle: document.getElementById("refresh-title"),
   refreshTime: document.getElementById("refresh-time"),
+  hubKicker: document.getElementById("hub-kicker"),
+  hubTitle: document.getElementById("hub-title"),
+  hubDescription: document.getElementById("hub-description"),
+  hubCountChip: document.getElementById("hub-count-chip"),
+  hubRangeChip: document.getElementById("hub-range-chip"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
   paginationNav: document.getElementById("pagination-nav"),
 };
 
+const hubs = payload.hubs || [];
+const categories = payload.categories || [];
+const hubMap = Object.fromEntries(hubs.map((entry) => [entry.key, entry]));
+const categoryMap = Object.fromEntries(categories.map((entry) => [entry.key, entry]));
 const categoryLabels = Object.fromEntries(
-  payload.categories.map((entry) => [entry.key, entry.label]),
+  categories.map((entry) => [entry.key, entry.label]),
 );
 
 const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
@@ -28,13 +38,27 @@ function parsePositiveInt(value, fallback = 1) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function inferHubForSection(sectionKey) {
+  if (!sectionKey || sectionKey === "all") {
+    return "all";
+  }
+  return categoryMap[sectionKey]?.hub || "global";
+}
+
 const params = new URLSearchParams(window.location.search);
+const incomingSection = params.get("section") || params.get("category") || "all";
+const incomingHub = params.get("hub") || inferHubForSection(incomingSection);
 const state = {
-  category: params.get("category") || "all",
+  hub: incomingHub,
+  section: incomingSection,
   source: params.get("source") || "all",
   q: params.get("q") || "",
   page: parsePositiveInt(params.get("page"), 1),
 };
+
+if (state.section !== "all" && state.hub === "all") {
+  state.hub = inferHubForSection(state.section);
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -77,10 +101,37 @@ function renderRefreshSpotlight() {
   refs.refreshTime.dateTime = payload.generated_at;
 }
 
+function getSectionsForHub(hubKey) {
+  if (hubKey === "all") {
+    return [];
+  }
+  return categories.filter((entry) => entry.hub === hubKey);
+}
+
+function getHubTitle(hubKey) {
+  if (hubKey === "all") {
+    return "전체 허브";
+  }
+  return hubMap[hubKey]?.label || hubKey;
+}
+
+function getHubDescription(hubKey) {
+  if (hubKey === "all") {
+    return "대한민국, 미국, 글로벌 전문 허브를 한 번에 훑고 바로 세부 섹션으로 내려갈 수 있습니다.";
+  }
+  return (
+    hubMap[hubKey]?.description ||
+    "선택한 허브 안에서 세부 섹션과 언론사 소스를 좁혀 기사를 탐색할 수 있습니다."
+  );
+}
+
 function getFilteredArticles() {
   const query = normalize(state.q);
   return payload.articles.filter((article) => {
-    if (state.category !== "all" && article.primary_category !== state.category) {
+    if (state.hub !== "all" && article.hub !== state.hub) {
+      return false;
+    }
+    if (state.section !== "all" && article.primary_category !== state.section) {
       return false;
     }
     if (state.source !== "all" && article.source_key !== state.source) {
@@ -93,27 +144,64 @@ function getFilteredArticles() {
   });
 }
 
-function groupArticles(articles) {
-  const groups = new Map(payload.categories.map((category) => [category.key, []]));
-  articles.forEach((article) => {
-    if (!groups.has(article.primary_category)) {
-      groups.set(article.primary_category, []);
+function getSourceAndQueryFilteredArticles() {
+  const query = normalize(state.q);
+  return payload.articles.filter((article) => {
+    if (state.source !== "all" && article.source_key !== state.source) {
+      return false;
     }
-    groups.get(article.primary_category).push(article);
+    if (!query) {
+      return true;
+    }
+    return normalize(article.title).includes(query);
   });
-  return payload.categories
-    .map((category) => ({
-      key: category.key,
-      label: category.label,
-      articles: groups.get(category.key) || [],
+}
+
+function groupArticles(articles) {
+  if (!articles.length) {
+    return [];
+  }
+
+  if (state.section !== "all") {
+    const category = categoryMap[state.section];
+    return [
+      {
+        key: state.section,
+        label: category?.label || state.section,
+        eyebrow: getHubTitle(category?.hub || state.hub),
+        articles,
+      },
+    ];
+  }
+
+  if (state.hub !== "all") {
+    return getSectionsForHub(state.hub)
+      .map((category) => ({
+        key: category.key,
+        label: category.label,
+        eyebrow: getHubTitle(state.hub),
+        articles: articles.filter((article) => article.primary_category === category.key),
+      }))
+      .filter((group) => group.articles.length > 0);
+  }
+
+  return hubs
+    .map((hub) => ({
+      key: hub.key,
+      label: hub.label,
+      eyebrow: "허브",
+      articles: articles.filter((article) => article.hub === hub.key),
     }))
     .filter((group) => group.articles.length > 0);
 }
 
 function syncUrl() {
   const nextParams = new URLSearchParams();
-  if (state.category !== "all") {
-    nextParams.set("category", state.category);
+  if (state.hub !== "all") {
+    nextParams.set("hub", state.hub);
+  }
+  if (state.section !== "all") {
+    nextParams.set("section", state.section);
   }
   if (state.source !== "all") {
     nextParams.set("source", state.source);
@@ -129,52 +217,143 @@ function syncUrl() {
   window.history.replaceState({}, "", nextUrl);
 }
 
-function renderCategoryFilters() {
-  const counts = new Map(payload.categories.map((category) => [category.key, 0]));
-  const sourceFiltered = payload.articles.filter((article) => {
-    if (state.source !== "all" && article.source_key !== state.source) {
-      return false;
-    }
-    if (state.q.trim() && !normalize(article.title).includes(normalize(state.q))) {
-      return false;
-    }
-    return true;
-  });
-  sourceFiltered.forEach((article) => {
-    counts.set(article.primary_category, (counts.get(article.primary_category) || 0) + 1);
+function createPillButton({ datasetKey, datasetValue, label, count, active, onClick }) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `pill${active ? " is-active" : ""}`;
+  button.dataset[datasetKey] = datasetValue;
+  if (typeof count === "number") {
+    button.innerHTML = `${escapeHtml(label)} <span>${count}</span>`;
+  } else {
+    button.textContent = label;
+  }
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function renderHubFilters() {
+  const counts = new Map(hubs.map((hub) => [hub.key, 0]));
+  getSourceAndQueryFilteredArticles().forEach((article) => {
+    counts.set(article.hub, (counts.get(article.hub) || 0) + 1);
   });
   const totalCount = Array.from(counts.values()).reduce((sum, value) => sum + value, 0);
 
-  refs.categoryFilters.innerHTML = "";
-  refs.categoryFilters.appendChild(createCategoryButton("all", "전체", totalCount));
-  payload.categories.forEach((category) => {
-    refs.categoryFilters.appendChild(
-      createCategoryButton(category.key, category.label, counts.get(category.key) || 0),
+  refs.hubFilters.innerHTML = "";
+  refs.hubFilters.appendChild(
+    createPillButton({
+      datasetKey: "hub",
+      datasetValue: "all",
+      label: "전체 허브",
+      count: totalCount,
+      active: state.hub === "all",
+      onClick: () => {
+        state.hub = "all";
+        state.section = "all";
+        state.page = 1;
+        render();
+      },
+    }),
+  );
+
+  hubs.forEach((hub) => {
+    refs.hubFilters.appendChild(
+      createPillButton({
+        datasetKey: "hub",
+        datasetValue: hub.key,
+        label: hub.label,
+        count: counts.get(hub.key) || 0,
+        active: state.hub === hub.key,
+        onClick: () => {
+          state.hub = hub.key;
+          state.section = "all";
+          state.page = 1;
+          render();
+        },
+      }),
     );
   });
 }
 
-function createCategoryButton(category, label, count) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `pill${state.category === category ? " is-active" : ""}`;
-  button.dataset.category = category;
-  button.innerHTML = `${escapeHtml(label)} <span>${count}</span>`;
-  button.addEventListener("click", () => {
-    state.category = category;
-    state.page = 1;
-    render();
+function renderCategoryFilters() {
+  const visibleSections = getSectionsForHub(state.hub);
+  const counts = new Map(visibleSections.map((category) => [category.key, 0]));
+  const scopedArticles = getSourceAndQueryFilteredArticles().filter((article) => {
+    if (state.hub === "all") {
+      return true;
+    }
+    return article.hub === state.hub;
   });
-  return button;
+  scopedArticles.forEach((article) => {
+    if (counts.has(article.primary_category)) {
+      counts.set(article.primary_category, (counts.get(article.primary_category) || 0) + 1);
+    }
+  });
+
+  refs.categoryFilters.innerHTML = "";
+  refs.categoryFilters.appendChild(
+    createPillButton({
+      datasetKey: "category",
+      datasetValue: "all",
+      label: state.hub === "all" ? "허브를 먼저 고르세요" : "전체 섹션",
+      count: state.hub === "all" ? undefined : scopedArticles.length,
+      active: state.section === "all",
+      onClick: () => {
+        state.section = "all";
+        state.page = 1;
+        render();
+      },
+    }),
+  );
+
+  refs.categoryFilters.classList.toggle("is-disabled", state.hub === "all");
+  visibleSections.forEach((category) => {
+    refs.categoryFilters.appendChild(
+      createPillButton({
+        datasetKey: "category",
+        datasetValue: category.key,
+        label: category.label,
+        count: counts.get(category.key) || 0,
+        active: state.section === category.key,
+        onClick: () => {
+          state.section = category.key;
+          state.page = 1;
+          render();
+        },
+      }),
+    );
+  });
+}
+
+function renderHubHero(articles) {
+  const hubTitle = getHubTitle(state.hub);
+  const category = state.section !== "all" ? categoryMap[state.section] : null;
+
+  refs.hubKicker.textContent = state.section !== "all" ? "세부 섹션" : "뉴스 허브";
+  refs.hubTitle.textContent = category ? `${hubTitle} · ${category.label}` : hubTitle;
+  refs.hubDescription.textContent = category
+    ? `${hubTitle} 허브 안에서 ${category.label} 기사만 모아 최신순으로 정리했습니다.`
+    : getHubDescription(state.hub);
+  refs.hubCountChip.textContent = `기사 ${articles.length}건`;
+  refs.hubRangeChip.textContent =
+    state.hub === "all"
+      ? "대한민국 · 미국 · 글로벌 전문"
+      : `${hubTitle} 허브 탐색`;
 }
 
 function renderSourceOptions() {
   const currentValue = state.source;
   refs.sourceSelect.innerHTML = '<option value="all">모든 소스</option>';
 
-  const allowedCategories = state.category === "all" ? null : new Set([state.category]);
   payload.sources
-    .filter((source) => !allowedCategories || allowedCategories.has(source.category))
+    .filter((source) => {
+      if (state.hub !== "all" && source.hub !== state.hub) {
+        return false;
+      }
+      if (state.section !== "all" && source.category !== state.section) {
+        return false;
+      }
+      return true;
+    })
     .forEach((source) => {
       const option = document.createElement("option");
       option.value = source.source_key;
@@ -231,10 +410,9 @@ function getPageTokens(totalPages, currentPage) {
 
 function renderStatusLine(articles, pagination) {
   const pieces = [];
-  if (state.category === "all") {
-    pieces.push("전체");
-  } else {
-    pieces.push(categoryLabels[state.category] || state.category);
+  pieces.push(getHubTitle(state.hub));
+  if (state.section !== "all") {
+    pieces.push(categoryLabels[state.section] || state.section);
   }
   if (state.source !== "all") {
     const source = payload.sources.find((entry) => entry.source_key === state.source);
@@ -259,9 +437,6 @@ function createPageButton(label, page, active = false, step = false) {
 }
 
 function renderPagination(pagination) {
-  if (!refs.paginationNav) {
-    return;
-  }
   if (pagination.totalItems === 0 || pagination.totalPages <= 1) {
     refs.paginationNav.innerHTML = "";
     refs.paginationNav.hidden = true;
@@ -271,11 +446,8 @@ function renderPagination(pagination) {
   refs.paginationNav.hidden = false;
   refs.paginationNav.innerHTML = "";
   if (pagination.page > 1) {
-    refs.paginationNav.appendChild(
-      createPageButton("이전", pagination.page - 1, false, true),
-    );
+    refs.paginationNav.appendChild(createPageButton("이전", pagination.page - 1, false, true));
   }
-
   getPageTokens(pagination.totalPages, pagination.page).forEach((token) => {
     if (token === "ellipsis") {
       const marker = document.createElement("span");
@@ -284,15 +456,10 @@ function renderPagination(pagination) {
       refs.paginationNav.appendChild(marker);
       return;
     }
-    refs.paginationNav.appendChild(
-      createPageButton(String(token), token, token === pagination.page),
-    );
+    refs.paginationNav.appendChild(createPageButton(String(token), token, token === pagination.page));
   });
-
   if (pagination.page < pagination.totalPages) {
-    refs.paginationNav.appendChild(
-      createPageButton("다음", pagination.page + 1, false, true),
-    );
+    refs.paginationNav.appendChild(createPageButton("다음", pagination.page + 1, false, true));
   }
 }
 
@@ -307,7 +474,10 @@ function renderSections(articles) {
       (group) => `
         <section class="news-section" data-category="${escapeHtml(group.key)}">
           <div class="section-head">
-            <h2>${escapeHtml(group.label)}</h2>
+            <div>
+              <p class="section-kicker">${escapeHtml(group.eyebrow || "섹션")}</p>
+              <h2>${escapeHtml(group.label)}</h2>
+            </div>
             <span>${group.articles.length}건</span>
           </div>
           <div class="news-list">
@@ -316,7 +486,10 @@ function renderSections(articles) {
                 (article) => `
                   <article class="news-row">
                     <div class="news-topline">
-                      <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
+                      <div class="news-copy">
+                        <p class="news-meta-line">${escapeHtml(article.source_name)} · ${escapeHtml(article.section_label || categoryLabels[article.primary_category] || article.primary_category)}</p>
+                        <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
+                      </div>
                       <div class="row-actions">
                         <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="${escapeHtml(article.canonical_url)}">Word</button>
                         <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
@@ -336,12 +509,14 @@ function renderSections(articles) {
 
 function render() {
   renderRefreshSpotlight();
-  renderSourceOptions();
+  renderHubFilters();
   renderCategoryFilters();
+  renderSourceOptions();
   refs.searchInput.value = state.q;
   const articles = getFilteredArticles();
   const pagination = getPaginationMeta(articles.length);
   syncUrl();
+  renderHubHero(articles);
   renderStatusLine(articles, pagination);
   renderSections(articles.slice(pagination.start, pagination.end));
   renderPagination(pagination);
@@ -399,7 +574,8 @@ function getExportArticles(scope, articleUrl) {
 
 function buildExportMeta(article) {
   return {
-    category: categoryLabels[article.primary_category] || article.primary_category,
+    category: article.section_label || categoryLabels[article.primary_category] || article.primary_category,
+    hub: article.hub_label || getHubTitle(article.hub),
     source: article.source_name,
     publishedAt: article.published_at || "",
     title: article.title,
@@ -414,6 +590,7 @@ function buildWordHtml(articles, title) {
       return `
         <div style="margin-bottom:18px;">
           <h3 style="margin:0 0 8px 0; font-size:16px;">${escapeHtml(item.title)}</h3>
+          <p style="margin:0 0 4px 0;"><strong>허브:</strong> ${escapeHtml(item.hub)}</p>
           <p style="margin:0 0 4px 0;"><strong>카테고리:</strong> ${escapeHtml(item.category)}</p>
           <p style="margin:0 0 4px 0;"><strong>소스:</strong> ${escapeHtml(item.source)}</p>
           <p style="margin:0 0 4px 0;"><strong>업데이트:</strong> ${escapeHtml(item.publishedAt)}</p>
@@ -442,6 +619,7 @@ function buildExcelHtml(articles, title) {
       const item = buildExportMeta(article);
       return `
         <tr>
+          <td>${escapeHtml(item.hub)}</td>
           <td>${escapeHtml(item.category)}</td>
           <td>${escapeHtml(item.source)}</td>
           <td>${escapeHtml(item.publishedAt)}</td>
@@ -462,6 +640,7 @@ function buildExcelHtml(articles, title) {
           <caption>${escapeHtml(title)}</caption>
           <thead>
             <tr>
+              <th>허브</th>
               <th>카테고리</th>
               <th>소스</th>
               <th>게시 시각</th>
@@ -481,9 +660,10 @@ function buildExportTitle(scope, format, articleUrl) {
     const article = payload.articles.find((item) => item.canonical_url === articleUrl);
     return article ? `${article.title} (${format})` : `newsbot article (${format})`;
   }
-  const categoryPart = state.category === "all" ? "all" : state.category;
+  const hubPart = state.hub === "all" ? "all" : state.hub;
+  const sectionPart = state.section === "all" ? "all" : state.section;
   const sourcePart = state.source === "all" ? "all" : state.source;
-  return `newsbot-${categoryPart}-${sourcePart}-${format}`;
+  return `newsbot-${hubPart}-${sectionPart}-${sourcePart}-${format}`;
 }
 
 function sanitizeFilename(value, extension) {
@@ -548,13 +728,13 @@ async function writeClipboardText(text) {
 
 let copyButtonResetTimer;
 
-function setCopyButtonState(label, state) {
+function setCopyButtonState(label, stateName) {
   refs.copyAllButton.textContent = label;
   refs.copyAllButton.classList.remove("is-done", "is-error");
-  if (state === "done") {
+  if (stateName === "done") {
     refs.copyAllButton.classList.add("is-done");
   }
-  if (state === "error") {
+  if (stateName === "error") {
     refs.copyAllButton.classList.add("is-error");
   }
   window.clearTimeout(copyButtonResetTimer);
@@ -564,15 +744,15 @@ function setCopyButtonState(label, state) {
   }, 2200);
 }
 
-function flashButtonState(button, label, state) {
+function flashButtonState(button, label, stateName) {
   const originalLabel = button.dataset.originalLabel || button.textContent;
   button.dataset.originalLabel = originalLabel;
   button.textContent = label;
   button.classList.remove("is-done", "is-error");
-  if (state === "done") {
+  if (stateName === "done") {
     button.classList.add("is-done");
   }
-  if (state === "error") {
+  if (stateName === "error") {
     button.classList.add("is-error");
   }
   window.setTimeout(() => {
@@ -594,7 +774,8 @@ refs.searchInput.addEventListener("input", (event) => {
 });
 
 refs.resetButton.addEventListener("click", () => {
-  state.category = "all";
+  state.hub = "all";
+  state.section = "all";
   state.source = "all";
   state.q = "";
   state.page = 1;

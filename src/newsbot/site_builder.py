@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
+from functools import lru_cache
 import json
 from math import ceil
 from pathlib import Path
@@ -68,6 +69,7 @@ class StaticArticle:
         return int(self.published_at.timestamp())
 
     def to_public_dict(self) -> dict[str, Any]:
+        category_meta = _get_category_payload_entry(self.primary_category)
         return {
             "title": self.title,
             "canonical_url": self.canonical_url,
@@ -76,6 +78,10 @@ class StaticArticle:
             "source_name": self.source_name,
             "source_names": list(self.source_names or (self.source_name,)),
             "primary_category": self.primary_category,
+            "hub": category_meta["hub"],
+            "hub_label": category_meta["hub_label"],
+            "section_key": category_meta["key"],
+            "section_label": category_meta["label"],
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "trust_level": self.trust_level,
             "language": self.language,
@@ -173,12 +179,17 @@ async def collect_site_payload(
         status.published_count = published_counts.get(status.source_key, 0)
 
     category_counts = Counter(article.primary_category for article in deduped_articles)
+    category_payload = _build_category_payload(category_counts)
     source_options = [
         {
             "source_key": status.source_key,
             "name": status.source_name,
             "category": status.category,
             "count": status.published_count,
+            "hub": _resolve_source_hub(status),
+            "section": status.category,
+            "section_label": _get_category_payload_entry(status.category)["label"] if status.category else "자동 분류",
+            "publisher_group": _resolve_publisher_group(status.source_key, source_definitions),
         }
         for status in sorted(
             statuses,
@@ -193,7 +204,8 @@ async def collect_site_payload(
         "page_size": settings.article_page_size,
         "healthy_source_count": sum(status.status == "ok" for status in statuses),
         "failed_source_count": sum(status.status == "failed" for status in statuses),
-        "categories": _build_category_payload(category_counts),
+        "hubs": _build_hub_payload(category_payload, deduped_articles),
+        "categories": category_payload,
         "sources": source_options,
         "source_statuses": [status.to_public_dict() for status in statuses],
         "articles": [article.to_public_dict() for article in deduped_articles],
@@ -354,18 +366,226 @@ def _article_sort_key(article: StaticArticle) -> tuple[int, int, str]:
     )
 
 
-def _build_category_payload(category_counts: Counter[str]) -> list[dict[str, Any]]:
-    from newsbot.categories import ALL_CATEGORIES
-    from newsbot.categories import CATEGORY_LABELS
+def _coerce_metadata_entry(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return dict(raw)
+    data: dict[str, Any] = {}
+    for key in (
+        "key",
+        "label",
+        "hub",
+        "hub_key",
+        "hub_label",
+        "description",
+        "order",
+        "sort_order",
+    ):
+        if hasattr(raw, key):
+            data[key] = getattr(raw, key)
+    return data
 
+
+def _infer_hub_key(category_key: str) -> str:
+    if category_key.startswith("kr-"):
+        return "kr"
+    if category_key.startswith("us-"):
+        return "us"
+    return "global"
+
+
+def _default_hub_definition(hub_key: str) -> dict[str, Any]:
+    defaults = {
+        "kr": {
+            "key": "kr",
+            "label": "대한민국",
+            "description": "국내 언론과 방송 보도를 분야별로 묶어 빠르게 훑는 허브입니다.",
+            "order": 10,
+        },
+        "us": {
+            "key": "us",
+            "label": "미국",
+            "description": "미국 주요 신문과 방송 네트워크 기사를 분야별로 정리한 허브입니다.",
+            "order": 20,
+        },
+        "global": {
+            "key": "global",
+            "label": "글로벌 전문",
+            "description": "코인, 기술, 군사처럼 주제 중심 전문 소스를 모아 둔 허브입니다.",
+            "order": 30,
+        },
+    }
+    return dict(defaults.get(hub_key, {"key": hub_key, "label": hub_key.upper(), "description": "", "order": 99}))
+
+
+@lru_cache(maxsize=1)
+def _get_hub_definitions() -> list[dict[str, Any]]:
+    from newsbot import categories as category_module
+
+    raw_entries = getattr(category_module, "HUB_DEFINITIONS", None)
+    entries: list[dict[str, Any]] = []
+    if raw_entries:
+        iterable = raw_entries.values() if isinstance(raw_entries, dict) else raw_entries
+        for raw in iterable:
+            entry = _coerce_metadata_entry(raw)
+            hub_key = str(entry.get("key") or "").strip()
+            if not hub_key:
+                continue
+            default = _default_hub_definition(hub_key)
+            default.update(
+                {
+                    "label": str(entry.get("label") or default["label"]),
+                    "description": str(entry.get("description") or default["description"]),
+                    "order": int(entry.get("order", entry.get("sort_order", default["order"]))),
+                }
+            )
+            entries.append(default)
+    if not entries:
+        entries = [
+            _default_hub_definition("kr"),
+            _default_hub_definition("us"),
+            _default_hub_definition("global"),
+        ]
+    entries.sort(key=lambda item: (item["order"], item["label"]))
+    return entries
+
+
+@lru_cache(maxsize=1)
+def _get_category_payload_entries() -> list[dict[str, Any]]:
+    from newsbot import categories as category_module
+
+    raw_entries = getattr(category_module, "CATEGORY_DEFINITIONS", None)
+    category_labels = getattr(category_module, "CATEGORY_LABELS", {})
+    all_categories = getattr(category_module, "ALL_CATEGORIES", tuple(category_labels))
+    entries: list[dict[str, Any]] = []
+
+    if raw_entries:
+        iterable = raw_entries.values() if isinstance(raw_entries, dict) else raw_entries
+        for raw in iterable:
+            entry = _coerce_metadata_entry(raw)
+            key = str(entry.get("key") or "").strip()
+            if not key:
+                continue
+            hub_key = str(entry.get("hub") or entry.get("hub_key") or _infer_hub_key(key))
+            hub_definition = _default_hub_definition(hub_key)
+            entries.append(
+                {
+                    "key": key,
+                    "label": str(entry.get("label") or category_labels.get(key) or key),
+                    "hub": hub_key,
+                    "hub_label": str(entry.get("hub_label") or hub_definition["label"]),
+                    "description": str(entry.get("description") or ""),
+                    "order": int(entry.get("order", entry.get("sort_order", len(entries) + 1))),
+                }
+            )
+
+    if not entries:
+        for index, category_key in enumerate(all_categories):
+            hub_key = _infer_hub_key(category_key)
+            hub_definition = _default_hub_definition(hub_key)
+            entries.append(
+                {
+                    "key": category_key,
+                    "label": str(category_labels.get(category_key, category_key)),
+                    "hub": hub_key,
+                    "hub_label": hub_definition["label"],
+                    "description": "",
+                    "order": index,
+                }
+            )
+
+    entries.sort(key=lambda item: (item["hub"], item["order"], item["label"]))
+    return entries
+
+
+def _get_category_payload_entry(category_key: str) -> dict[str, Any]:
+    for entry in _get_category_payload_entries():
+        if entry["key"] == category_key:
+            return entry
+    hub_key = _infer_hub_key(category_key)
+    hub_definition = _default_hub_definition(hub_key)
+    return {
+        "key": category_key,
+        "label": category_key,
+        "hub": hub_key,
+        "hub_label": hub_definition["label"],
+        "description": "",
+        "order": 999,
+    }
+
+
+def _build_category_payload(category_counts: Counter[str]) -> list[dict[str, Any]]:
     return [
         {
-            "key": category,
-            "label": CATEGORY_LABELS[category],
-            "count": category_counts.get(category, 0),
+            **entry,
+            "count": category_counts.get(entry["key"], 0),
         }
-        for category in ALL_CATEGORIES
+        for entry in _get_category_payload_entries()
     ]
+
+
+def _build_hub_payload(
+    categories: list[dict[str, Any]],
+    articles: list[StaticArticle],
+) -> list[dict[str, Any]]:
+    hub_counts = Counter(_get_category_payload_entry(article.primary_category)["hub"] for article in articles)
+    categories_by_hub: dict[str, list[dict[str, Any]]] = {}
+    for category in categories:
+        categories_by_hub.setdefault(category["hub"], []).append(category)
+
+    hubs: list[dict[str, Any]] = []
+    for hub_definition in _get_hub_definitions():
+        hub_key = hub_definition["key"]
+        categories_for_hub = categories_by_hub.get(hub_key, [])
+        if not categories_for_hub and hub_counts.get(hub_key, 0) == 0:
+            continue
+        hubs.append(
+            {
+                **hub_definition,
+                "count": hub_counts.get(hub_key, 0),
+                "categories": categories_for_hub,
+            }
+        )
+    return hubs
+
+
+def _find_source_definition(
+    source_key: str,
+    source_definitions: list[SourceDefinition] | None,
+) -> SourceDefinition | None:
+    if source_definitions:
+        for definition in source_definitions:
+            if definition.source_key == source_key:
+                return definition
+    try:
+        from newsbot.source_registry import get_source_definition
+
+        return get_source_definition(source_key)
+    except Exception:
+        return None
+
+
+def _resolve_source_hub(status: SourceBuildStatus) -> str:
+    if status.category:
+        return _get_category_payload_entry(status.category)["hub"]
+    return "global"
+
+
+def _resolve_publisher_group(
+    source_key: str,
+    source_definitions: list[SourceDefinition] | None,
+) -> str:
+    definition = _find_source_definition(source_key, source_definitions)
+    if definition is None:
+        return "unknown"
+    raw_group = definition.config.get("publisher_group")
+    if raw_group:
+        return str(raw_group)
+    domain = urlsplit(definition.base_url).netloc.lower()
+    if any(marker in definition.name.lower() for marker in ("news", "press", "times", "journal")):
+        return "newspaper"
+    if any(domain.endswith(suffix) for suffix in ("sbs.co.kr", "kbs.co.kr", "imbc.com", "ytn.co.kr", "cnn.com", "foxnews.com", "abcnews.com", "nbcnews.com", "cbsnews.com")):
+        return "broadcast"
+    return "publisher"
 
 
 def _paginate_articles(
@@ -401,25 +621,26 @@ def _build_page_tokens(total_pages: int, current_page: int) -> list[int | None]:
 
 
 def _build_initial_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    categories = {entry["key"]: entry for entry in payload["categories"]}
-    articles_by_category: dict[str, list[dict[str, Any]]] = {
-        category_key: [] for category_key in categories
+    hubs = {entry["key"]: entry for entry in payload.get("hubs", [])}
+    articles_by_hub: dict[str, list[dict[str, Any]]] = {
+        hub_key: [] for hub_key in hubs
     }
     for article in _paginate_articles(
         payload["articles"],
         page=1,
         page_size=int(payload.get("page_size") or 25),
     ):
-        articles_by_category.setdefault(article["primary_category"], []).append(article)
+        articles_by_hub.setdefault(article.get("hub", "global"), []).append(article)
     sections: list[dict[str, Any]] = []
-    for category_key, category in categories.items():
-        articles = articles_by_category.get(category_key, [])
+    for hub_key, hub in hubs.items():
+        articles = articles_by_hub.get(hub_key, [])
         if not articles:
             continue
         sections.append(
             {
-                "key": category_key,
-                "label": category["label"],
+                "key": hub_key,
+                "label": hub["label"],
+                "eyebrow": "허브",
                 "count": len(articles),
                 "articles": articles,
             }
@@ -470,8 +691,13 @@ def _write_static_site(output_dir: Path, payload: dict[str, Any]) -> None:
     html = template.render(
         article_count=payload["article_count"],
         generated_at=payload["generated_at"],
+        hubs=payload["hubs"],
         categories=payload["categories"],
         initial_sections=_build_initial_sections(payload),
+        initial_hub={
+            "label": "전체 허브",
+            "description": "대한민국, 미국, 글로벌 전문 허브를 한 화면에서 살펴볼 수 있습니다.",
+        },
         initial_total_pages=max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
         initial_pagination_tokens=_build_page_tokens(
             max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
