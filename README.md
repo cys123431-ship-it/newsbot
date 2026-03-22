@@ -46,7 +46,7 @@ GitHub Pages에 올릴 결과물은 아래 명령으로 만듭니다.
 
 결과물은 `site-dist/`에 생성됩니다.
 
-GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니다. `main` 브랜치 push, 수동 실행, 30분 주기 스케줄로 정적 사이트를 갱신합니다.
+GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니다. `main` 브랜치 push, 수동 실행, 15분 주기 스케줄로 정적 사이트를 갱신합니다.
 
 ## 환경 변수
 
@@ -56,6 +56,9 @@ GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니
 
 - `NEWSBOT_NAVER_CLIENT_ID`
 - `NEWSBOT_NAVER_CLIENT_SECRET`
+- `NEWSBOT_TELEGRAM_API_ID`
+- `NEWSBOT_TELEGRAM_API_HASH`
+- `NEWSBOT_TELEGRAM_SESSION_STRING`
 - `NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH`
 - `NEWSBOT_STATIC_MAX_ARTICLES_PER_SOURCE`
 - `NEWSBOT_STATIC_MAX_TOTAL_ARTICLES`
@@ -68,6 +71,7 @@ PYTHONPATH=./src:./.packages python3 -m pytest -q
 
 ## GitHub Pages 배포 메모
 
-- 공개 배포에서는 낮은 신뢰도의 발견용 소스와 텔레그램 입력 소스를 제외합니다.
+- 공개 배포에서는 낮은 신뢰도의 발견용 소스만 제외합니다. 텔레그램 채널 기사도 정적 사이트에 포함됩니다.
+- GitHub Actions에서 텔레그램 채널을 읽으려면 `NEWSBOT_TELEGRAM_API_ID`, `NEWSBOT_TELEGRAM_API_HASH`, `NEWSBOT_TELEGRAM_SESSION_STRING` 시크릿을 설정해야 합니다.
 - 빌드 결과 기사 수가 너무 적으면 워크플로를 실패시켜 기존 Pages 배포본을 유지합니다.
 - 로컬 비밀값 파일인 `.env`, 텔레그램 세션 파일, 로컬 패키지 폴더는 Git에서 제외됩니다.

@@ -71,6 +71,9 @@ class Settings:
     telegram_session_name: str = field(
         default_factory=lambda: os.getenv("NEWSBOT_TELEGRAM_SESSION_NAME", "newsbot")
     )
+    telegram_session_string: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_TELEGRAM_SESSION_STRING")
+    )
     naver_client_id: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_NAVER_CLIENT_ID")
     )

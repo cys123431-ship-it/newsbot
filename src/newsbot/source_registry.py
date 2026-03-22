@@ -222,7 +222,6 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/dada_news2",
         trust_level=55,
-        static_enabled=False,
         config={"channel": "dada_news2"},
     ),
     SourceDefinition(
@@ -233,7 +232,6 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/news_kor",
         trust_level=55,
-        static_enabled=False,
         config={"channel": "news_kor"},
     ),
     SourceDefinition(
@@ -244,7 +242,6 @@ SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/clawnewssummary",
         trust_level=55,
-        static_enabled=False,
         config={"channel": "clawnewssummary"},
     ),
 ]

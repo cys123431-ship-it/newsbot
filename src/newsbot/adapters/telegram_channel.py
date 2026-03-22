@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import timezone
+from pathlib import Path
 import re
 
 import httpx
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
@@ -45,9 +47,12 @@ class TelegramChannelAdapter:
             return []
         if not settings.telegram_api_id or not settings.telegram_api_hash:
             return []
+        session = _build_telegram_session(settings)
+        if session is None:
+            return []
         channel_name = source_definition.config["channel"]
         telegram_client = TelegramClient(
-            settings.telegram_session_name,
+            session,
             int(settings.telegram_api_id),
             settings.telegram_api_hash,
         )
@@ -77,3 +82,18 @@ class TelegramChannelAdapter:
                 )
         return candidates
 
+
+def _build_telegram_session(settings: Settings) -> str | StringSession | None:
+    if settings.telegram_session_string:
+        return StringSession(settings.telegram_session_string)
+    if _has_local_session_file(settings.telegram_session_name):
+        return settings.telegram_session_name
+    return None
+
+
+def _has_local_session_file(session_name: str) -> bool:
+    session_path = Path(session_name)
+    candidates = [session_path]
+    if session_path.suffix != ".session":
+        candidates.append(session_path.with_suffix(".session"))
+    return any(candidate.exists() for candidate in candidates)
