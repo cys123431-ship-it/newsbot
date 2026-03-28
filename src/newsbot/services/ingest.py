@@ -24,7 +24,7 @@ from newsbot.models import Source
 from newsbot.services.classifier import classify_candidate
 from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.dedupe import find_existing_article
-from newsbot.source_registry import get_source_definition
+from newsbot.source_registry import find_source_definition
 
 
 ADAPTERS = {
@@ -33,6 +33,8 @@ ADAPTERS = {
     "naver_search": NaverNewsAdapter(),
     "telegram_channel": TelegramChannelAdapter(),
 }
+UNKNOWN_SOURCE_ERROR = "Source is enabled in the database but missing from the active registry."
+MISSING_ADAPTER_ERROR = "Source adapter is not registered in the current process."
 
 
 async def fetch_all_sources(
@@ -73,7 +75,11 @@ def list_source_keys(
         )
     source_keys: list[str] = []
     for source in sources:
-        source_definition = get_source_definition(source.source_key)
+        source_definition = find_source_definition(source.source_key)
+        if source_definition is None:
+            continue
+        if source_definition.adapter_type not in ADAPTERS:
+            continue
         if not include_telegram_sources and source_definition.adapter_type == "telegram_channel":
             continue
         if not include_discovery_sources and source_definition.discovery_only:
@@ -109,16 +115,35 @@ async def fetch_single_source(
     settings: Settings,
     source_key: str,
 ) -> dict[str, int]:
-    source_definition = get_source_definition(source_key)
-    adapter = ADAPTERS[source_definition.adapter_type]
+    zero_result = {"fetched": 0, "inserted": 0}
     with session_factory() as session:
         source = session.scalar(select(Source).where(Source.source_key == source_key))
         if source is None or not source.enabled:
-            return {"fetched": 0, "inserted": 0}
+            return zero_result
         fetch_run = FetchRun(source_key=source_key)
         session.add(fetch_run)
         session.commit()
         session.refresh(fetch_run)
+    source_definition = find_source_definition(source_key)
+    if source_definition is None:
+        _record_fetch_failure(
+            session_factory,
+            settings,
+            source_key,
+            fetch_run.id,
+            UNKNOWN_SOURCE_ERROR,
+        )
+        return zero_result
+    adapter = ADAPTERS.get(source_definition.adapter_type)
+    if adapter is None:
+        _record_fetch_failure(
+            session_factory,
+            settings,
+            source_key,
+            fetch_run.id,
+            f"{MISSING_ADAPTER_ERROR} Missing adapter type: {source_definition.adapter_type}.",
+        )
+        return zero_result
     try:
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -148,19 +173,14 @@ async def fetch_single_source(
             session.commit()
         return {"fetched": len(candidates), "inserted": inserted_count}
     except Exception as exc:
-        with session_factory() as session:
-            source = session.scalar(select(Source).where(Source.source_key == source_key))
-            fetch_run = session.get(FetchRun, fetch_run.id)
-            source.consecutive_failures += 1
-            source.last_error = str(exc)
-            source.last_fetched_at = datetime.now(tz=timezone.utc)
-            if source.consecutive_failures >= settings.auto_disable_after_failures:
-                source.enabled = False
-            fetch_run.finished_at = datetime.now(tz=timezone.utc)
-            fetch_run.status = "failed"
-            fetch_run.error_message = str(exc)
-            session.commit()
-        return {"fetched": 0, "inserted": 0}
+        _record_fetch_failure(
+            session_factory,
+            settings,
+            source_key,
+            fetch_run.id,
+            str(exc),
+        )
+        return zero_result
 
 
 async def _fetch_with_retries(
@@ -234,6 +254,30 @@ async def _store_candidates(
             )
         session.commit()
     return inserted_count
+
+
+def _record_fetch_failure(
+    session_factory: Callable[[], Session],
+    settings: Settings,
+    source_key: str,
+    fetch_run_id: int,
+    error_message: str,
+) -> None:
+    failed_at = datetime.now(tz=timezone.utc)
+    with session_factory() as session:
+        source = session.scalar(select(Source).where(Source.source_key == source_key))
+        fetch_run = session.get(FetchRun, fetch_run_id)
+        if source is not None:
+            source.consecutive_failures += 1
+            source.last_error = error_message
+            source.last_fetched_at = failed_at
+            if source.consecutive_failures >= settings.auto_disable_after_failures:
+                source.enabled = False
+        if fetch_run is not None:
+            fetch_run.finished_at = failed_at
+            fetch_run.status = "failed"
+            fetch_run.error_message = error_message
+        session.commit()
 
 
 def _merge_existing_article(

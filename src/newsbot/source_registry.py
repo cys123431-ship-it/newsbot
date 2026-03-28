@@ -1345,8 +1345,15 @@ def get_source_definitions() -> list[SourceDefinition]:
 SOURCE_DEFINITIONS = get_source_definitions()
 
 
-def get_source_definition(source_key: str) -> SourceDefinition:
+def find_source_definition(source_key: str) -> SourceDefinition | None:
     for source_definition in get_source_definitions():
         if source_definition.source_key == source_key:
             return source_definition
+    return None
+
+
+def get_source_definition(source_key: str) -> SourceDefinition:
+    source_definition = find_source_definition(source_key)
+    if source_definition is not None:
+        return source_definition
     raise KeyError(f"Unknown source_key: {source_key}")
