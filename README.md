@@ -28,11 +28,23 @@
 
 현재 환경처럼 `venv` 생성이 어려운 경우를 기준으로 안내합니다.
 
+Linux/macOS:
+
 ```bash
 ./scripts/install-local.sh
 cp .env.example .env
 ./scripts/run-local.sh
 ```
+
+Windows PowerShell:
+
+```powershell
+.\scripts\install-local.ps1
+Copy-Item .env.example .env
+.\scripts\run-local.ps1
+```
+
+PowerShell 보조 스크립트는 `py -3.12`를 기준으로 동작합니다. 로컬에 Python 3.12가 없으면 스크립트가 명확한 오류를 내고 중단되며, 이 경우 마지막 검증은 GitHub Actions CI를 기준으로 확인합니다.
 
 기본 웹 주소는 `http://127.0.0.1:8000` 입니다.
 
@@ -40,8 +52,16 @@ cp .env.example .env
 
 GitHub Pages에 올릴 결과물은 아래 명령으로 만듭니다.
 
+Linux/macOS:
+
 ```bash
 ./scripts/build-static.sh
+```
+
+Windows PowerShell:
+
+```powershell
+.\scripts\build-static.ps1
 ```
 
 결과물은 `site-dist/`에 생성됩니다.
@@ -68,8 +88,16 @@ GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니
 
 ## 테스트
 
+Linux/macOS:
+
 ```bash
 PYTHONPATH=./src:./.packages python3 -m pytest -q
+```
+
+Windows PowerShell:
+
+```powershell
+.\scripts\test-local.ps1
 ```
 
 ## GitHub Pages 배포 메모
