@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from base64 import urlsafe_b64decode
+from base64 import urlsafe_b64encode
+import binascii
 from datetime import datetime, timedelta, timezone
+import json
 from math import ceil
 
+from sqlalchemy import and_
 from sqlalchemy import desc
 from sqlalchemy import func
+from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +26,85 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+class InvalidCursorError(ValueError):
+    """Raised when an article cursor cannot be parsed."""
+
+
+def _article_order_by():
+    return (
+        Article.published_at.is_(None),
+        desc(Article.published_at),
+        desc(Article.id),
+    )
+
+
+def _encode_cursor(article: Article) -> str:
+    payload = {
+        "published_at": (
+            _as_utc(article.published_at).isoformat() if article.published_at else None
+        ),
+        "id": article.id,
+    }
+    encoded = urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).decode("ascii")
+    return encoded.rstrip("=")
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime | None, int]:
+    padded = cursor + ("=" * (-len(cursor) % 4))
+    try:
+        decoded = urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        payload = json.loads(decoded)
+    except (
+        UnicodeDecodeError,
+        UnicodeEncodeError,
+        ValueError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ) as exc:
+        raise InvalidCursorError("Invalid cursor.") from exc
+
+    if not isinstance(payload, dict):
+        raise InvalidCursorError("Invalid cursor.")
+
+    article_id = payload.get("id")
+    if isinstance(article_id, bool) or not isinstance(article_id, int) or article_id < 1:
+        raise InvalidCursorError("Invalid cursor.")
+
+    published_at_raw = payload.get("published_at")
+    if published_at_raw is None:
+        return None, article_id
+    if not isinstance(published_at_raw, str):
+        raise InvalidCursorError("Invalid cursor.")
+
+    try:
+        return _as_utc(datetime.fromisoformat(published_at_raw)), article_id
+    except ValueError as exc:
+        raise InvalidCursorError("Invalid cursor.") from exc
+
+
+def _apply_cursor(statement, cursor: str):
+    published_at, article_id = _decode_cursor(cursor)
+    if published_at is None:
+        return statement.where(
+            and_(
+                Article.published_at.is_(None),
+                Article.id < article_id,
+            )
+        )
+    return statement.where(
+        or_(
+            Article.published_at.is_(None),
+            Article.published_at < published_at,
+            and_(
+                Article.published_at == published_at,
+                Article.id < article_id,
+            ),
+        )
+    )
 
 
 def _apply_article_filters(
@@ -67,11 +152,14 @@ def list_articles(
         since=since,
     )
     if cursor:
-        statement = statement.where(Article.id < int(cursor))
-    statement = statement.order_by(desc(Article.published_at), desc(Article.id)).limit(limit + 1)
+        statement = _apply_cursor(statement, cursor)
+    statement = statement.order_by(*_article_order_by()).limit(limit + 1)
     items = list(session.scalars(statement))
-    next_cursor = str(items[-1].id) if len(items) > limit else None
-    return items[:limit], next_cursor
+    visible_items = items[:limit]
+    next_cursor = (
+        _encode_cursor(visible_items[-1]) if len(items) > limit and visible_items else None
+    )
+    return visible_items, next_cursor
 
 
 def paginate_articles(
@@ -107,7 +195,7 @@ def paginate_articles(
             query_text=query_text,
             since=since,
         )
-        .order_by(desc(Article.published_at), desc(Article.id))
+        .order_by(*_article_order_by())
         .offset(offset)
         .limit(page_size)
     )

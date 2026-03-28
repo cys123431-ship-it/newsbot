@@ -25,6 +25,7 @@ from newsbot.schemas import TrendItem
 from newsbot.services.ingest import fetch_all_sources
 from newsbot.services.query import build_health_summary
 from newsbot.services.query import build_trends
+from newsbot.services.query import InvalidCursorError
 from newsbot.services.query import list_articles
 from newsbot.services.query import list_sources
 
@@ -41,14 +42,17 @@ def get_articles(
     cursor: str | None = Query(default=None),
     session: Session = Depends(get_session),
 ):
-    items, next_cursor = list_articles(
-        session,
-        category=category,
-        source_key=source,
-        query_text=q,
-        since=since,
-        cursor=cursor,
-    )
+    try:
+        items, next_cursor = list_articles(
+            session,
+            category=category,
+            source_key=source,
+            query_text=q,
+            since=since,
+            cursor=cursor,
+        )
+    except InvalidCursorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ArticleListResponse(
         items=[ArticleRead.model_validate(item) for item in items],
         next_cursor=next_cursor,

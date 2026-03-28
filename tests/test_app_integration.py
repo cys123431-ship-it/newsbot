@@ -230,3 +230,70 @@ def test_hub_routes_render_hub_and_section_navigation(client, app):
     assert "미국 페이지" in section_response.text
     assert "US politics headline" in section_response.text
     assert "Korea economy headline" not in section_response.text
+
+
+def test_article_api_cursor_keeps_sort_order_across_pages(client, app):
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        recent_articles = [
+            Article(
+                title=f"Recent markets story {index:02d}",
+                canonical_url=f"https://example.com/recent/{index:02d}",
+                source_key="coindesk-rss",
+                source_name="CoinDesk",
+                published_at=datetime(2026, 3, 30, 12, index % 60, tzinfo=timezone.utc),
+                primary_category="crypto",
+                language="en",
+                trust_level=90,
+                title_hash=f"recent-hash-{index:02d}",
+                normalized_title=f"recent markets story {index:02d}",
+            )
+            for index in range(31)
+        ]
+        late_old_articles = [
+            Article(
+                title=f"Late archived story {index:02d}",
+                canonical_url=f"https://example.com/late/{index:02d}",
+                source_key="coindesk-rss",
+                source_name="CoinDesk",
+                published_at=datetime(2025, 12, 1, 8, index, tzinfo=timezone.utc),
+                primary_category="crypto",
+                language="en",
+                trust_level=90,
+                title_hash=f"late-hash-{index:02d}",
+                normalized_title=f"late archived story {index:02d}",
+            )
+            for index in range(4)
+        ]
+        session.add_all([*recent_articles, *late_old_articles])
+        session.commit()
+
+    first_page = client.get("/api/articles?category=crypto")
+    assert first_page.status_code == 200
+    first_payload = first_page.json()
+    assert len(first_payload["items"]) == 30
+    assert first_payload["next_cursor"]
+
+    second_page = client.get(
+        f"/api/articles?category=crypto&cursor={first_payload['next_cursor']}"
+    )
+    assert second_page.status_code == 200
+    second_payload = second_page.json()
+
+    combined_urls = [
+        item["canonical_url"]
+        for item in [*first_payload["items"], *second_payload["items"]]
+    ]
+    assert len(combined_urls) == 35
+    assert len(set(combined_urls)) == 35
+    assert "https://example.com/recent/00" in combined_urls
+    assert "https://example.com/late/00" in combined_urls
+    assert "https://example.com/late/03" in combined_urls
+
+
+def test_article_api_rejects_invalid_cursor(client):
+    response = client.get("/api/articles?cursor=not-a-valid-cursor")
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid cursor."}
