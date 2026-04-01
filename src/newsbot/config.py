@@ -38,6 +38,24 @@ def _int_env(name: str, default: int) -> int:
     return int(raw_value.strip())
 
 
+def _has_local_telegram_session_file(session_name: str) -> bool:
+    session_path = Path(session_name)
+    candidates = [session_path]
+    if session_path.suffix != ".session":
+        candidates.append(session_path.with_suffix(".session"))
+    return any(candidate.exists() for candidate in candidates)
+
+
+def _telegram_env_ready() -> bool:
+    api_id = os.getenv("NEWSBOT_TELEGRAM_API_ID")
+    api_hash = os.getenv("NEWSBOT_TELEGRAM_API_HASH")
+    session_name = os.getenv("NEWSBOT_TELEGRAM_SESSION_NAME", "newsbot")
+    session_string = os.getenv("NEWSBOT_TELEGRAM_SESSION_STRING")
+    if not api_id or not api_hash:
+        return False
+    return bool(session_string or _has_local_telegram_session_file(session_name))
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str = "newsbot"
@@ -60,7 +78,10 @@ class Settings:
         default_factory=lambda: _int_env("NEWSBOT_AUTO_DISABLE_AFTER_FAILURES", 5)
     )
     telegram_input_enabled: bool = field(
-        default_factory=lambda: _bool_env("NEWSBOT_TELEGRAM_INPUT_ENABLED", False)
+        default_factory=lambda: _bool_env(
+            "NEWSBOT_TELEGRAM_INPUT_ENABLED",
+            _telegram_env_ready(),
+        )
     )
     telegram_api_id: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_TELEGRAM_API_ID")
@@ -101,6 +122,22 @@ class Settings:
     static_archive_url: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_STATIC_ARCHIVE_URL")
     )
+
+    @property
+    def telegram_session_configured(self) -> bool:
+        return bool(
+            self.telegram_session_string
+            or _has_local_telegram_session_file(self.telegram_session_name)
+        )
+
+    @property
+    def telegram_runtime_enabled(self) -> bool:
+        return (
+            self.telegram_input_enabled
+            and bool(self.telegram_api_id)
+            and bool(self.telegram_api_hash)
+            and self.telegram_session_configured
+        )
 
 
 @lru_cache(maxsize=1)

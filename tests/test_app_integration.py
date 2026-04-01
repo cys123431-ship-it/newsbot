@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import httpx
+import newsbot.api.api as api_module
+from fastapi.testclient import TestClient
 from sqlalchemy import func
 from sqlalchemy import select
 
+from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.models import Article
 from newsbot.models import ArticleAlias
@@ -149,6 +153,69 @@ def test_bootstrap_initial_content_skips_telegram_sources(app, monkeypatch):
     assert "telegram-dada-news2" not in result
     with session_factory() as session:
         assert session.scalar(select(func.count(Article.id))) >= 1
+
+
+def test_bootstrap_initial_content_includes_telegram_sources_when_runtime_enabled(
+    app, monkeypatch
+):
+    monkeypatch.setitem(ingest.ADAPTERS, "rss", FakeRssAdapter())
+    monkeypatch.setitem(ingest.ADAPTERS, "html_discovery", FakeRssAdapter())
+    monkeypatch.setitem(ingest.ADAPTERS, "telegram_channel", FakeTelegramAdapter())
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        session.query(Article).delete()
+        session.commit()
+
+    telegram_settings = Settings(
+        database_url=app.state.settings.database_url,
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=True,
+        telegram_api_id="123456",
+        telegram_api_hash="hash-value",
+        telegram_session_string="session-value",
+    )
+
+    result = asyncio.run(
+        ingest.bootstrap_initial_content(session_factory, telegram_settings)
+    )
+
+    assert "telegram-dada-news2" in result
+    assert result["telegram-dada-news2"]["fetched"] == 1
+
+
+def test_fetch_now_defaults_to_runtime_telegram_setting(app, monkeypatch):
+    captured = SimpleNamespace(include_telegram_sources=None)
+    app.state.settings = Settings(
+        database_url=app.state.settings.database_url,
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=True,
+        telegram_api_id="123456",
+        telegram_api_hash="hash-value",
+        telegram_session_string="session-value",
+    )
+
+    async def fake_fetch_all_sources(
+        session_factory,
+        settings,
+        *,
+        source_keys=None,
+        include_telegram_sources=True,
+        include_discovery_sources=True,
+    ):
+        del session_factory, settings, source_keys, include_discovery_sources
+        captured.include_telegram_sources = include_telegram_sources
+        return {}
+
+    monkeypatch.setattr(api_module, "fetch_all_sources", fake_fetch_all_sources)
+
+    with TestClient(app) as client:
+        response = client.post("/api/admin/fetch-now")
+
+    assert response.status_code == 200
+    assert captured.include_telegram_sources is True
 
 
 def test_category_page_uses_numbered_pagination(client, app):

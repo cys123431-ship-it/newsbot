@@ -4,6 +4,7 @@ import asyncio
 
 from sqlalchemy import select
 
+from newsbot.config import Settings
 from newsbot.models import FetchRun
 from newsbot.models import Source
 from newsbot.services import ingest
@@ -76,6 +77,28 @@ def test_sync_sources_disables_removed_env_telegram_sources(monkeypatch, app):
         assert env_source.last_error == STALE_SOURCE_ERROR
 
     assert "telegram-env-fresh-news" not in ingest.list_source_keys(session_factory)
+
+
+def test_scheduler_skips_telegram_sources_when_runtime_is_disabled(app):
+    scheduler = build_scheduler(app.state.session_factory, app.state.settings)
+
+    assert "fetch:telegram-dada-news2" not in {job.id for job in scheduler.get_jobs()}
+
+
+def test_scheduler_keeps_telegram_sources_when_runtime_is_enabled(app):
+    settings = Settings(
+        database_url=app.state.settings.database_url,
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=True,
+        telegram_api_id="123456",
+        telegram_api_hash="hash-value",
+        telegram_session_string="session-value",
+    )
+
+    scheduler = build_scheduler(app.state.session_factory, settings)
+
+    assert "fetch:telegram-dada-news2" in {job.id for job in scheduler.get_jobs()}
 
 
 def test_fetch_single_source_records_failure_for_unknown_registry_source(app):

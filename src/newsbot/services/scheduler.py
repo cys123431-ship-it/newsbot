@@ -24,6 +24,11 @@ def build_scheduler(session_factory, settings: Settings) -> AsyncIOScheduler:
             continue
         if source_definition.adapter_type not in ADAPTERS:
             continue
+        if (
+            source_definition.adapter_type == "telegram_channel"
+            and not settings.telegram_runtime_enabled
+        ):
+            continue
         scheduler.add_job(
             fetch_single_source,
             "interval",

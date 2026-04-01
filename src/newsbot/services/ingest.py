@@ -45,6 +45,8 @@ async def fetch_all_sources(
     include_telegram_sources: bool = True,
     include_discovery_sources: bool = True,
 ) -> dict[str, dict[str, int]]:
+    if include_telegram_sources and not settings.telegram_runtime_enabled:
+        include_telegram_sources = False
     selected_source_keys = source_keys or list_source_keys(
         session_factory,
         include_telegram_sources=include_telegram_sources,
@@ -96,16 +98,17 @@ async def bootstrap_initial_content(
         article_count = session.scalar(select(func.count(Article.id))) or 0
     if article_count > 0:
         return {}
+    include_telegram_sources = settings.telegram_runtime_enabled
     bootstrap_source_keys = list_source_keys(
         session_factory,
-        include_telegram_sources=False,
+        include_telegram_sources=include_telegram_sources,
         include_discovery_sources=False,
     )
     return await fetch_all_sources(
         session_factory,
         settings,
         source_keys=bootstrap_source_keys,
-        include_telegram_sources=False,
+        include_telegram_sources=include_telegram_sources,
         include_discovery_sources=False,
     )
 

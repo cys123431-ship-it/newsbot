@@ -91,15 +91,20 @@ def create_bookmark(article_id: int, session: Session = Depends(get_session)):
 async def fetch_now(
     request: Request,
     source_key: str | None = Query(default=None),
-    include_telegram_inputs: bool = Query(default=False),
+    include_telegram_inputs: bool | None = Query(default=None),
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
 ):
     del session
+    include_telegram_sources = (
+        settings.telegram_runtime_enabled
+        if include_telegram_inputs is None
+        else include_telegram_inputs
+    )
     results = await fetch_all_sources(
         request.app.state.session_factory,
         settings,
         source_keys=[source_key] if source_key else None,
-        include_telegram_sources=include_telegram_inputs,
+        include_telegram_sources=include_telegram_sources,
     )
     return {"ok": True, "results": results}
