@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>newsbot analysis</title>
+    <meta
+      name="description"
+      content="newsbot analysis dashboard for keyword, timeline, source share, and repeated headline patterns across all collected news inputs"
+    />
+    <link rel="stylesheet" href="../assets/style.css" />
+  </head>
+  <body>
+    <nav class="surface-switcher" aria-label="View switcher">
+      <a class="surface-link" href="../">News</a>
+      <a class="surface-link is-active" href="./">Analysis</a>
+    </nav>
+
+    <header class="masthead analysis-masthead">
+      <div class="masthead-copy">
+        <p class="eyebrow">newsbot analytics</p>
+        <h1>Dashboard for the full stream of collected news</h1>
+        <p class="lede">
+          Separate from the main news page, this view analyzes every collected article that
+          passed classification and basic validation, even when the article does not survive
+          final display deduplication.
+        </p>
+      </div>
+      <div class="masthead-meta">
+        <span>Recent detail retention {{ retention_days }} days</span>
+        <span>Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+      </div>
+    </header>
+
+    <main class="shell analysis-shell">
+      <section class="hub-hero analysis-hero">
+        <div class="hub-hero-copy">
+          <p class="hub-kicker">Coverage</p>
+          <h2 class="hub-title">Broader than the published news list</h2>
+          <p class="hub-description">
+            Counts include the validated raw article flow before per-source caps and before the
+            final representative-story merge used on the news page.
+          </p>
+        </div>
+        <div class="hub-hero-meta">
+          <span class="hub-count-chip">Keywords, timelines, sources, repeats</span>
+          <span class="hub-range-chip">Public GitHub Pages analytics view</span>
+        </div>
+      </section>
+
+      <section class="toolbar analysis-toolbar">
+        <div id="analysis-window-tabs" class="pill-row analysis-window-tabs"></div>
+        <p id="analysis-status" class="status-line">Loading analysis data.</p>
+      </section>
+
+      <section id="analysis-kpis" class="analysis-kpis" aria-label="Key metrics"></section>
+
+      <section class="analysis-grid">
+        <section class="analysis-panel analysis-panel-wide">
+          <div class="analysis-panel-head">
+            <div>
+              <p class="analysis-kicker">Timeline</p>
+              <h2>Article timeline</h2>
+            </div>
+          </div>
+          <div id="analysis-timeline" class="analysis-chart-slot"></div>
+        </section>
+
+        <section class="analysis-panel">
+          <div class="analysis-panel-head">
+            <div>
+              <p class="analysis-kicker">Keywords</p>
+              <h2>Top keywords</h2>
+            </div>
+          </div>
+          <div id="analysis-keywords" class="analysis-list-slot"></div>
+        </section>
+
+        <section class="analysis-panel">
+          <div class="analysis-panel-head">
+            <div>
+              <p class="analysis-kicker">Sources</p>
+              <h2>Source share</h2>
+            </div>
+          </div>
+          <div id="analysis-sources" class="analysis-list-slot"></div>
+        </section>
+
+        <section class="analysis-panel">
+          <div class="analysis-panel-head">
+            <div>
+              <p class="analysis-kicker">Sections</p>
+              <h2>Hub and section share</h2>
+            </div>
+          </div>
+          <div id="analysis-sections" class="analysis-list-slot"></div>
+        </section>
+
+        <section class="analysis-panel">
+          <div class="analysis-panel-head">
+            <div>
+              <p class="analysis-kicker">Languages</p>
+              <h2>Language mix</h2>
+            </div>
+          </div>
+          <div id="analysis-languages" class="analysis-list-slot"></div>
+        </section>
+      </section>
+
+      <section class="analysis-table-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Repeated Titles</p>
+            <h2>Repeated headline groups</h2>
+          </div>
+        </div>
+        <div id="analysis-repeated" class="analysis-table-slot"></div>
+      </section>
+
+      <section class="analysis-table-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Recent Samples</p>
+            <h2>Recent collected samples</h2>
+          </div>
+        </div>
+        <div id="analysis-samples" class="analysis-table-slot"></div>
+      </section>
+
+      <noscript class="noscript-note">This analysis page needs JavaScript to render charts and tables.</noscript>
+    </main>
+
+    <script id="analysis-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
+    <script src="../assets/analysis.js"></script>
+  </body>
+</html>

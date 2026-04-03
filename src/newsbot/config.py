@@ -122,6 +122,9 @@ class Settings:
     static_archive_url: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_STATIC_ARCHIVE_URL")
     )
+    static_analysis_archive_url: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_STATIC_ANALYSIS_ARCHIVE_URL")
+    )
 
     @property
     def telegram_session_configured(self) -> bool:

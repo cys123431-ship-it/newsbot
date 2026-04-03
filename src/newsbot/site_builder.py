@@ -8,11 +8,14 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
 from datetime import datetime
+from datetime import timedelta
 from datetime import timezone
 from functools import lru_cache
+from hashlib import sha256
 import json
 from math import ceil
 from pathlib import Path
+import re
 import shutil
 from typing import Any
 from urllib.parse import urlsplit
@@ -33,13 +36,74 @@ from newsbot.services.ingest import _fetch_with_retries
 from newsbot.source_registry import SourceDefinition
 from newsbot.source_registry import get_source_definitions
 from newsbot.text_tools import build_title_hash
+from newsbot.text_tools import normalize_whitespace
 from newsbot.text_tools import similar_titles
+from newsbot.text_tools import strip_html
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SITE_TEMPLATE_DIR = PACKAGE_DIR / "site_templates"
 SITE_ASSET_DIR = PACKAGE_DIR / "site_assets"
 REMOVED_ARTICLES_LOG_FILENAME = "removed-articles.txt"
+ANALYSIS_STATE_FILENAME = "analysis-state.json"
+ANALYSIS_DASHBOARD_FILENAME = "analysis-dashboard.json"
+ANALYSIS_DIRECTORY_NAME = "analysis"
+ANALYSIS_RETENTION_DAYS = 90
+ANALYSIS_TOP_ITEM_LIMIT = 12
+ANALYSIS_REPEAT_LIMIT = 20
+ANALYSIS_SAMPLE_LIMIT = 30
+ANALYSIS_WINDOW_DEFINITIONS = (
+    ("24h", "24h", timedelta(hours=24)),
+    ("7d", "7d", timedelta(days=7)),
+    ("30d", "30d", timedelta(days=30)),
+    ("90d", "90d", timedelta(days=90)),
+    ("all", "All", None),
+)
+_ANALYSIS_TOKEN_PATTERN = re.compile(r"[0-9a-zA-Z\uac00-\ud7a3]+")
+_ANALYSIS_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "was",
+    "were",
+    "will",
+    "with",
+    "\uc18d\ubcf4",
+    "\ub2e8\ub3c5",
+    "\uc601\uc0c1",
+    "\uc0ac\uc9c4",
+    "\ub274\uc2a4",
+    "\uc785\uc7a5",
+    "\ud604\uc7a5",
+    "\uc624\ub298",
+    "\uad00\ub828",
+    "\ub300\ud574",
+    "\uc815\ubd80",
+    "\uae30\uc790",
+    "news",
+    "update",
+    "updates",
+    "live",
+    "breaking",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +199,78 @@ class SourceBuildStatus:
         return payload
 
 
+@dataclass(frozen=True, slots=True)
+class AnalysisArticle:
+    stable_key: str
+    source_key: str
+    source_name: str
+    category: str
+    hub: str
+    hub_label: str
+    section_label: str
+    language: str
+    title: str
+    canonical_url: str
+    published_at: datetime | None
+    title_hash: str
+    keywords: tuple[str, ...] = ()
+
+    @property
+    def sort_timestamp(self) -> int:
+        if self.published_at is None:
+            return 0
+        return int(self.published_at.timestamp())
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "stable_key": self.stable_key,
+            "source_key": self.source_key,
+            "source_name": self.source_name,
+            "category": self.category,
+            "hub": self.hub,
+            "hub_label": self.hub_label,
+            "section_label": self.section_label,
+            "language": self.language,
+            "title": self.title,
+            "canonical_url": self.canonical_url,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "title_hash": self.title_hash,
+            "keywords": list(self.keywords),
+        }
+
+    @classmethod
+    def from_public_dict(cls, raw: dict[str, Any]) -> AnalysisArticle:
+        source_key = str(raw.get("source_key") or "").strip()
+        canonical_url = str(raw.get("canonical_url") or "").strip()
+        title = str(raw.get("title") or "").strip()
+        return cls(
+            stable_key=str(raw.get("stable_key") or _build_analysis_stable_key(source_key, canonical_url)),
+            source_key=source_key,
+            source_name=str(raw.get("source_name") or "").strip() or source_key,
+            category=str(raw.get("category") or "").strip(),
+            hub=str(raw.get("hub") or "global").strip() or "global",
+            hub_label=str(raw.get("hub_label") or "").strip(),
+            section_label=str(raw.get("section_label") or "").strip(),
+            language=str(raw.get("language") or "unknown").strip() or "unknown",
+            title=title,
+            canonical_url=canonical_url,
+            published_at=_parse_optional_datetime(raw.get("published_at")),
+            title_hash=str(raw.get("title_hash") or build_title_hash(title)).strip(),
+            keywords=tuple(
+                str(keyword).strip()
+                for keyword in raw.get("keywords", [])
+                if str(keyword).strip()
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCollectionResult:
+    display_articles: list[StaticArticle]
+    analysis_articles: list[AnalysisArticle]
+    status: SourceBuildStatus
+
+
 def list_static_sources(
     source_definitions: list[SourceDefinition] | None = None,
 ) -> list[SourceDefinition]:
@@ -148,7 +284,7 @@ async def collect_site_payload(
     archive_articles: list[StaticArticle] | None = None,
     source_definitions: list[SourceDefinition] | None = None,
     adapters: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], list[StaticArticle]]:
+) -> tuple[dict[str, Any], list[StaticArticle], list[AnalysisArticle]]:
     active_sources = list_static_sources(source_definitions)
     active_adapters = adapters or ADAPTERS
     semaphore = asyncio.Semaphore(settings.static_fetch_concurrency)
@@ -172,9 +308,11 @@ async def collect_site_payload(
         source_results = await asyncio.gather(*tasks)
 
     gathered_articles: list[StaticArticle] = []
-    for source_articles, status in source_results:
-        statuses.append(status)
-        gathered_articles.extend(source_articles)
+    analysis_articles: list[AnalysisArticle] = []
+    for result in source_results:
+        statuses.append(result.status)
+        gathered_articles.extend(result.display_articles)
+        analysis_articles.extend(result.analysis_articles)
 
     deduped_articles, evicted_articles = dedupe_static_articles(
         [*(archive_articles or []), *gathered_articles],
@@ -224,7 +362,7 @@ async def collect_site_payload(
             f"Refusing to publish only {payload['article_count']} articles; "
             f"minimum is {settings.static_min_articles_to_publish}."
         )
-    return payload, evicted_articles
+    return payload, evicted_articles, analysis_articles
 
 
 async def _collect_source(
@@ -233,7 +371,7 @@ async def _collect_source(
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
     adapters: dict[str, Any],
-) -> tuple[list[StaticArticle], SourceBuildStatus]:
+) -> SourceCollectionResult:
     status = SourceBuildStatus(
         source_key=source_definition.source_key,
         source_name=source_definition.name,
@@ -245,7 +383,7 @@ async def _collect_source(
     if preflight_message is not None:
         status.status = "warning"
         status.message = preflight_message
-        return [], status
+        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
 
     adapter = adapters.get(source_definition.adapter_type)
     if adapter is None:
@@ -254,7 +392,7 @@ async def _collect_source(
             f"Source adapter is not registered for static builds: {source_definition.adapter_type}."
         )
         status.message = status.error
-        return [], status
+        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
     try:
         async with semaphore:
             candidates = await _fetch_with_retries(adapter, source_definition, settings, client)
@@ -262,13 +400,14 @@ async def _collect_source(
         status.status = "failed"
         status.error = str(exc)
         status.message = status.error
-        return [], status
+        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
 
     status.fetched_count = len(candidates)
     if source_definition.adapter_type == "telegram_channel" and status.fetched_count == 0:
         status.status = "warning"
         status.message = "No usable external article links found in the latest 20 messages."
     accepted_articles: list[StaticArticle] = []
+    analysis_articles: list[AnalysisArticle] = []
     for candidate in candidates:
         category = classify_candidate(candidate, source_definition)
         if category is None:
@@ -291,11 +430,24 @@ async def _collect_source(
                 source_names=(source_definition.name,),
             )
         )
+        analysis_articles.append(
+            _build_analysis_article(
+                candidate,
+                category=category,
+                canonical_url=canonical_url,
+                title_hash=title_hash,
+            )
+        )
 
     accepted_articles.sort(key=_article_sort_key, reverse=True)
     limited_articles = accepted_articles[: settings.static_max_articles_per_source]
     status.accepted_count = len(limited_articles)
-    return limited_articles, status
+    analysis_articles.sort(key=_analysis_article_sort_key, reverse=True)
+    return SourceCollectionResult(
+        display_articles=limited_articles,
+        analysis_articles=analysis_articles,
+        status=status,
+    )
 
 
 def _get_source_warning_message(
@@ -316,6 +468,77 @@ def _get_source_warning_message(
             )
 
     return None
+
+
+def _build_analysis_stable_key(source_key: str, canonical_url: str) -> str:
+    return sha256(f"{source_key}:{canonical_url}".encode("utf-8")).hexdigest()
+
+
+def _extract_analysis_keywords(title: str, tags: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    raw_parts = [strip_html(title)]
+    raw_parts.extend(str(tag or "") for tag in tags)
+    normalized = normalize_whitespace(" ".join(raw_parts)).lower()
+    if not normalized:
+        return ()
+
+    tokens: list[str] = []
+    for match in _ANALYSIS_TOKEN_PATTERN.findall(normalized):
+        token = match.strip().lower()
+        if len(token) < 2:
+            continue
+        if token.isdigit():
+            continue
+        if token in _ANALYSIS_STOPWORDS:
+            continue
+        tokens.append(token)
+
+    if not tokens:
+        return ()
+
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if token in seen:
+            continue
+        seen.add(token)
+        keywords.append(token)
+        if len(keywords) >= 6:
+            return tuple(keywords)
+
+    for left, right in zip(tokens, tokens[1:]):
+        bigram = f"{left} {right}"
+        if bigram in seen:
+            continue
+        seen.add(bigram)
+        keywords.append(bigram)
+        if len(keywords) >= 6:
+            break
+    return tuple(keywords)
+
+
+def _build_analysis_article(
+    candidate: ArticleCandidate,
+    *,
+    category: str,
+    canonical_url: str,
+    title_hash: str,
+) -> AnalysisArticle:
+    category_meta = _get_category_payload_entry(category)
+    return AnalysisArticle(
+        stable_key=_build_analysis_stable_key(candidate.source_key, canonical_url),
+        source_key=candidate.source_key,
+        source_name=candidate.source_name,
+        category=category,
+        hub=category_meta["hub"],
+        hub_label=category_meta["hub_label"],
+        section_label=category_meta["label"],
+        language=candidate.language or "unknown",
+        title=candidate.title,
+        canonical_url=canonical_url,
+        published_at=candidate.published_at,
+        title_hash=title_hash,
+        keywords=_extract_analysis_keywords(candidate.title, candidate.tags),
+    )
 
 
 def dedupe_static_articles(
@@ -413,6 +636,563 @@ def _article_sort_key(article: StaticArticle) -> tuple[int, int, str]:
         article.trust_level,
         article.title.lower(),
     )
+
+
+def _analysis_article_sort_key(article: AnalysisArticle) -> tuple[int, str, str]:
+    return (
+        article.sort_timestamp,
+        article.source_name.lower(),
+        article.title.lower(),
+    )
+
+
+def _empty_analysis_lifetime() -> dict[str, Any]:
+    return {
+        "total_articles": 0,
+        "unknown_time_count": 0,
+        "daily_counts": {},
+        "source_counts": {},
+        "hub_counts": {},
+        "section_counts": {},
+        "language_counts": {},
+        "keyword_counts": {},
+        "title_groups": {},
+    }
+
+
+def _normalize_analysis_lifetime(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return _empty_analysis_lifetime()
+
+    lifetime = _empty_analysis_lifetime()
+    lifetime["total_articles"] = max(0, int(raw.get("total_articles") or 0))
+    lifetime["unknown_time_count"] = max(0, int(raw.get("unknown_time_count") or 0))
+
+    for day_key, count in (raw.get("daily_counts") or {}).items():
+        if not isinstance(day_key, str):
+            continue
+        lifetime["daily_counts"][day_key] = max(0, int(count or 0))
+
+    for source_key, entry in (raw.get("source_counts") or {}).items():
+        if not isinstance(source_key, str):
+            continue
+        payload = entry if isinstance(entry, dict) else {}
+        lifetime["source_counts"][source_key] = {
+            "source_key": source_key,
+            "name": str(payload.get("name") or source_key),
+            "count": max(0, int(payload.get("count") or 0)),
+        }
+
+    for hub_key, entry in (raw.get("hub_counts") or {}).items():
+        if not isinstance(hub_key, str):
+            continue
+        payload = entry if isinstance(entry, dict) else {}
+        lifetime["hub_counts"][hub_key] = {
+            "key": hub_key,
+            "label": str(payload.get("label") or hub_key),
+            "count": max(0, int(payload.get("count") or 0)),
+        }
+
+    for section_key, entry in (raw.get("section_counts") or {}).items():
+        if not isinstance(section_key, str):
+            continue
+        payload = entry if isinstance(entry, dict) else {}
+        lifetime["section_counts"][section_key] = {
+            "key": section_key,
+            "label": str(payload.get("label") or section_key),
+            "hub": str(payload.get("hub") or _infer_hub_key(section_key)),
+            "hub_label": str(payload.get("hub_label") or _default_hub_definition(_infer_hub_key(section_key))["label"]),
+            "count": max(0, int(payload.get("count") or 0)),
+        }
+
+    for language, count in (raw.get("language_counts") or {}).items():
+        if not isinstance(language, str):
+            continue
+        lifetime["language_counts"][language] = max(0, int(count or 0))
+
+    for keyword, count in (raw.get("keyword_counts") or {}).items():
+        if not isinstance(keyword, str):
+            continue
+        lifetime["keyword_counts"][keyword] = max(0, int(count or 0))
+
+    for title_hash, entry in (raw.get("title_groups") or {}).items():
+        if not isinstance(title_hash, str):
+            continue
+        payload = entry if isinstance(entry, dict) else {}
+        lifetime["title_groups"][title_hash] = {
+            "title_hash": title_hash,
+            "title": str(payload.get("title") or ""),
+            "article_count": max(0, int(payload.get("article_count") or 0)),
+            "source_keys": sorted(
+                {
+                    str(source_key).strip()
+                    for source_key in payload.get("source_keys", [])
+                    if str(source_key).strip()
+                }
+            ),
+            "source_names": sorted(
+                {
+                    str(source_name).strip()
+                    for source_name in payload.get("source_names", [])
+                    if str(source_name).strip()
+                }
+            ),
+            "latest_published_at": str(payload.get("latest_published_at") or "").strip() or None,
+            "canonical_url": str(payload.get("canonical_url") or "").strip(),
+        }
+    return lifetime
+
+
+def _load_recent_analysis_articles(raw: Any) -> list[AnalysisArticle]:
+    if not isinstance(raw, dict):
+        return []
+    recent_articles: list[AnalysisArticle] = []
+    for raw_article in raw.get("recent_articles", []):
+        if not isinstance(raw_article, dict):
+            continue
+        try:
+            article = AnalysisArticle.from_public_dict(raw_article)
+        except Exception:
+            continue
+        if article.stable_key and article.title and article.canonical_url and article.category:
+            recent_articles.append(article)
+    return recent_articles
+
+
+def _apply_analysis_article_to_lifetime(lifetime: dict[str, Any], article: AnalysisArticle) -> None:
+    lifetime["total_articles"] += 1
+
+    source_entry = lifetime["source_counts"].setdefault(
+        article.source_key,
+        {"source_key": article.source_key, "name": article.source_name, "count": 0},
+    )
+    source_entry["name"] = article.source_name
+    source_entry["count"] += 1
+
+    hub_entry = lifetime["hub_counts"].setdefault(
+        article.hub,
+        {"key": article.hub, "label": article.hub_label, "count": 0},
+    )
+    hub_entry["label"] = article.hub_label
+    hub_entry["count"] += 1
+
+    section_entry = lifetime["section_counts"].setdefault(
+        article.category,
+        {
+            "key": article.category,
+            "label": article.section_label,
+            "hub": article.hub,
+            "hub_label": article.hub_label,
+            "count": 0,
+        },
+    )
+    section_entry["label"] = article.section_label
+    section_entry["hub"] = article.hub
+    section_entry["hub_label"] = article.hub_label
+    section_entry["count"] += 1
+
+    language_key = article.language or "unknown"
+    lifetime["language_counts"][language_key] = (
+        int(lifetime["language_counts"].get(language_key) or 0) + 1
+    )
+
+    for keyword in dict.fromkeys(article.keywords):
+        lifetime["keyword_counts"][keyword] = (
+            int(lifetime["keyword_counts"].get(keyword) or 0) + 1
+        )
+
+    if article.published_at is None:
+        lifetime["unknown_time_count"] += 1
+    else:
+        day_key = article.published_at.astimezone(timezone.utc).date().isoformat()
+        lifetime["daily_counts"][day_key] = int(lifetime["daily_counts"].get(day_key) or 0) + 1
+
+    title_group = lifetime["title_groups"].setdefault(
+        article.title_hash,
+        {
+            "title_hash": article.title_hash,
+            "title": article.title,
+            "article_count": 0,
+            "source_keys": [],
+            "source_names": [],
+            "latest_published_at": None,
+            "canonical_url": article.canonical_url,
+        },
+    )
+    title_group["article_count"] += 1
+    title_group["source_keys"] = sorted(
+        set(title_group.get("source_keys", [])) | {article.source_key}
+    )
+    title_group["source_names"] = sorted(
+        set(title_group.get("source_names", [])) | {article.source_name}
+    )
+    current_latest = _parse_optional_datetime(title_group.get("latest_published_at"))
+    if (
+        not title_group.get("title")
+        or current_latest is None
+        or (
+            article.published_at is not None
+            and article.published_at >= current_latest
+        )
+    ):
+        title_group["title"] = article.title
+        title_group["canonical_url"] = article.canonical_url
+    if article.published_at is not None and (
+        current_latest is None or article.published_at >= current_latest
+    ):
+        title_group["latest_published_at"] = article.published_at.isoformat()
+
+
+def _merge_analysis_state(
+    existing_state: dict[str, Any] | None,
+    current_articles: list[AnalysisArticle],
+    *,
+    generated_at: str,
+) -> dict[str, Any]:
+    timestamp = _parse_optional_datetime(generated_at) or datetime.now(tz=timezone.utc)
+    cutoff = timestamp - timedelta(days=ANALYSIS_RETENTION_DAYS)
+    seen_keys = {
+        str(value).strip()
+        for value in (existing_state or {}).get("seen_keys", [])
+        if str(value).strip()
+    }
+    lifetime = _normalize_analysis_lifetime((existing_state or {}).get("lifetime"))
+
+    recent_articles_by_key: dict[str, AnalysisArticle] = {}
+    for article in _load_recent_analysis_articles(existing_state or {}):
+        if article.published_at is None or article.published_at < cutoff:
+            continue
+        recent_articles_by_key[article.stable_key] = article
+
+    for article in current_articles:
+        if article.stable_key in seen_keys:
+            if article.published_at is not None and article.published_at >= cutoff:
+                recent_articles_by_key.setdefault(article.stable_key, article)
+            continue
+        seen_keys.add(article.stable_key)
+        _apply_analysis_article_to_lifetime(lifetime, article)
+        if article.published_at is not None and article.published_at >= cutoff:
+            recent_articles_by_key[article.stable_key] = article
+
+    recent_articles = sorted(
+        recent_articles_by_key.values(),
+        key=_analysis_article_sort_key,
+        reverse=True,
+    )
+    lifetime["daily_counts"] = dict(sorted(lifetime["daily_counts"].items()))
+    lifetime["source_counts"] = dict(sorted(lifetime["source_counts"].items()))
+    lifetime["hub_counts"] = dict(sorted(lifetime["hub_counts"].items()))
+    lifetime["section_counts"] = dict(sorted(lifetime["section_counts"].items()))
+    lifetime["language_counts"] = dict(sorted(lifetime["language_counts"].items()))
+    lifetime["keyword_counts"] = dict(sorted(lifetime["keyword_counts"].items()))
+    lifetime["title_groups"] = dict(sorted(lifetime["title_groups"].items()))
+    return {
+        "version": 1,
+        "generated_at": generated_at,
+        "retention_days": ANALYSIS_RETENTION_DAYS,
+        "seen_keys": sorted(seen_keys),
+        "recent_articles": [article.to_public_dict() for article in recent_articles],
+        "lifetime": lifetime,
+    }
+
+
+def _rank_keyword_counts(keyword_counts: dict[str, int], *, limit: int = ANALYSIS_TOP_ITEM_LIMIT) -> list[dict[str, Any]]:
+    items = [
+        {"keyword": keyword, "count": int(count)}
+        for keyword, count in keyword_counts.items()
+        if int(count) > 0
+    ]
+    items.sort(key=lambda item: (-item["count"], item["keyword"]))
+    return items[:limit]
+
+
+def _rank_named_counts(
+    entries: dict[str, dict[str, Any]],
+    *,
+    key_field: str,
+    label_field: str,
+    limit: int = ANALYSIS_TOP_ITEM_LIMIT,
+) -> list[dict[str, Any]]:
+    items = [
+        {
+            key_field: key,
+            label_field: str(entry.get(label_field) or key),
+            "count": int(entry.get("count") or 0),
+        }
+        for key, entry in entries.items()
+        if int(entry.get("count") or 0) > 0
+    ]
+    items.sort(key=lambda item: (-item["count"], item[label_field]))
+    return items[:limit]
+
+
+def _rank_section_counts(
+    entries: dict[str, dict[str, Any]],
+    *,
+    limit: int = ANALYSIS_TOP_ITEM_LIMIT,
+) -> list[dict[str, Any]]:
+    items = [
+        {
+            "key": key,
+            "label": str(entry.get("label") or key),
+            "hub": str(entry.get("hub") or _infer_hub_key(key)),
+            "hub_label": str(entry.get("hub_label") or _default_hub_definition(_infer_hub_key(key))["label"]),
+            "count": int(entry.get("count") or 0),
+        }
+        for key, entry in entries.items()
+        if int(entry.get("count") or 0) > 0
+    ]
+    items.sort(key=lambda item: (-item["count"], item["label"]))
+    return items[:limit]
+
+
+def _build_timeline_from_daily_counts(daily_counts: dict[str, int]) -> list[dict[str, Any]]:
+    return [
+        {"date": day_key, "count": int(count)}
+        for day_key, count in sorted(daily_counts.items())
+        if int(count) > 0
+    ]
+
+
+def _build_title_groups_from_articles(articles: list[AnalysisArticle]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for article in articles:
+        group = groups.setdefault(
+            article.title_hash,
+            {
+                "title_hash": article.title_hash,
+                "title": article.title,
+                "article_count": 0,
+                "source_keys": set(),
+                "source_names": set(),
+                "latest_published_at": None,
+                "canonical_url": article.canonical_url,
+                "sort_timestamp": 0,
+            },
+        )
+        group["article_count"] += 1
+        group["source_keys"].add(article.source_key)
+        group["source_names"].add(article.source_name)
+        if article.sort_timestamp >= int(group["sort_timestamp"] or 0):
+            group["title"] = article.title
+            group["canonical_url"] = article.canonical_url
+            group["latest_published_at"] = (
+                article.published_at.isoformat() if article.published_at else None
+            )
+            group["sort_timestamp"] = article.sort_timestamp
+
+    items = [
+        {
+            "title_hash": group["title_hash"],
+            "title": group["title"],
+            "article_count": group["article_count"],
+            "source_count": len(group["source_keys"]),
+            "latest_published_at": group["latest_published_at"],
+            "canonical_url": group["canonical_url"],
+            "sort_timestamp": int(group["sort_timestamp"] or 0),
+        }
+        for group in groups.values()
+        if int(group["article_count"]) > 1
+    ]
+    items.sort(
+        key=lambda item: (
+            -item["article_count"],
+            -item["source_count"],
+            -item["sort_timestamp"],
+            item["title"].lower(),
+        )
+    )
+    return items
+
+
+def _rank_title_groups(
+    title_groups: dict[str, dict[str, Any]],
+    *,
+    limit: int = ANALYSIS_REPEAT_LIMIT,
+) -> list[dict[str, Any]]:
+    items = []
+    for title_hash, entry in title_groups.items():
+        article_count = int(entry.get("article_count") or 0)
+        if article_count <= 1:
+            continue
+        latest_published_at = str(entry.get("latest_published_at") or "").strip() or None
+        latest_timestamp = (
+            int((_parse_optional_datetime(latest_published_at) or datetime.fromtimestamp(0, tz=timezone.utc)).timestamp())
+            if latest_published_at
+            else 0
+        )
+        items.append(
+            {
+                "title_hash": title_hash,
+                "title": str(entry.get("title") or ""),
+                "article_count": article_count,
+                "source_count": len(entry.get("source_keys", [])),
+                "latest_published_at": latest_published_at,
+                "canonical_url": str(entry.get("canonical_url") or ""),
+                "sort_timestamp": latest_timestamp,
+            }
+        )
+    items.sort(
+        key=lambda item: (
+            -item["article_count"],
+            -item["source_count"],
+            -item["sort_timestamp"],
+            item["title"].lower(),
+        )
+    )
+    return items[:limit]
+
+
+def _build_window_payload_from_articles(
+    *,
+    label: str,
+    articles: list[AnalysisArticle],
+) -> dict[str, Any]:
+    keyword_counts: Counter[str] = Counter()
+    source_counts: dict[str, dict[str, Any]] = {}
+    hub_counts: dict[str, dict[str, Any]] = {}
+    section_counts: dict[str, dict[str, Any]] = {}
+    language_counts: Counter[str] = Counter()
+    daily_counts: Counter[str] = Counter()
+
+    for article in articles:
+        for keyword in dict.fromkeys(article.keywords):
+            keyword_counts[keyword] += 1
+        source_entry = source_counts.setdefault(
+            article.source_key,
+            {"source_key": article.source_key, "name": article.source_name, "count": 0},
+        )
+        source_entry["count"] += 1
+        hub_entry = hub_counts.setdefault(
+            article.hub,
+            {"key": article.hub, "label": article.hub_label, "count": 0},
+        )
+        hub_entry["count"] += 1
+        section_entry = section_counts.setdefault(
+            article.category,
+            {
+                "key": article.category,
+                "label": article.section_label,
+                "hub": article.hub,
+                "hub_label": article.hub_label,
+                "count": 0,
+            },
+        )
+        section_entry["count"] += 1
+        language_counts[article.language or "unknown"] += 1
+        if article.published_at is not None:
+            day_key = article.published_at.astimezone(timezone.utc).date().isoformat()
+            daily_counts[day_key] += 1
+
+    repeated_titles = _build_title_groups_from_articles(articles)
+    return {
+        "label": label,
+        "article_count": len(articles),
+        "unknown_time_count": 0,
+        "active_source_count": len(source_counts),
+        "repeated_title_count": len(repeated_titles),
+        "timeline": _build_timeline_from_daily_counts(dict(daily_counts)),
+        "top_keywords": _rank_keyword_counts(dict(keyword_counts)),
+        "top_sources": _rank_named_counts(
+            source_counts,
+            key_field="source_key",
+            label_field="name",
+        ),
+        "top_hubs": _rank_named_counts(hub_counts, key_field="key", label_field="label"),
+        "top_sections": _rank_section_counts(section_counts),
+        "language_counts": [
+            {"language": language, "count": count}
+            for language, count in sorted(
+                language_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ],
+        "repeated_titles": repeated_titles[:ANALYSIS_REPEAT_LIMIT],
+        "recent_samples": [
+            article.to_public_dict()
+            for article in sorted(articles, key=_analysis_article_sort_key, reverse=True)[:ANALYSIS_SAMPLE_LIMIT]
+        ],
+    }
+
+
+def _build_analysis_dashboard_payload(
+    state: dict[str, Any],
+    *,
+    generated_at: str,
+) -> dict[str, Any]:
+    timestamp = _parse_optional_datetime(generated_at) or datetime.now(tz=timezone.utc)
+    lifetime = _normalize_analysis_lifetime(state.get("lifetime"))
+    recent_articles = sorted(
+        _load_recent_analysis_articles(state),
+        key=_analysis_article_sort_key,
+        reverse=True,
+    )
+
+    windows: dict[str, Any] = {}
+    for key, label, duration in ANALYSIS_WINDOW_DEFINITIONS:
+        if duration is None:
+            repeated_titles = _rank_title_groups(lifetime["title_groups"])
+            windows[key] = {
+                "label": label,
+                "article_count": lifetime["total_articles"],
+                "unknown_time_count": lifetime["unknown_time_count"],
+                "active_source_count": len(lifetime["source_counts"]),
+                "repeated_title_count": len(
+                    [
+                        entry
+                        for entry in lifetime["title_groups"].values()
+                        if int(entry.get("article_count") or 0) > 1
+                    ]
+                ),
+                "timeline": _build_timeline_from_daily_counts(lifetime["daily_counts"]),
+                "top_keywords": _rank_keyword_counts(lifetime["keyword_counts"]),
+                "top_sources": _rank_named_counts(
+                    lifetime["source_counts"],
+                    key_field="source_key",
+                    label_field="name",
+                ),
+                "top_hubs": _rank_named_counts(
+                    lifetime["hub_counts"],
+                    key_field="key",
+                    label_field="label",
+                ),
+                "top_sections": _rank_section_counts(lifetime["section_counts"]),
+                "language_counts": [
+                    {"language": language, "count": int(count)}
+                    for language, count in sorted(
+                        lifetime["language_counts"].items(),
+                        key=lambda item: (-int(item[1]), item[0]),
+                    )
+                    if int(count) > 0
+                ],
+                "repeated_titles": repeated_titles,
+                "recent_samples": [
+                    article.to_public_dict()
+                    for article in recent_articles[:ANALYSIS_SAMPLE_LIMIT]
+                ],
+            }
+            continue
+
+        cutoff = timestamp - duration
+        window_articles = [
+            article
+            for article in recent_articles
+            if article.published_at is not None and article.published_at >= cutoff
+        ]
+        windows[key] = _build_window_payload_from_articles(label=label, articles=window_articles)
+
+    return {
+        "generated_at": generated_at,
+        "retention_days": int(state.get("retention_days") or ANALYSIS_RETENTION_DAYS),
+        "default_window": "7d",
+        "lifetime_total_articles": lifetime["total_articles"],
+        "lifetime_unknown_time_count": lifetime["unknown_time_count"],
+        "available_windows": [
+            {"key": key, "label": label}
+            for key, label, _duration in ANALYSIS_WINDOW_DEFINITIONS
+        ],
+        "windows": windows,
+    }
 
 
 def _coerce_metadata_entry(raw: Any) -> dict[str, Any]:
@@ -714,8 +1494,9 @@ def build_static_site(
     active_settings = settings or get_settings()
     destination = Path(output_dir or active_settings.static_output_dir)
     archive_articles = _load_archive_articles(active_settings, destination)
+    analysis_state = _load_analysis_state(active_settings, destination)
     existing_removed_log = _load_removed_article_log(active_settings, destination)
-    payload, evicted_articles = asyncio.run(
+    payload, evicted_articles, analysis_articles = asyncio.run(
         collect_site_payload(
             active_settings,
             archive_articles=archive_articles,
@@ -723,12 +1504,27 @@ def build_static_site(
             adapters=adapters,
         )
     )
+    merged_analysis_state = _merge_analysis_state(
+        analysis_state,
+        analysis_articles,
+        generated_at=payload["generated_at"],
+    )
+    analysis_dashboard = _build_analysis_dashboard_payload(
+        merged_analysis_state,
+        generated_at=payload["generated_at"],
+    )
     removed_log = _build_removed_article_log(
         existing_removed_log,
         evicted_articles,
         generated_at=payload["generated_at"],
     )
-    _write_static_site(destination, payload, removed_log=removed_log)
+    _write_static_site(
+        destination,
+        payload,
+        removed_log=removed_log,
+        analysis_state=merged_analysis_state,
+        analysis_dashboard=analysis_dashboard,
+    )
     return payload
 
 
@@ -737,15 +1533,19 @@ def _write_static_site(
     payload: dict[str, Any],
     *,
     removed_log: str,
+    analysis_state: dict[str, Any],
+    analysis_dashboard: dict[str, Any],
 ) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "assets").mkdir(parents=True, exist_ok=True)
     (output_dir / "data").mkdir(parents=True, exist_ok=True)
+    (output_dir / ANALYSIS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(SITE_ASSET_DIR / "style.css", output_dir / "assets" / "style.css")
     shutil.copy2(SITE_ASSET_DIR / "app.js", output_dir / "assets" / "app.js")
+    shutil.copy2(SITE_ASSET_DIR / "analysis.js", output_dir / "assets" / "analysis.js")
 
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace(
         "</", "<\\/"
@@ -773,11 +1573,37 @@ def _write_static_site(
         source_statuses=payload["source_statuses"],
         payload_json=payload_json,
     )
+    analysis_template = environment.get_template("analysis.html")
+    analysis_bootstrap_json = json.dumps(
+        {
+            "data_url": "../data/" + ANALYSIS_DASHBOARD_FILENAME,
+            "default_window": analysis_dashboard["default_window"],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+    analysis_html = analysis_template.render(
+        generated_at=payload["generated_at"],
+        retention_days=analysis_dashboard["retention_days"],
+        bootstrap_json=analysis_bootstrap_json,
+    )
 
     (output_dir / "index.html").write_text(html, encoding="utf-8")
     (output_dir / "404.html").write_text(html, encoding="utf-8")
+    (output_dir / ANALYSIS_DIRECTORY_NAME / "index.html").write_text(
+        analysis_html,
+        encoding="utf-8",
+    )
     (output_dir / "data" / "site-data.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / ANALYSIS_STATE_FILENAME).write_text(
+        json.dumps(analysis_state, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / ANALYSIS_DASHBOARD_FILENAME).write_text(
+        json.dumps(analysis_dashboard, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (output_dir / "data" / REMOVED_ARTICLES_LOG_FILENAME).write_text(
@@ -826,6 +1652,22 @@ def _load_removed_article_log(settings: Settings, output_dir: Path) -> str:
                 timeout_seconds=settings.request_timeout_sec,
             )
     return text or ""
+
+
+def _load_analysis_state(settings: Settings, output_dir: Path) -> dict[str, Any] | None:
+    payload = _load_archive_payload_from_path(output_dir / "data" / ANALYSIS_STATE_FILENAME)
+    analysis_archive_url = settings.static_analysis_archive_url
+    if analysis_archive_url is None and settings.static_archive_url:
+        analysis_archive_url = _derive_related_data_url(
+            settings.static_archive_url,
+            ANALYSIS_STATE_FILENAME,
+        )
+    if payload is None and analysis_archive_url:
+        payload = _load_archive_payload_from_url(
+            analysis_archive_url,
+            timeout_seconds=settings.request_timeout_sec,
+        )
+    return payload if isinstance(payload, dict) else None
 
 
 def _load_archive_payload_from_path(path: Path) -> dict[str, Any] | None:

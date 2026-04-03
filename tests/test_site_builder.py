@@ -10,6 +10,7 @@ import pytest
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.site_builder import _allow_static_candidate
+from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import build_static_site
 from newsbot.source_registry import SourceDefinition
 
@@ -106,6 +107,10 @@ def _source_status(payload, source_key: str) -> dict[str, object]:
     )
 
 
+def _read_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     source_definitions = [
         SourceDefinition(
@@ -177,8 +182,11 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     output_dir = tmp_path / "site-dist"
     assert (output_dir / "index.html").exists()
+    assert (output_dir / "analysis" / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
     assert (output_dir / "data" / "site-data.json").exists()
+    assert (output_dir / "data" / "analysis-state.json").exists()
+    assert (output_dir / "data" / "analysis-dashboard.json").exists()
     assert (output_dir / "data" / "removed-articles.txt").exists()
     html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="copy-all-button"' in html
@@ -189,6 +197,11 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="hub-filters"' in html
     assert 'id="recency-filters"' in html
     assert 'id="hub-title"' in html
+    assert 'href="analysis/"' in html
+
+    analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
+    assert 'id="analysis-window-tabs"' in analysis_html
+    assert "../assets/analysis.js" in analysis_html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] >= 2
@@ -196,6 +209,10 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert file_payload["warning_source_count"] == 0
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
+
+    analysis_payload = _read_json(output_dir / "data" / "analysis-dashboard.json")
+    assert analysis_payload["default_window"] == "7d"
+    assert analysis_payload["windows"]["all"]["article_count"] >= 2
 
 
 def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):
@@ -351,6 +368,58 @@ class FakeFollowupCryptoAdapter:
         ]
 
 
+class OverflowCryptoAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del settings, client
+        return [
+            ArticleCandidate(
+                source_key=source_definition.source_key,
+                source_name=source_definition.name,
+                title=f"Overflow crypto story {index:02d}",
+                url=f"https://www.coindesk.com/markets/2026/04/03/overflow-{index:02d}/",
+                published_at=datetime(2026, 4, 3, 8, index, tzinfo=timezone.utc),
+                summary="Large source batch for analysis coverage.",
+                language="en",
+                trust_level=90,
+            )
+            for index in range(12)
+        ]
+
+
+class DuplicateAcrossSourcesAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del settings, client
+        return [
+            ArticleCandidate(
+                source_key=source_definition.source_key,
+                source_name=source_definition.name,
+                title="Shared headline repeated across sources",
+                url="https://example.com/shared-story",
+                published_at=datetime(2026, 4, 3, 9, 0, tzinfo=timezone.utc),
+                summary="Two sources point to the same canonical story.",
+                language="en",
+                trust_level=source_definition.trust_level,
+            )
+        ]
+
+
+class OldArchiveAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        return [
+            ArticleCandidate(
+                source_key="coindesk-rss",
+                source_name="CoinDesk",
+                title="Older cycle story still worth counting",
+                url="https://www.coindesk.com/markets/2025/11/20/older-cycle-story/",
+                published_at=datetime(2025, 11, 20, 10, 0, tzinfo=timezone.utc),
+                summary="Older than the recent detail retention window.",
+                language="en",
+                trust_level=90,
+            )
+        ]
+
+
 def test_build_static_site_merges_existing_archive_before_writing(tmp_path):
     source_definitions = [
         SourceDefinition(
@@ -444,6 +513,148 @@ def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_pat
             source_definitions=source_definitions,
             adapters=adapters,
         )
+
+
+def test_extract_analysis_keywords_filters_noise_and_builds_bigrams():
+    keywords = _extract_analysis_keywords(
+        "속보 AI 반도체 투자 update",
+        ["사진", "반도체"],
+    )
+
+    assert "속보" not in keywords
+    assert "update" not in keywords
+    assert "반도체" in keywords
+    assert "투자" in keywords
+    assert "ai 반도체" in keywords
+    assert len(keywords) <= 6
+
+
+def test_analysis_dashboard_includes_articles_trimmed_from_news_page_by_source_cap(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+    settings = replace(_settings(tmp_path), static_max_articles_per_source=2)
+
+    payload = build_static_site(
+        settings,
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": OverflowCryptoAdapter()},
+    )
+
+    analysis_dashboard = _read_json(tmp_path / "site-dist" / "data" / "analysis-dashboard.json")
+    assert payload["article_count"] == 2
+    assert analysis_dashboard["windows"]["all"]["article_count"] == 12
+    assert analysis_dashboard["windows"]["90d"]["article_count"] == 12
+
+
+def test_analysis_dashboard_keeps_deduped_away_articles_and_repeated_title_groups(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        ),
+        SourceDefinition(
+            source_key="cointelegraph-rss",
+            name="Cointelegraph",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://cointelegraph.com",
+            trust_level=85,
+        ),
+    ]
+
+    payload = build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": DuplicateAcrossSourcesAdapter()},
+    )
+
+    analysis_dashboard = _read_json(tmp_path / "site-dist" / "data" / "analysis-dashboard.json")
+    assert payload["article_count"] == 1
+    assert analysis_dashboard["windows"]["all"]["article_count"] == 2
+    assert analysis_dashboard["windows"]["all"]["repeated_title_count"] == 1
+    repeated = analysis_dashboard["windows"]["all"]["repeated_titles"][0]
+    assert repeated["article_count"] == 2
+    assert repeated["source_count"] == 2
+
+
+def test_analysis_state_does_not_double_count_reharvested_articles(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+
+    build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": OverflowCryptoAdapter()},
+    )
+    build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": OverflowCryptoAdapter()},
+    )
+
+    analysis_state = _read_json(tmp_path / "site-dist" / "data" / "analysis-state.json")
+    analysis_dashboard = _read_json(tmp_path / "site-dist" / "data" / "analysis-dashboard.json")
+    assert analysis_state["lifetime"]["total_articles"] == 12
+    assert len(analysis_state["seen_keys"]) == 12
+    assert analysis_dashboard["windows"]["all"]["article_count"] == 12
+
+
+def test_analysis_dashboard_keeps_lifetime_counts_for_old_articles_but_trims_recent_detail(
+    tmp_path,
+):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+
+    build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": OldArchiveAdapter()},
+    )
+
+    analysis_state = _read_json(tmp_path / "site-dist" / "data" / "analysis-state.json")
+    analysis_dashboard = _read_json(tmp_path / "site-dist" / "data" / "analysis-dashboard.json")
+    assert analysis_state["lifetime"]["total_articles"] == 1
+    assert analysis_state["recent_articles"] == []
+    assert analysis_dashboard["windows"]["all"]["article_count"] == 1
+    assert analysis_dashboard["windows"]["90d"]["article_count"] == 0
 
 
 def test_allow_static_candidate_keeps_naver_section_articles_for_naver_source():
