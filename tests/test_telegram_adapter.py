@@ -6,9 +6,11 @@ from types import SimpleNamespace
 import newsbot.adapters.telegram_channel as telegram_channel
 from newsbot.adapters.telegram_channel import _build_telegram_session
 from newsbot.adapters.telegram_channel import _has_local_session_file
+from newsbot.adapters.telegram_channel import extract_candidates_from_public_channel_html
 from newsbot.adapters.telegram_channel import extract_link_from_message
 from newsbot.adapters.telegram_channel import extract_title_from_message
 from newsbot.config import Settings
+from newsbot.source_registry import SourceDefinition
 from telethon.tl.types import MessageEntityTextUrl
 from telethon.tl.types import MessageEntityUrl
 
@@ -158,3 +160,68 @@ def test_extract_link_from_message_entity_url_reads_visible_url_span():
     url = extract_link_from_message(message)
 
     assert url == "https://example.com/story"
+
+
+def test_extract_candidates_from_public_channel_html_prefers_external_links():
+    source_definition = SourceDefinition(
+        source_key="telegram-dada-news2",
+        name="Telegram @dada_news2",
+        adapter_type="telegram_channel",
+        category=None,
+        poll_interval_sec=180,
+        base_url="https://t.me/dada_news2",
+        trust_level=55,
+        config={"channel": "dada_news2"},
+    )
+    html = """
+    <div class="tgme_widget_message_wrap js-widget_message_wrap">
+      <div class="tgme_widget_message js-widget_message">
+        <div class="tgme_widget_message_text js-message_text" dir="auto">
+          [뉴시스] 테스트 기사 제목<br/>
+          <a href="https://www.newsis.com/view/NISX20260403_0003577592" target="_blank">link</a>
+        </div>
+        <div class="tgme_widget_message_footer compact js-message_footer">
+          <div class="tgme_widget_message_info short js-message_info">
+            <span class="tgme_widget_message_meta">
+              <a class="tgme_widget_message_date" href="https://t.me/dada_news2/1">
+                <time datetime="2026-04-03T11:10:54+00:00" class="time">11:10</time>
+              </a>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+    candidates = extract_candidates_from_public_channel_html(source_definition, html)
+
+    assert len(candidates) == 1
+    assert candidates[0].title == "[뉴시스] 테스트 기사 제목"
+    assert candidates[0].url == "https://www.newsis.com/view/NISX20260403_0003577592"
+    assert candidates[0].published_at is not None
+
+
+def test_extract_candidates_from_public_channel_html_skips_messages_without_external_links():
+    source_definition = SourceDefinition(
+        source_key="telegram-news-kor",
+        name="Telegram @news_kor",
+        adapter_type="telegram_channel",
+        category=None,
+        poll_interval_sec=180,
+        base_url="https://t.me/news_kor",
+        trust_level=55,
+        config={"channel": "news_kor"},
+    )
+    html = """
+    <div class="tgme_widget_message_wrap js-widget_message_wrap">
+      <div class="tgme_widget_message js-widget_message">
+        <div class="tgme_widget_message_text js-message_text" dir="auto">
+          <a href="https://t.me/news_kor/99">telegram only</a>
+        </div>
+      </div>
+    </div>
+    """
+
+    candidates = extract_candidates_from_public_channel_html(source_definition, html)
+
+    assert candidates == []

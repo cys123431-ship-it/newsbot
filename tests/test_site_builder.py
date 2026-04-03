@@ -197,7 +197,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
 
 
-def test_build_static_site_marks_disabled_telegram_runtime_as_warning(tmp_path):
+def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):
     source_definitions = [
         SourceDefinition(
             source_key="coindesk-rss",
@@ -233,14 +233,13 @@ def test_build_static_site_marks_disabled_telegram_runtime_as_warning(tmp_path):
     assert payload["failed_source_count"] == 0
     assert telegram_status["status"] == "warning"
     assert telegram_status["fetched_count"] == 0
-    assert (
-        telegram_status["message"]
-        == "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED."
+    assert telegram_status["message"] == (
+        "No usable external article links found in the latest 20 messages."
     )
 
     html = (tmp_path / "site-dist" / "index.html").read_text(encoding="utf-8")
     assert "health-warning" in html
-    assert "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED." in html
+    assert "No usable external article links found in the latest 20 messages." in html
 
 
 def test_build_static_site_marks_empty_telegram_fetch_as_warning(tmp_path):

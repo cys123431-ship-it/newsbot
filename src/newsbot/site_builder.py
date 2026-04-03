@@ -302,23 +302,6 @@ def _get_source_warning_message(
     source_definition: SourceDefinition,
     settings: Settings,
 ) -> str | None:
-    if source_definition.adapter_type == "telegram_channel":
-        if not settings.telegram_input_enabled:
-            return "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED."
-        missing_settings: list[str] = []
-        if not settings.telegram_api_id:
-            missing_settings.append("NEWSBOT_TELEGRAM_API_ID")
-        if not settings.telegram_api_hash:
-            missing_settings.append("NEWSBOT_TELEGRAM_API_HASH")
-        if not settings.telegram_session_configured:
-            missing_settings.append("NEWSBOT_TELEGRAM_SESSION_STRING or session file")
-        if missing_settings:
-            return (
-                "Telegram runtime not configured: missing "
-                + ", ".join(missing_settings)
-                + "."
-            )
-
     if source_definition.adapter_type == "naver_search":
         missing_settings: list[str] = []
         if not settings.naver_client_id:

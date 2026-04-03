@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from datetime import timezone
+from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
@@ -22,6 +26,8 @@ from newsbot.text_tools import normalize_whitespace
 
 
 _URL_PATTERN = re.compile(r"https?://\S+")
+_PUBLIC_CHANNEL_PATH = "https://t.me/s/{channel}"
+_PUBLIC_MESSAGE_LIMIT = 20
 
 
 def _clean_url(url: str) -> str | None:
@@ -75,7 +81,7 @@ def extract_link_from_message(message) -> str | None:
     for link in links:
         if not _is_telegram_url(link):
             return link
-    return links[0] if links else None
+    return None
 
 
 def extract_title_from_message(
@@ -91,6 +97,133 @@ def extract_title_from_message(
     return fallback_title or "Telegram discovery item"
 
 
+@dataclass(slots=True)
+class PublicTelegramMessage:
+    text: str
+    links: list[str]
+    published_at: datetime | None = None
+
+
+class _TelegramPublicPageParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[PublicTelegramMessage] = []
+        self._message_depth = 0
+        self._message_text_depth = 0
+        self._links: list[str] = []
+        self._parts: list[str] = []
+        self._published_at: datetime | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_map = dict(attrs)
+        classes = set((attrs_map.get("class") or "").split())
+
+        if tag == "div" and "tgme_widget_message_wrap" in classes:
+            self._message_depth = 1
+            self._message_text_depth = 0
+            self._links = []
+            self._parts = []
+            self._published_at = None
+            return
+
+        if self._message_depth == 0:
+            return
+
+        if tag == "div":
+            self._message_depth += 1
+            if "tgme_widget_message_text" in classes:
+                self._message_text_depth = 1
+            elif self._message_text_depth > 0:
+                self._message_text_depth += 1
+            return
+
+        if tag == "br" and self._message_text_depth > 0:
+            self._parts.append("\n")
+            return
+
+        if tag == "time":
+            raw_datetime = attrs_map.get("datetime")
+            if raw_datetime:
+                self._published_at = _parse_public_message_datetime(raw_datetime)
+            return
+
+        if tag != "a":
+            return
+
+        href = _clean_url(unescape(attrs_map.get("href") or ""))
+        if href and href not in self._links:
+            self._links.append(href)
+
+    def handle_data(self, data: str) -> None:
+        if self._message_depth > 0 and self._message_text_depth > 0:
+            self._parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._message_depth == 0 or tag != "div":
+            return
+
+        if self._message_text_depth > 0:
+            self._message_text_depth -= 1
+
+        self._message_depth -= 1
+        if self._message_depth == 0:
+            raw_text = unescape("".join(self._parts)).replace("\xa0", " ")
+            text = "\n".join(
+                line
+                for line in (
+                    normalize_whitespace(part)
+                    for part in raw_text.splitlines()
+                )
+                if line
+            )
+            self.messages.append(
+                PublicTelegramMessage(
+                    text=text,
+                    links=list(self._links),
+                    published_at=self._published_at,
+                )
+            )
+            self._message_text_depth = 0
+            self._links = []
+            self._parts = []
+            self._published_at = None
+
+
+def _parse_public_message_datetime(value: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def extract_candidates_from_public_channel_html(
+    source_definition: SourceDefinition,
+    html: str,
+) -> list[ArticleCandidate]:
+    parser = _TelegramPublicPageParser()
+    parser.feed(html)
+    candidates: list[ArticleCandidate] = []
+    for message in parser.messages[:_PUBLIC_MESSAGE_LIMIT]:
+        url = next((link for link in message.links if not _is_telegram_url(link)), None)
+        if not url:
+            continue
+        title = extract_title_from_message(message.text, url)
+        candidates.append(
+            ArticleCandidate(
+                source_key=source_definition.source_key,
+                source_name=source_definition.name,
+                title=title,
+                url=url,
+                published_at=message.published_at,
+                summary=limit_summary(message.text),
+                category=None,
+                language=guess_language(message.text),
+                trust_level=source_definition.trust_level,
+            )
+        )
+    return candidates
+
+
 class TelegramChannelAdapter:
     async def fetch(
         self,
@@ -98,9 +231,26 @@ class TelegramChannelAdapter:
         settings: Settings,
         client: httpx.AsyncClient,
     ) -> list[ArticleCandidate]:
-        del client
-        if not settings.telegram_runtime_enabled:
-            return []
+        telethon_error: Exception | None = None
+        if settings.telegram_runtime_enabled:
+            try:
+                candidates = await self._fetch_via_telethon(source_definition, settings)
+            except Exception as exc:
+                telethon_error = exc
+            else:
+                if candidates:
+                    return candidates
+
+        public_candidates = await self._fetch_via_public_page(source_definition, client)
+        if public_candidates or telethon_error is None:
+            return public_candidates
+        raise telethon_error
+
+    async def _fetch_via_telethon(
+        self,
+        source_definition: SourceDefinition,
+        settings: Settings,
+    ) -> list[ArticleCandidate]:
         session = _build_telegram_session(settings)
         assert session is not None
         channel_name = source_definition.config["channel"]
@@ -139,6 +289,19 @@ class TelegramChannelAdapter:
                     )
                 )
         return candidates
+
+    async def _fetch_via_public_page(
+        self,
+        source_definition: SourceDefinition,
+        client: httpx.AsyncClient,
+    ) -> list[ArticleCandidate]:
+        channel_name = source_definition.config["channel"]
+        response = await client.get(_PUBLIC_CHANNEL_PATH.format(channel=channel_name))
+        response.raise_for_status()
+        return extract_candidates_from_public_channel_html(
+            source_definition,
+            response.text,
+        )
 
 
 def _build_telegram_session(settings: Settings) -> str | StringSession | None:
