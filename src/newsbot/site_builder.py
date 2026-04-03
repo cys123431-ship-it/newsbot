@@ -384,7 +384,10 @@ def _allow_static_candidate(candidate: ArticleCandidate) -> bool:
     if not candidate.url.startswith(("http://", "https://")):
         return False
     blocked_hosts = {"news.naver.com", "n.news.naver.com"}
-    if urlsplit(candidate.url).netloc.lower() in blocked_hosts:
+    if (
+        urlsplit(candidate.url).netloc.lower() in blocked_hosts
+        and not candidate.source_key.startswith("naver-")
+    ):
         return False
     blocked_title_fragments = ("포토", "[속보]", "속보:")
     normalized_title = candidate.title.strip()

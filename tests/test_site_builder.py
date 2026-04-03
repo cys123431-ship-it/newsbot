@@ -9,6 +9,7 @@ import pytest
 
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
+from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import build_static_site
 from newsbot.source_registry import SourceDefinition
 
@@ -443,3 +444,31 @@ def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_pat
             source_definitions=source_definitions,
             adapters=adapters,
         )
+
+
+def test_allow_static_candidate_keeps_naver_section_articles_for_naver_source():
+    candidate = ArticleCandidate(
+        source_key="naver-kr-society",
+        source_name="NAVER News Search",
+        title="장모 살해 캐리어 유기…20대 부부 구속",
+        url="https://n.news.naver.com/mnews/article/277/0005744333",
+        summary="사회면 기사",
+        language="ko",
+        trust_level=70,
+    )
+
+    assert _allow_static_candidate(candidate) is True
+
+
+def test_allow_static_candidate_still_blocks_naver_wrapper_urls_for_other_sources():
+    candidate = ArticleCandidate(
+        source_key="telegram-dada-news2",
+        source_name="Telegram @dada_news2",
+        title="장모 살해 캐리어 유기…20대 부부 구속",
+        url="https://n.news.naver.com/mnews/article/277/0005744333",
+        summary="사회면 기사",
+        language="ko",
+        trust_level=55,
+    )
+
+    assert _allow_static_candidate(candidate) is False
