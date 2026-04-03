@@ -75,17 +75,33 @@ class ExplodingFinanceAdapter:
         raise RuntimeError("temporary upstream failure")
 
 
+class EmptyTelegramAdapter:
+    async def fetch(self, source_definition, settings, client):
+        del source_definition, settings, client
+        return []
+
+
 def _settings(tmp_path, *, min_articles: int = 1) -> Settings:
     return Settings(
         bootstrap_on_startup=False,
         enable_scheduler=False,
         telegram_input_enabled=False,
         max_retries=1,
+        naver_client_id="naver-client-id",
+        naver_client_secret="naver-client-secret",
         static_output_dir=str(tmp_path / "site-dist"),
         static_archive_url=None,
         static_min_articles_to_publish=min_articles,
         static_max_articles_per_source=10,
         static_max_total_articles=20,
+    )
+
+
+def _source_status(payload, source_key: str) -> dict[str, object]:
+    return next(
+        status
+        for status in payload["source_statuses"]
+        if status["source_key"] == source_key
     )
 
 
@@ -142,11 +158,15 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
         source_definitions=source_definitions,
         adapters=adapters,
     )
+    failed_status = _source_status(payload, "broken-finance")
 
     assert payload["article_count"] >= 2
     assert payload["removed_article_count"] == 0
     assert payload["page_size"] == 25
+    assert payload["warning_source_count"] == 0
     assert payload["failed_source_count"] == 1
+    assert failed_status["status"] == "failed"
+    assert failed_status["message"] == "temporary upstream failure"
     assert {"kr", "global"}.issubset({hub["key"] for hub in payload["hubs"]})
     assert "crypto" in {article["primary_category"] for article in payload["articles"]}
     assert "kr-society" in {article["primary_category"] for article in payload["articles"]}
@@ -172,8 +192,146 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] >= 2
     assert file_payload["removed_articles_log_path"] == "data/removed-articles.txt"
+    assert file_payload["warning_source_count"] == 0
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
+
+
+def test_build_static_site_marks_disabled_telegram_runtime_as_warning(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        ),
+        SourceDefinition(
+            source_key="telegram-dada-news2",
+            name="Telegram @dada_news2",
+            adapter_type="telegram_channel",
+            category=None,
+            poll_interval_sec=180,
+            base_url="https://t.me/dada_news2",
+            trust_level=55,
+            config={"channel": "dada_news2"},
+        ),
+    ]
+
+    payload = build_static_site(
+        _settings(tmp_path),
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeCryptoAdapter(), "telegram_channel": EmptyTelegramAdapter()},
+    )
+
+    telegram_status = _source_status(payload, "telegram-dada-news2")
+    assert payload["healthy_source_count"] == 1
+    assert payload["warning_source_count"] == 1
+    assert payload["failed_source_count"] == 0
+    assert telegram_status["status"] == "warning"
+    assert telegram_status["fetched_count"] == 0
+    assert (
+        telegram_status["message"]
+        == "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED."
+    )
+
+    html = (tmp_path / "site-dist" / "index.html").read_text(encoding="utf-8")
+    assert "health-warning" in html
+    assert "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED." in html
+
+
+def test_build_static_site_marks_empty_telegram_fetch_as_warning(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        ),
+        SourceDefinition(
+            source_key="telegram-dada-news2",
+            name="Telegram @dada_news2",
+            adapter_type="telegram_channel",
+            category=None,
+            poll_interval_sec=180,
+            base_url="https://t.me/dada_news2",
+            trust_level=55,
+            config={"channel": "dada_news2"},
+        ),
+    ]
+    settings = replace(
+        _settings(tmp_path),
+        telegram_input_enabled=True,
+        telegram_api_id="123456",
+        telegram_api_hash="hash-value",
+        telegram_session_string="session-value",
+    )
+
+    payload = build_static_site(
+        settings,
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeCryptoAdapter(), "telegram_channel": EmptyTelegramAdapter()},
+    )
+
+    telegram_status = _source_status(payload, "telegram-dada-news2")
+    assert payload["warning_source_count"] == 1
+    assert telegram_status["status"] == "warning"
+    assert telegram_status["message"] == (
+        "No usable external article links found in the latest 20 messages."
+    )
+
+
+def test_build_static_site_marks_missing_naver_credentials_as_warning(tmp_path):
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        ),
+        SourceDefinition(
+            source_key="naver-kr-society",
+            name="NAVER News Search",
+            adapter_type="naver_search",
+            category="kr-society",
+            poll_interval_sec=600,
+            base_url="https://openapi.naver.com",
+            trust_level=70,
+            discovery_only=True,
+        ),
+    ]
+    settings = replace(
+        _settings(tmp_path),
+        naver_client_id=None,
+        naver_client_secret=None,
+    )
+
+    payload = build_static_site(
+        settings,
+        output_dir=tmp_path / "site-dist",
+        source_definitions=source_definitions,
+        adapters={"rss": FakeCryptoAdapter(), "naver_search": FakeNaverAdapter()},
+    )
+
+    naver_status = _source_status(payload, "naver-kr-society")
+    assert payload["warning_source_count"] == 1
+    assert payload["failed_source_count"] == 0
+    assert naver_status["status"] == "warning"
+    assert naver_status["fetched_count"] == 0
+    assert naver_status["message"] == (
+        "NAVER news search not configured: missing "
+        "NEWSBOT_NAVER_CLIENT_ID, NEWSBOT_NAVER_CLIENT_SECRET."
+    )
 
 
 class FakeFollowupCryptoAdapter:

@@ -125,10 +125,14 @@ class SourceBuildStatus:
     fetched_count: int = 0
     accepted_count: int = 0
     published_count: int = 0
+    message: str | None = None
     error: str | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        if payload["message"] is None and payload["error"]:
+            payload["message"] = payload["error"]
+        return payload
 
 
 def list_static_sources(
@@ -207,6 +211,7 @@ async def collect_site_payload(
         "removed_articles_log_path": f"data/{REMOVED_ARTICLES_LOG_FILENAME}",
         "page_size": settings.article_page_size,
         "healthy_source_count": sum(status.status == "ok" for status in statuses),
+        "warning_source_count": sum(status.status == "warning" for status in statuses),
         "failed_source_count": sum(status.status == "failed" for status in statuses),
         "hubs": _build_hub_payload(category_payload, deduped_articles),
         "categories": category_payload,
@@ -236,16 +241,33 @@ async def _collect_source(
         trust_level=source_definition.trust_level,
         status="ok",
     )
-    adapter = adapters[source_definition.adapter_type]
+    preflight_message = _get_source_warning_message(source_definition, settings)
+    if preflight_message is not None:
+        status.status = "warning"
+        status.message = preflight_message
+        return [], status
+
+    adapter = adapters.get(source_definition.adapter_type)
+    if adapter is None:
+        status.status = "failed"
+        status.error = (
+            f"Source adapter is not registered for static builds: {source_definition.adapter_type}."
+        )
+        status.message = status.error
+        return [], status
     try:
         async with semaphore:
             candidates = await _fetch_with_retries(adapter, source_definition, settings, client)
     except Exception as exc:
         status.status = "failed"
         status.error = str(exc)
+        status.message = status.error
         return [], status
 
     status.fetched_count = len(candidates)
+    if source_definition.adapter_type == "telegram_channel" and status.fetched_count == 0:
+        status.status = "warning"
+        status.message = "No usable external article links found in the latest 20 messages."
     accepted_articles: list[StaticArticle] = []
     for candidate in candidates:
         category = classify_candidate(candidate, source_definition)
@@ -274,6 +296,43 @@ async def _collect_source(
     limited_articles = accepted_articles[: settings.static_max_articles_per_source]
     status.accepted_count = len(limited_articles)
     return limited_articles, status
+
+
+def _get_source_warning_message(
+    source_definition: SourceDefinition,
+    settings: Settings,
+) -> str | None:
+    if source_definition.adapter_type == "telegram_channel":
+        if not settings.telegram_input_enabled:
+            return "Telegram input disabled by NEWSBOT_TELEGRAM_INPUT_ENABLED."
+        missing_settings: list[str] = []
+        if not settings.telegram_api_id:
+            missing_settings.append("NEWSBOT_TELEGRAM_API_ID")
+        if not settings.telegram_api_hash:
+            missing_settings.append("NEWSBOT_TELEGRAM_API_HASH")
+        if not settings.telegram_session_configured:
+            missing_settings.append("NEWSBOT_TELEGRAM_SESSION_STRING or session file")
+        if missing_settings:
+            return (
+                "Telegram runtime not configured: missing "
+                + ", ".join(missing_settings)
+                + "."
+            )
+
+    if source_definition.adapter_type == "naver_search":
+        missing_settings: list[str] = []
+        if not settings.naver_client_id:
+            missing_settings.append("NEWSBOT_NAVER_CLIENT_ID")
+        if not settings.naver_client_secret:
+            missing_settings.append("NEWSBOT_NAVER_CLIENT_SECRET")
+        if missing_settings:
+            return (
+                "NAVER news search not configured: missing "
+                + ", ".join(missing_settings)
+                + "."
+            )
+
+    return None
 
 
 def dedupe_static_articles(
@@ -902,7 +961,8 @@ def main() -> None:
     payload = build_static_site()
     print(
         f"Built static site with {payload['article_count']} articles and "
-        f"{payload['failed_source_count']} source failures."
+        f"{payload['failed_source_count']} source failures, "
+        f"{payload['warning_source_count']} warnings."
     )
 
 

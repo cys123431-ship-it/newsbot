@@ -97,14 +97,14 @@
           <summary>수집 상태 보기</summary>
           <div class="health-list">
             {% for status in source_statuses %}
-            <div class="health-row">
+            <div class="health-row health-row-{{ status.status }}">
               <strong>{{ status.source_name }}</strong>
               <span class="health-state health-{{ status.status }}">{{ status.status }}</span>
               <span>수집 {{ status.fetched_count }}</span>
               <span>채택 {{ status.accepted_count }}</span>
               <span>게시 {{ status.published_count }}</span>
-              {% if status.error %}
-              <span class="health-error">{{ status.error }}</span>
+              {% if status.message %}
+              <span class="health-message">{{ status.message }}</span>
               {% endif %}
             </div>
             {% endfor %}
