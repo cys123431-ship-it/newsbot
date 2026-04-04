@@ -13,6 +13,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: "Pretendard", "Noto Sans KR", sans-serif;
@@ -34,8 +38,8 @@ a {
 .health-panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 10px 26px rgba(69, 91, 138, 0.07);
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(69, 91, 138, 0.05);
 }
 
 .masthead {
@@ -85,21 +89,21 @@ a {
 }
 
 .shell {
-  max-width: 1180px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 0.85rem 1rem 1rem;
 }
 
 .compact-summary-header {
-  max-width: 900px;
-  margin: 1rem auto 0;
-  padding: 0.9rem 0.95rem;
+  max-width: 700px;
+  margin: 0.9rem auto 0;
+  padding: 0.78rem 0.84rem;
   display: grid;
-  gap: 0.6rem;
+  gap: 0.48rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: 0 16px 40px rgba(69, 91, 138, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(69, 91, 138, 0.06);
 }
 
 .compact-summary-top {
@@ -111,21 +115,22 @@ a {
 
 .compact-summary-copy {
   display: grid;
-  gap: 0.24rem;
-  max-width: 34rem;
+  gap: 0.18rem;
+  max-width: 26rem;
 }
 
 .compact-summary-header h1 {
   margin: 0;
-  font-size: clamp(1.3rem, 2.1vw, 1.8rem);
+  font-size: clamp(1.1rem, 1.7vw, 1.45rem);
   line-height: 1.05;
 }
 
 .compact-summary-description {
   margin: 0;
-  max-width: 32rem;
+  max-width: 24rem;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.32;
+  font-size: 0.88rem;
 }
 
 .compact-summary-meta,
@@ -138,20 +143,20 @@ a {
 .compact-summary-meta {
   justify-content: flex-end;
   align-items: flex-start;
-  max-width: 18rem;
+  max-width: 14rem;
 }
 
 .summary-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  min-height: 1.95rem;
-  padding: 0.35rem 0.7rem;
+  min-height: 1.8rem;
+  padding: 0.28rem 0.58rem;
   border-radius: 999px;
   border: 1px solid rgba(74, 116, 230, 0.14);
   background: rgba(255, 255, 255, 0.92);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   white-space: nowrap;
 }
 
@@ -164,10 +169,10 @@ a {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.72rem 0.82rem;
+  gap: 0.55rem;
+  padding: 0.58rem 0.66rem;
   border: 1px solid rgba(74, 116, 230, 0.14);
-  border-radius: 16px;
+  border-radius: 12px;
   background:
     linear-gradient(135deg, rgba(74, 116, 230, 0.07), rgba(170, 221, 255, 0.16)),
     rgba(255, 255, 255, 0.88);
@@ -202,7 +207,8 @@ a {
 .compact-summary-status-copy {
   margin: 0;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.35;
+  font-size: 0.85rem;
 }
 
 .compact-summary-chip-label {
@@ -214,7 +220,7 @@ a {
 }
 
 .compact-summary-status-strong {
-  font-size: 0.98rem;
+  font-size: 0.9rem;
   line-height: 1.2;
 }
 
@@ -295,7 +301,7 @@ a {
 }
 
 .compact-toolbar {
-  padding: 0.8rem 0.95rem;
+  padding: 0.62rem 0.72rem;
 }
 
 .hub-hero {
@@ -432,6 +438,8 @@ a {
 }
 
 .toolbar {
+  max-width: 760px;
+  margin: 0 auto;
   padding: 0.7rem 0.8rem;
 }
 
@@ -809,8 +817,8 @@ a {
 .surface-switcher {
   display: flex;
   gap: 0.6rem;
-  max-width: 900px;
-  margin: 1rem auto 0;
+  max-width: 700px;
+  margin: 0.9rem auto 0;
   padding: 0 0.4rem;
 }
 
@@ -818,14 +826,14 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.25rem;
-  padding: 0.4rem 0.8rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.66rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
   text-decoration: none;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   color: var(--muted);
 }
 
@@ -837,7 +845,7 @@ a {
 
 .analysis-shell {
   display: grid;
-  gap: 0.95rem;
+  gap: 0.75rem;
 }
 
 .analysis-kpis {
@@ -851,8 +859,8 @@ a {
 .analysis-table-panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 10px 26px rgba(69, 91, 138, 0.07);
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(69, 91, 138, 0.05);
 }
 
 .analysis-kpi {
@@ -1079,7 +1087,81 @@ a {
 
 .markets-surface {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+.market-overview-shell {
+  padding: 0.66rem 0.72rem;
+}
+
+.market-overview-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.market-overview-block {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.market-overview-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.market-overview-copy {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.market-overview-copy h3,
+.market-overview-copy p {
+  margin: 0;
+}
+
+.market-overview-copy h3 {
+  font-size: 0.96rem;
+}
+
+.market-overview-copy p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.32;
+}
+
+.market-overview-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+.market-overview-stat {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.36rem 0.42rem;
+  border: 1px solid rgba(215, 226, 243, 0.82);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.market-overview-stat span,
+.market-overview-stat strong {
+  margin: 0;
+}
+
+.market-overview-stat span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.market-overview-stat strong {
+  font-size: 0.86rem;
+  line-height: 1.15;
 }
 
 .market-summary-grid,
@@ -1367,6 +1449,15 @@ a {
   grid-row: span 2;
 }
 
+.market-detail-heatmap .market-heatmap-cell {
+  min-height: 88px;
+  padding: 0.62rem;
+}
+
+.market-detail-heatmap .market-heatmap-cell span {
+  font-size: 0.76rem;
+}
+
 .market-trending-grid {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
@@ -1477,8 +1568,8 @@ a {
 
 @media (max-width: 860px) {
   .compact-summary-header {
-    margin: 0.9rem 1rem 0;
-    padding: 0.82rem 0.85rem;
+    margin: 0.82rem 1rem 0;
+    padding: 0.72rem 0.78rem;
   }
 
   .compact-summary-top {
@@ -1509,6 +1600,8 @@ a {
   }
 
   .market-summary-grid,
+  .market-overview-columns,
+  .market-overview-stat-grid,
   .market-summary-metrics,
   .analysis-kpis,
   .analysis-grid {
@@ -1542,7 +1635,7 @@ a {
   }
 
   .surface-switcher {
-    margin: 0.9rem 1rem 0;
+    margin: 0.82rem 1rem 0;
     padding: 0;
   }
 

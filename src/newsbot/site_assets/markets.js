@@ -201,71 +201,6 @@ function renderStatusLine() {
     `Updated ${formatDateTime(payloads.status.generated_at)}`;
 }
 
-function renderBenchmarkStrip(items) {
-  if (!items.length) {
-    return "";
-  }
-  return `
-    <div class="market-summary-benchmarks">
-      ${items
-        .slice(0, 3)
-        .map(
-          (item) => `
-            <a class="market-inline-ticker" href="${escapeHtml(item.detail_url || "#")}" target="_blank" rel="noreferrer">
-              <strong>${escapeHtml(item.symbol || "-")}</strong>
-              <span class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
-            </a>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function renderOverviewSummaryCard({
-  kicker,
-  title,
-  summary,
-  status,
-  message,
-  metrics,
-  benchmarks,
-  surfaceKey,
-  actionLabel,
-}) {
-  return `
-    <article class="market-summary-card">
-      <div class="market-summary-head">
-        <div class="market-summary-copy">
-          <p class="analysis-kicker">${escapeHtml(kicker)}</p>
-          <h3>${escapeHtml(title)}</h3>
-          <p>${escapeHtml(summary)}</p>
-        </div>
-        <span class="market-chip ${escapeHtml(status || "warning")}">${escapeHtml(status || "-")}</span>
-      </div>
-      ${message ? `<p class="market-message">${escapeHtml(summarizeText(message, 120))}</p>` : ""}
-      <div class="market-summary-metrics">
-        ${metrics
-          .map(
-            (item) => `
-              <div class="market-summary-stat">
-                <span>${escapeHtml(item.label)}</span>
-                <strong>${escapeHtml(item.value)}</strong>
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
-      <div class="market-summary-footer">
-        ${renderBenchmarkStrip(benchmarks || [])}
-        <button type="button" class="market-jump-button" data-surface-jump="${escapeHtml(surfaceKey)}">
-          ${escapeHtml(actionLabel)}
-        </button>
-      </div>
-    </article>
-  `;
-}
-
 function renderOverviewSurface() {
   const overview = payloads.overview;
   if (!overview) {
@@ -278,99 +213,53 @@ function renderOverviewSurface() {
 
   const stocks = overview.stocks || {};
   const crypto = overview.crypto || {};
-  const news = overview.market_news || [];
-  const stockHeatmap = (stocks.heatmap || []).slice(0, 12);
-  const cryptoHeatmap = (crypto.heatmap || []).slice(0, 12);
-  const stockGroups = (stocks.group_performance || []).slice(0, 6);
-  const cryptoGroups = (crypto.group_performance || []).slice(0, 6);
-  const cryptoTrending = (crypto.trending || []).slice(0, 6);
   refs.overview.innerHTML = `
-    <section class="analysis-grid market-overview-grid">
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Overview</p>
-            <h2>US Stocks at a glance</h2>
-          </div>
-          <button type="button" class="market-jump-button" data-surface-jump="stocks">Open Stocks</button>
-        </div>
-        ${stocks.message ? `<p class="market-message">${escapeHtml(summarizeText(stocks.message, 140))}</p>` : ""}
-        ${renderBenchmarkCards(stocks.benchmarks || [], "No stock benchmarks available.")}
-        ${renderBreadth(stocks.breadth || {}, "stock")}
-        ${renderHeatmap("Stock heatmap", stockHeatmap, "No stock heatmap data available.")}
-      </section>
-
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Overview</p>
-            <h2>Crypto at a glance</h2>
-          </div>
-          <button type="button" class="market-jump-button" data-surface-jump="crypto">Open Crypto</button>
-        </div>
-        ${crypto.message ? `<p class="market-message">${escapeHtml(summarizeText(crypto.message, 140))}</p>` : ""}
-        ${renderBenchmarkCards(crypto.benchmarks || [], "No crypto benchmarks available.")}
-        ${renderBreadth(crypto.breadth || {}, "crypto")}
-        ${renderHeatmap("Category heatmap", cryptoHeatmap, "No category heatmap data available.")}
-      </section>
-    </section>
-
-    <section class="analysis-grid market-overview-grid">
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Movers</p>
-            <h2>Cross-market movers</h2>
-          </div>
-        </div>
-        <div class="markets-three-up">
-          ${renderMiniList("Stock gainers", stocks.top_gainers || [], "No stock gainers available.")}
-          ${renderMiniList("Most active stocks", stocks.most_active || [], "No stock activity data available.")}
-          ${renderMiniList("Crypto gainers", crypto.top_gainers || [], "No crypto gainers available.")}
-          ${renderMiniList("Most active crypto", crypto.most_active || [], "No crypto activity data available.")}
-        </div>
-      </section>
-
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Leaders</p>
-            <h2>Sector and category pulse</h2>
-          </div>
-        </div>
-        ${renderGroupBars("Stock sectors", stockGroups, "No stock sector data available.")}
-        ${renderGroupBars("Crypto categories", cryptoGroups, "No crypto category data available.")}
-        ${renderTrending(cryptoTrending)}
-      </section>
-    </section>
-
-    <section class="analysis-table-panel market-news-rail">
+    <section class="analysis-table-panel market-overview-shell">
       <div class="analysis-panel-head">
         <div>
-          <p class="analysis-kicker">Market News Rail</p>
-          <h2>Linked to the newsbot feed</h2>
+          <p class="analysis-kicker">Overview</p>
+          <h2>Cross-market snapshot</h2>
         </div>
       </div>
-      ${news.length ? `
-        <div class="market-news-list">
-          ${news
-            .map(
-              (item) => `
-                <article class="market-news-row">
-                  <a href="${escapeHtml(item.canonical_url)}" target="_blank" rel="noreferrer">
-                    ${escapeHtml(item.title)}
-                  </a>
-                  <div class="market-news-meta">
-                    <span>${escapeHtml(item.section_label || "-")}</span>
-                    <span>${escapeHtml(item.source_name || "-")}</span>
-                    <span>${escapeHtml(formatDateTime(item.published_at))}</span>
-                  </div>
-                </article>
-              `,
-            )
-            .join("")}
-        </div>
-      ` : '<div class="analysis-empty">No market-linked news articles available.</div>'}
+      <div class="market-overview-columns">
+        <section class="market-overview-block">
+          <div class="market-overview-block-head">
+            <div class="market-overview-copy">
+              <p class="analysis-kicker">US Stocks</p>
+              <h3>US stocks summary</h3>
+              <p>Detailed heatmap and screener live in Stocks.</p>
+            </div>
+            <button type="button" class="market-jump-button" data-surface-jump="stocks">Stocks</button>
+          </div>
+          ${stocks.message ? `<p class="market-message">${escapeHtml(summarizeText(stocks.message, 120))}</p>` : ""}
+          ${renderBenchmarkCards((stocks.benchmarks || []).slice(0, 4), "No stock benchmarks available.")}
+          ${renderOverviewStatGrid([
+            { label: "Advancers", value: formatNumber(stocks.breadth?.advancers || 0) },
+            { label: "Decliners", value: formatNumber(stocks.breadth?.decliners || 0) },
+            { label: "Near 52W High", value: formatNumber(stocks.breadth?.new_highs || 0) },
+            { label: "Near 52W Low", value: formatNumber(stocks.breadth?.new_lows || 0) },
+          ])}
+        </section>
+
+        <section class="market-overview-block">
+          <div class="market-overview-block-head">
+            <div class="market-overview-copy">
+              <p class="analysis-kicker">Crypto</p>
+              <h3>Crypto summary</h3>
+              <p>Detailed heatmap and screener live in Crypto.</p>
+            </div>
+            <button type="button" class="market-jump-button" data-surface-jump="crypto">Crypto</button>
+          </div>
+          ${crypto.message ? `<p class="market-message">${escapeHtml(summarizeText(crypto.message, 120))}</p>` : ""}
+          ${renderBenchmarkCards((crypto.benchmarks || []).slice(0, 4), "No crypto benchmarks available.")}
+          ${renderOverviewStatGrid([
+            { label: "Advancers", value: formatNumber(crypto.breadth?.advancers || 0) },
+            { label: "Decliners", value: formatNumber(crypto.breadth?.decliners || 0) },
+            { label: "Near 24H High", value: formatNumber(crypto.breadth?.new_highs || 0) },
+            { label: "Near 24H Low", value: formatNumber(crypto.breadth?.new_lows || 0) },
+          ])}
+        </section>
+      </div>
     </section>
   `;
   refs.overview.querySelectorAll("[data-surface-jump]").forEach((button) => {
@@ -394,6 +283,23 @@ function renderBenchmarkCards(items, emptyMessage) {
               <strong>${escapeHtml(formatCurrency(item.last))}</strong>
               <span class="market-value ${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
             </a>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderOverviewStatGrid(items) {
+  return `
+    <div class="market-overview-stat-grid">
+      ${items
+        .map(
+          (item) => `
+            <div class="market-overview-stat">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+            </div>
           `,
         )
         .join("")}
@@ -626,6 +532,71 @@ function getFilteredRows(surface) {
   return rows;
 }
 
+function renderDetailSummary(surface, snapshot, dataset) {
+  const isStocks = surface === "stocks";
+  const groupTitle = isStocks ? "Sector performance" : "Category performance";
+  const heatmapTitle = isStocks ? "Stock heatmap" : "Crypto heatmap";
+  const heatmapEmpty = isStocks ? "No stock heatmap data available." : "No crypto heatmap data available.";
+  const groupEmpty = isStocks ? "No stock sector data available." : "No crypto category data available.";
+  const moverTitle = isStocks ? "US Stocks movers" : "Crypto movers";
+  const benchmarkEmpty = isStocks ? "No stock benchmarks available." : "No crypto benchmarks available.";
+  const gainersEmpty = isStocks ? "No gainers available." : "No crypto gainers available.";
+  const losersEmpty = isStocks ? "No losers available." : "No crypto losers available.";
+  const activeEmpty = isStocks ? "No stock activity data available." : "No crypto activity data available.";
+
+  return `
+    <section class="analysis-grid">
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+            <h2>Benchmarks and breadth</h2>
+          </div>
+          <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
+        </div>
+        ${dataset.message ? `<p class="market-message">${escapeHtml(dataset.message)}</p>` : ""}
+        ${renderBenchmarkCards(snapshot.benchmarks || [], benchmarkEmpty)}
+        ${renderBreadth(snapshot.breadth || {}, isStocks ? "stock" : "crypto")}
+      </section>
+
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+            <h2>${groupTitle}</h2>
+          </div>
+        </div>
+        ${renderGroupBars(groupTitle, snapshot.group_performance || [], groupEmpty)}
+        ${!isStocks ? renderTrending(snapshot.trending || []) : ""}
+      </section>
+    </section>
+
+    <section class="analysis-panel market-detail-heatmap">
+      <div class="analysis-panel-head">
+        <div>
+          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+          <h2>${heatmapTitle}</h2>
+        </div>
+      </div>
+      ${renderHeatmap(heatmapTitle, snapshot.heatmap || [], heatmapEmpty)}
+    </section>
+
+    <section class="analysis-panel">
+      <div class="analysis-panel-head">
+        <div>
+          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+          <h2>${moverTitle}</h2>
+        </div>
+      </div>
+      <div class="markets-three-up">
+        ${renderMiniList("Top gainers", (snapshot.top_gainers || []).slice(0, 6), gainersEmpty)}
+        ${renderMiniList("Top losers", (snapshot.top_losers || []).slice(0, 6), losersEmpty)}
+        ${renderMiniList("Most active", (snapshot.most_active || []).slice(0, 6), activeEmpty)}
+      </div>
+    </section>
+  `;
+}
+
 function renderDatasetSurface(surface) {
   const dataset = getDataset(surface);
   const target = surface === "stocks" ? refs.stocks : refs.crypto;
@@ -636,16 +607,16 @@ function renderDatasetSurface(surface) {
 
   const rows = getFilteredRows(surface);
   const isStocks = surface === "stocks";
+  const snapshot = isStocks ? payloads.overview?.stocks || {} : payloads.overview?.crypto || {};
   const controls = `
+    ${renderDetailSummary(surface, snapshot, dataset)}
     <section class="analysis-table-panel">
       <div class="analysis-panel-head">
         <div>
           <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
           <h2>${isStocks ? "Screener" : "Coin Screener"}</h2>
         </div>
-        <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
       </div>
-      ${dataset.message ? `<p class="market-message">${escapeHtml(dataset.message)}</p>` : ""}
       <div class="market-controls">
         <input
           id="${surface}-search"
