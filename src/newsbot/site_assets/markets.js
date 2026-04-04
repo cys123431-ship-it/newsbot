@@ -5,7 +5,6 @@ const bootstrap = JSON.parse(
 const refs = {
   tabs: document.getElementById("markets-surface-tabs"),
   statusLine: document.getElementById("markets-status-line"),
-  topCards: document.getElementById("markets-top-cards"),
   overview: document.getElementById("markets-overview-surface"),
   stocks: document.getElementById("markets-stocks-surface"),
   crypto: document.getElementById("markets-crypto-surface"),
@@ -145,6 +144,23 @@ async function ensureDataset(surface) {
   }
 }
 
+function summarizeText(value, maxLength = 140) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3).trimEnd()}...` : text;
+}
+
+async function setSurface(nextSurface) {
+  if (!nextSurface || nextSurface === state.surface) {
+    return;
+  }
+  state.surface = nextSurface;
+  renderSurfaceTabs();
+  await renderSurface();
+}
+
 function renderSurfaceTabs() {
   const surfaces = [
     { key: "overview", label: "Overview" },
@@ -167,12 +183,7 @@ function renderSurfaceTabs() {
   refs.tabs.querySelectorAll("[data-surface]").forEach((button) => {
     button.addEventListener("click", async () => {
       const nextSurface = button.getAttribute("data-surface");
-      if (!nextSurface) {
-        return;
-      }
-      state.surface = nextSurface;
-      renderSurfaceTabs();
-      await renderSurface();
+      await setSurface(nextSurface);
     });
   });
 }
@@ -190,24 +201,69 @@ function renderStatusLine() {
     `Updated ${formatDateTime(payloads.status.generated_at)}`;
 }
 
-function renderTopCards() {
-  const cards = payloads.overview?.top_cards || [];
-  if (!cards.length) {
-    refs.topCards.innerHTML = '<div class="analysis-empty">No market metrics available.</div>';
-    return;
+function renderBenchmarkStrip(items) {
+  if (!items.length) {
+    return "";
   }
-  refs.topCards.innerHTML = cards
-    .map(
-      (card) => `
-        <article class="analysis-kpi">
-          <p class="analysis-kpi-label">${escapeHtml(card.label)}</p>
-          <strong class="analysis-kpi-value">${escapeHtml(formatNumber(card.value))}</strong>
-          <p class="analysis-kpi-detail">${escapeHtml(card.detail || "")}</p>
-          <span class="market-chip ${escapeHtml(card.status || "warning")}">${escapeHtml(card.status || "")}</span>
-        </article>
-      `,
-    )
-    .join("");
+  return `
+    <div class="market-summary-benchmarks">
+      ${items
+        .slice(0, 3)
+        .map(
+          (item) => `
+            <a class="market-inline-ticker" href="${escapeHtml(item.detail_url || "#")}" target="_blank" rel="noreferrer">
+              <strong>${escapeHtml(item.symbol || "-")}</strong>
+              <span class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
+            </a>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderOverviewSummaryCard({
+  kicker,
+  title,
+  summary,
+  status,
+  message,
+  metrics,
+  benchmarks,
+  surfaceKey,
+  actionLabel,
+}) {
+  return `
+    <article class="market-summary-card">
+      <div class="market-summary-head">
+        <div class="market-summary-copy">
+          <p class="analysis-kicker">${escapeHtml(kicker)}</p>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(summary)}</p>
+        </div>
+        <span class="market-chip ${escapeHtml(status || "warning")}">${escapeHtml(status || "-")}</span>
+      </div>
+      ${message ? `<p class="market-message">${escapeHtml(summarizeText(message, 120))}</p>` : ""}
+      <div class="market-summary-metrics">
+        ${metrics
+          .map(
+            (item) => `
+              <div class="market-summary-stat">
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${escapeHtml(item.value)}</strong>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+      <div class="market-summary-footer">
+        ${renderBenchmarkStrip(benchmarks || [])}
+        <button type="button" class="market-jump-button" data-surface-jump="${escapeHtml(surfaceKey)}">
+          ${escapeHtml(actionLabel)}
+        </button>
+      </div>
+    </article>
+  `;
 }
 
 function renderOverviewSurface() {
@@ -223,51 +279,44 @@ function renderOverviewSurface() {
   const stocks = overview.stocks || {};
   const crypto = overview.crypto || {};
   const news = overview.market_news || [];
+  const status = payloads.status?.providers || {};
   refs.overview.innerHTML = `
-    <section class="analysis-grid markets-overview-grid">
-      <section class="analysis-panel analysis-panel-wide">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">US Stocks</p>
-            <h2>Delayed equity snapshot</h2>
-          </div>
-          <span class="market-chip ${escapeHtml(stocks.status || "warning")}">${escapeHtml(stocks.status || "-")}</span>
-        </div>
-        ${stocks.message ? `<p class="market-message">${escapeHtml(stocks.message)}</p>` : ""}
-        ${renderBenchmarkCards(stocks.benchmarks || [], "No stock benchmarks available.")}
-        ${renderBreadth(stocks.breadth || {}, "stock")}
-        <div class="markets-three-up">
-          ${renderMiniList("Top Gainers", stocks.top_gainers || [], "No gainers available.")}
-          ${renderMiniList("Top Losers", stocks.top_losers || [], "No losers available.")}
-          ${renderMiniList("Most Active", stocks.most_active || [], "No activity data available.")}
-        </div>
-        ${renderGroupBars("Sector Performance", stocks.group_performance || [], "No stock sector data available.")}
-        ${renderHeatmap("Heatmap", stocks.heatmap || [], "No stock heatmap data available.")}
-      </section>
-
-      <section class="analysis-panel analysis-panel-wide">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Crypto</p>
-            <h2>Coin market snapshot</h2>
-          </div>
-          <span class="market-chip ${escapeHtml(crypto.status || "warning")}">${escapeHtml(crypto.status || "-")}</span>
-        </div>
-        ${crypto.message ? `<p class="market-message">${escapeHtml(crypto.message)}</p>` : ""}
-        ${renderBenchmarkCards(crypto.benchmarks || [], "No crypto benchmarks available.")}
-        ${renderBreadth(crypto.breadth || {}, "crypto")}
-        <div class="markets-three-up">
-          ${renderMiniList("Top Gainers", crypto.top_gainers || [], "No gainers available.")}
-          ${renderMiniList("Top Losers", crypto.top_losers || [], "No losers available.")}
-          ${renderMiniList("Most Active", crypto.most_active || [], "No activity data available.")}
-        </div>
-        ${renderGroupBars("Category Performance", crypto.group_performance || [], "No crypto category data available.")}
-        ${renderHeatmap("Category Heatmap", crypto.heatmap || [], "No category heatmap data available.")}
-        ${renderTrending(crypto.trending || [])}
-      </section>
+    <section class="market-summary-grid">
+      ${renderOverviewSummaryCard({
+        kicker: "US Stocks",
+        title: "Stocks overview",
+        summary: "Use this as a quick snapshot, then move into Stocks for the full screener, sector bars, and heatmap.",
+        status: stocks.status,
+        message: stocks.message,
+        metrics: [
+          { label: "Tracked", value: formatNumber(status.stocks?.row_count || 0) },
+          { label: "Advancers", value: formatNumber(stocks.breadth?.advancers || 0) },
+          { label: "Decliners", value: formatNumber(stocks.breadth?.decliners || 0) },
+          { label: "Near 52W High", value: formatNumber(stocks.breadth?.new_highs || 0) },
+        ],
+        benchmarks: stocks.benchmarks || [],
+        surfaceKey: "stocks",
+        actionLabel: "Go to Stocks",
+      })}
+      ${renderOverviewSummaryCard({
+        kicker: "Crypto",
+        title: "Crypto overview",
+        summary: "Keep the overview short here and use Crypto for the professional board with category heatmap, movers, and trending.",
+        status: crypto.status,
+        message: crypto.message,
+        metrics: [
+          { label: "Tracked", value: formatNumber(status.crypto?.row_count || 0) },
+          { label: "Advancers", value: formatNumber(crypto.breadth?.advancers || 0) },
+          { label: "Decliners", value: formatNumber(crypto.breadth?.decliners || 0) },
+          { label: "Near 24H High", value: formatNumber(crypto.breadth?.new_highs || 0) },
+        ],
+        benchmarks: crypto.benchmarks || [],
+        surfaceKey: "crypto",
+        actionLabel: "Go to Crypto",
+      })}
     </section>
 
-    <section class="analysis-table-panel">
+    <section class="analysis-table-panel market-news-rail">
       <div class="analysis-panel-head">
         <div>
           <p class="analysis-kicker">Market News Rail</p>
@@ -296,6 +345,11 @@ function renderOverviewSurface() {
       ` : '<div class="analysis-empty">No market-linked news articles available.</div>'}
     </section>
   `;
+  refs.overview.querySelectorAll("[data-surface-jump]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await setSurface(button.getAttribute("data-surface-jump"));
+    });
+  });
 }
 
 function renderBenchmarkCards(items, emptyMessage) {
@@ -760,11 +814,9 @@ async function init() {
     payloads.overview = overviewPayload;
     renderSurfaceTabs();
     renderStatusLine();
-    renderTopCards();
     await renderSurface();
   } catch (error) {
     refs.statusLine.textContent = String(error);
-    refs.topCards.innerHTML = '<div class="analysis-empty">Failed to load markets data.</div>';
     refs.overview.innerHTML = `<div class="analysis-empty">${escapeHtml(String(error))}</div>`;
   }
 }

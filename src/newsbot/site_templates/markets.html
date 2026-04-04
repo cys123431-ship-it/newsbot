@@ -6,7 +6,7 @@
     <title>newsbot markets</title>
     <meta
       name="description"
-      content="Finviz-inspired market dashboard for delayed US equity and crypto snapshots inside newsbot"
+      content="미국주식과 코인을 분리해 보는 정적 마켓 대시보드"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
@@ -17,43 +17,43 @@
       <a class="surface-link is-active" href="./">Markets</a>
     </nav>
 
-    <header class="masthead analysis-masthead">
-      <div class="masthead-copy">
-        <p class="eyebrow">newsbot markets</p>
-        <h1>Finviz-inspired market view for newsbot</h1>
-        <p class="lede">
-          Delayed US equity and crypto snapshots with heatmaps, screeners, market breadth,
-          and a market-news rail connected to the existing newsbot feed.
-        </p>
+    <header class="compact-summary-header compact-summary-header-markets">
+      <div class="compact-summary-top">
+        <div class="compact-summary-copy">
+          <p class="eyebrow">newsbot markets</p>
+          <h1>Finviz-inspired market view for newsbot</h1>
+          <p class="compact-summary-description">
+            Delayed US equity and crypto snapshots rendered into static JSON for the public site, with dedicated Stocks and Crypto detail views.
+          </p>
+        </div>
+        <div class="compact-summary-meta">
+          <span class="summary-chip">Overview, Stocks, Crypto</span>
+          <span class="summary-chip">Delayed market data only</span>
+          <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+        </div>
       </div>
-      <div class="masthead-meta">
-        <span>Public GitHub Pages market surface</span>
-        <span>Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+      <div class="compact-summary-bottom">
+        <div class="compact-summary-inline compact-summary-inline-wide">
+          <div class="compact-summary-inline-copy">
+            <p class="compact-summary-kicker">Coverage</p>
+            <strong class="compact-summary-value">Compact overview, separate detailed boards</strong>
+            <p class="compact-summary-meta-line">
+              Overview is a short entry surface only. Full heatmaps, movers, breadth, and screeners live inside the Stocks and Crypto tabs.
+            </p>
+          </div>
+          <div class="compact-summary-inline-chips">
+            <span class="summary-chip">Heatmaps, breadth, movers, screeners</span>
+            <span class="summary-chip">Public GitHub Pages market surface</span>
+          </div>
+        </div>
+        <p id="markets-status-line" class="compact-summary-status-line">Loading market dashboard.</p>
       </div>
     </header>
 
     <main class="shell analysis-shell">
-      <section class="hub-hero analysis-hero markets-hero">
-        <div class="hub-hero-copy">
-          <p class="hub-kicker">Coverage</p>
-          <h2 class="hub-title">Overview, Stocks, Crypto</h2>
-          <p class="hub-description">
-            Market data is separate from the news feed. Stocks use a build-time provider and
-            crypto uses CoinGecko snapshots, both rendered into static JSON for the public site.
-          </p>
-        </div>
-        <div class="hub-hero-meta">
-          <span class="hub-count-chip">Heatmaps, breadth, movers, screeners</span>
-          <span class="hub-range-chip">Delayed market data only</span>
-        </div>
-      </section>
-
-      <section class="toolbar analysis-toolbar">
+      <section class="toolbar analysis-toolbar compact-toolbar">
         <div id="markets-surface-tabs" class="pill-row analysis-window-tabs"></div>
-        <p id="markets-status-line" class="status-line">Loading market dashboard.</p>
       </section>
-
-      <section id="markets-top-cards" class="analysis-kpis" aria-label="Top metrics"></section>
 
       <section id="markets-overview-surface" class="markets-surface"></section>
       <section id="markets-stocks-surface" class="markets-surface" hidden></section>
