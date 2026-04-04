@@ -96,6 +96,7 @@ def _settings(tmp_path, *, min_articles: int = 1) -> Settings:
         static_min_articles_to_publish=min_articles,
         static_max_articles_per_source=10,
         static_max_total_articles=20,
+        markets_enabled=False,
     )
 
 
@@ -183,10 +184,15 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     output_dir = tmp_path / "site-dist"
     assert (output_dir / "index.html").exists()
     assert (output_dir / "analysis" / "index.html").exists()
+    assert (output_dir / "markets" / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
     assert (output_dir / "data" / "site-data.json").exists()
     assert (output_dir / "data" / "analysis-state.json").exists()
     assert (output_dir / "data" / "analysis-dashboard.json").exists()
+    assert (output_dir / "data" / "markets-overview.json").exists()
+    assert (output_dir / "data" / "markets-stocks.json").exists()
+    assert (output_dir / "data" / "markets-crypto.json").exists()
+    assert (output_dir / "data" / "markets-status.json").exists()
     assert (output_dir / "data" / "removed-articles.txt").exists()
     html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="copy-all-button"' in html
@@ -198,10 +204,15 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="recency-filters"' in html
     assert 'id="hub-title"' in html
     assert 'href="analysis/"' in html
+    assert 'href="markets/"' in html
 
     analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
     assert 'id="analysis-window-tabs"' in analysis_html
     assert "../assets/analysis.js" in analysis_html
+
+    markets_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
+    assert 'id="markets-surface-tabs"' in markets_html
+    assert "../assets/markets.js" in markets_html
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
     assert file_payload["article_count"] >= 2
@@ -213,6 +224,10 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     analysis_payload = _read_json(output_dir / "data" / "analysis-dashboard.json")
     assert analysis_payload["default_window"] == "7d"
     assert analysis_payload["windows"]["all"]["article_count"] >= 2
+
+    markets_status = _read_json(output_dir / "data" / "markets-status.json")
+    assert markets_status["providers"]["stocks"]["status"] == "warning"
+    assert markets_status["providers"]["crypto"]["status"] == "warning"
 
 
 def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):

@@ -125,6 +125,35 @@ class Settings:
     static_analysis_archive_url: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_STATIC_ANALYSIS_ARCHIVE_URL")
     )
+    markets_enabled: bool = field(
+        default_factory=lambda: _bool_env("NEWSBOT_MARKETS_ENABLED", True)
+    )
+    markets_stocks_provider: str = field(
+        default_factory=lambda: os.getenv(
+            "NEWSBOT_MARKETS_STOCKS_PROVIDER",
+            "fmp",
+        ).strip().lower()
+        or "fmp"
+    )
+    markets_crypto_provider: str = field(
+        default_factory=lambda: os.getenv(
+            "NEWSBOT_MARKETS_CRYPTO_PROVIDER",
+            "coingecko",
+        ).strip().lower()
+        or "coingecko"
+    )
+    fmp_api_key: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_FMP_API_KEY")
+    )
+    coingecko_api_key: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_COINGECKO_API_KEY")
+    )
+    markets_max_stocks: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_STOCKS", 180)
+    )
+    markets_max_coins: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_COINS", 120)
+    )
 
     @property
     def telegram_session_configured(self) -> bool:

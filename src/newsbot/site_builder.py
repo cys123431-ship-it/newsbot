@@ -29,6 +29,12 @@ from jinja2 import select_autoescape
 from newsbot.config import Settings
 from newsbot.config import get_settings
 from newsbot.contracts import ArticleCandidate
+from newsbot.markets_builder import build_markets_bundle
+from newsbot.markets_builder import MARKETS_CRYPTO_FILENAME
+from newsbot.markets_builder import MARKETS_DIRECTORY_NAME
+from newsbot.markets_builder import MARKETS_OVERVIEW_FILENAME
+from newsbot.markets_builder import MARKETS_STATUS_FILENAME
+from newsbot.markets_builder import MARKETS_STOCKS_FILENAME
 from newsbot.services.classifier import classify_candidate
 from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.ingest import ADAPTERS
@@ -1495,6 +1501,7 @@ def build_static_site(
     destination = Path(output_dir or active_settings.static_output_dir)
     archive_articles = _load_archive_articles(active_settings, destination)
     analysis_state = _load_analysis_state(active_settings, destination)
+    market_archives = _load_markets_archives(active_settings, destination)
     existing_removed_log = _load_removed_article_log(active_settings, destination)
     payload, evicted_articles, analysis_articles = asyncio.run(
         collect_site_payload(
@@ -1513,6 +1520,11 @@ def build_static_site(
         merged_analysis_state,
         generated_at=payload["generated_at"],
     )
+    markets_bundle = build_markets_bundle(
+        active_settings,
+        payload,
+        archive_bundle=market_archives,
+    )
     removed_log = _build_removed_article_log(
         existing_removed_log,
         evicted_articles,
@@ -1524,6 +1536,7 @@ def build_static_site(
         removed_log=removed_log,
         analysis_state=merged_analysis_state,
         analysis_dashboard=analysis_dashboard,
+        markets_bundle=markets_bundle,
     )
     return payload
 
@@ -1535,6 +1548,7 @@ def _write_static_site(
     removed_log: str,
     analysis_state: dict[str, Any],
     analysis_dashboard: dict[str, Any],
+    markets_bundle: dict[str, dict[str, Any]],
 ) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -1542,10 +1556,12 @@ def _write_static_site(
     (output_dir / "assets").mkdir(parents=True, exist_ok=True)
     (output_dir / "data").mkdir(parents=True, exist_ok=True)
     (output_dir / ANALYSIS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
+    (output_dir / MARKETS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(SITE_ASSET_DIR / "style.css", output_dir / "assets" / "style.css")
     shutil.copy2(SITE_ASSET_DIR / "app.js", output_dir / "assets" / "app.js")
     shutil.copy2(SITE_ASSET_DIR / "analysis.js", output_dir / "assets" / "analysis.js")
+    shutil.copy2(SITE_ASSET_DIR / "markets.js", output_dir / "assets" / "markets.js")
 
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace(
         "</", "<\\/"
@@ -1587,11 +1603,30 @@ def _write_static_site(
         retention_days=analysis_dashboard["retention_days"],
         bootstrap_json=analysis_bootstrap_json,
     )
+    markets_template = environment.get_template("markets.html")
+    markets_bootstrap_json = json.dumps(
+        {
+            "overview_url": "../data/" + MARKETS_OVERVIEW_FILENAME,
+            "stocks_url": "../data/" + MARKETS_STOCKS_FILENAME,
+            "crypto_url": "../data/" + MARKETS_CRYPTO_FILENAME,
+            "status_url": "../data/" + MARKETS_STATUS_FILENAME,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+    markets_html = markets_template.render(
+        generated_at=payload["generated_at"],
+        bootstrap_json=markets_bootstrap_json,
+    )
 
     (output_dir / "index.html").write_text(html, encoding="utf-8")
     (output_dir / "404.html").write_text(html, encoding="utf-8")
     (output_dir / ANALYSIS_DIRECTORY_NAME / "index.html").write_text(
         analysis_html,
+        encoding="utf-8",
+    )
+    (output_dir / MARKETS_DIRECTORY_NAME / "index.html").write_text(
+        markets_html,
         encoding="utf-8",
     )
     (output_dir / "data" / "site-data.json").write_text(
@@ -1604,6 +1639,22 @@ def _write_static_site(
     )
     (output_dir / "data" / ANALYSIS_DASHBOARD_FILENAME).write_text(
         json.dumps(analysis_dashboard, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / MARKETS_OVERVIEW_FILENAME).write_text(
+        json.dumps(markets_bundle["overview"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / MARKETS_STOCKS_FILENAME).write_text(
+        json.dumps(markets_bundle["stocks"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / MARKETS_CRYPTO_FILENAME).write_text(
+        json.dumps(markets_bundle["crypto"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / MARKETS_STATUS_FILENAME).write_text(
+        json.dumps(markets_bundle["status"], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (output_dir / "data" / REMOVED_ARTICLES_LOG_FILENAME).write_text(
@@ -1668,6 +1719,30 @@ def _load_analysis_state(settings: Settings, output_dir: Path) -> dict[str, Any]
             timeout_seconds=settings.request_timeout_sec,
         )
     return payload if isinstance(payload, dict) else None
+
+
+def _load_markets_archives(
+    settings: Settings,
+    output_dir: Path,
+) -> dict[str, dict[str, Any] | None]:
+    filenames = {
+        "overview": MARKETS_OVERVIEW_FILENAME,
+        "stocks": MARKETS_STOCKS_FILENAME,
+        "crypto": MARKETS_CRYPTO_FILENAME,
+        "status": MARKETS_STATUS_FILENAME,
+    }
+    archives: dict[str, dict[str, Any] | None] = {}
+    for key, filename in filenames.items():
+        payload = _load_archive_payload_from_path(output_dir / "data" / filename)
+        if payload is None and settings.static_archive_url:
+            related_url = _derive_related_data_url(settings.static_archive_url, filename)
+            if related_url:
+                payload = _load_archive_payload_from_url(
+                    related_url,
+                    timeout_seconds=settings.request_timeout_sec,
+                )
+        archives[key] = payload if isinstance(payload, dict) else None
+    return archives
 
 
 def _load_archive_payload_from_path(path: Path) -> dict[str, Any] | None:

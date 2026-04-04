@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>newsbot markets</title>
+    <meta
+      name="description"
+      content="Finviz-inspired market dashboard for delayed US equity and crypto snapshots inside newsbot"
+    />
+    <link rel="stylesheet" href="../assets/style.css" />
+  </head>
+  <body>
+    <nav class="surface-switcher" aria-label="View switcher">
+      <a class="surface-link" href="../">News</a>
+      <a class="surface-link" href="../analysis/">Analysis</a>
+      <a class="surface-link is-active" href="./">Markets</a>
+    </nav>
+
+    <header class="masthead analysis-masthead">
+      <div class="masthead-copy">
+        <p class="eyebrow">newsbot markets</p>
+        <h1>Finviz-inspired market view for newsbot</h1>
+        <p class="lede">
+          Delayed US equity and crypto snapshots with heatmaps, screeners, market breadth,
+          and a market-news rail connected to the existing newsbot feed.
+        </p>
+      </div>
+      <div class="masthead-meta">
+        <span>Public GitHub Pages market surface</span>
+        <span>Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+      </div>
+    </header>
+
+    <main class="shell analysis-shell">
+      <section class="hub-hero analysis-hero markets-hero">
+        <div class="hub-hero-copy">
+          <p class="hub-kicker">Coverage</p>
+          <h2 class="hub-title">Overview, Stocks, Crypto</h2>
+          <p class="hub-description">
+            Market data is separate from the news feed. Stocks use a build-time provider and
+            crypto uses CoinGecko snapshots, both rendered into static JSON for the public site.
+          </p>
+        </div>
+        <div class="hub-hero-meta">
+          <span class="hub-count-chip">Heatmaps, breadth, movers, screeners</span>
+          <span class="hub-range-chip">Delayed market data only</span>
+        </div>
+      </section>
+
+      <section class="toolbar analysis-toolbar">
+        <div id="markets-surface-tabs" class="pill-row analysis-window-tabs"></div>
+        <p id="markets-status-line" class="status-line">Loading market dashboard.</p>
+      </section>
+
+      <section id="markets-top-cards" class="analysis-kpis" aria-label="Top metrics"></section>
+
+      <section id="markets-overview-surface" class="markets-surface"></section>
+      <section id="markets-stocks-surface" class="markets-surface" hidden></section>
+      <section id="markets-crypto-surface" class="markets-surface" hidden></section>
+
+      <noscript class="noscript-note">This markets page needs JavaScript to render data.</noscript>
+    </main>
+
+    <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
+    <script src="../assets/markets.js"></script>
+  </body>
+</html>

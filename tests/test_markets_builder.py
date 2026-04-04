@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+from newsbot.config import Settings
+from newsbot.markets_builder import _build_stocks_dataset
+from newsbot.markets_builder import _finalize_crypto_payload
+from newsbot.markets_builder import _finalize_stocks_payload
+from newsbot.markets_builder import build_markets_bundle
+from newsbot.markets_builder import MarketSnapshotRow
+
+
+def _settings() -> Settings:
+    return Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        fmp_api_key="test-fmp-key",
+        coingecko_api_key=None,
+        markets_max_stocks=12,
+        markets_max_coins=12,
+    )
+
+
+def _stock_row(symbol: str, *, change_pct: float, market_cap: float, sector: str) -> MarketSnapshotRow:
+    return MarketSnapshotRow(
+        asset_type="stock",
+        symbol=symbol,
+        name=symbol,
+        exchange="NASDAQ",
+        country="US",
+        sector_or_category=sector,
+        industry="Software",
+        last=100.0,
+        change_pct=change_pct,
+        market_cap=market_cap,
+        volume=1_000_000,
+        avg_volume=900_000,
+        pe=20.0,
+        dividend_yield=1.2,
+        as_of="2026-04-04T00:00:00+00:00",
+        detail_url=f"https://example.com/{symbol}",
+        high_52w=101.0,
+        low_52w=80.0,
+    )
+
+
+def _crypto_row(symbol: str, *, change_pct: float, market_cap: float) -> MarketSnapshotRow:
+    return MarketSnapshotRow(
+        asset_type="crypto",
+        symbol=symbol,
+        name=symbol,
+        exchange="CoinGecko",
+        country="Global",
+        sector_or_category="",
+        industry="Crypto",
+        last=50.0,
+        change_pct=change_pct,
+        market_cap=market_cap,
+        volume=2_000_000,
+        avg_volume=None,
+        pe=None,
+        dividend_yield=None,
+        as_of="2026-04-04T00:00:00+00:00",
+        detail_url=f"https://example.com/{symbol}",
+        high_52w=60.0,
+        low_52w=30.0,
+    )
+
+
+def test_build_markets_bundle_computes_overview_and_news_rail():
+    settings = _settings()
+    stocks_payload = _finalize_stocks_payload(
+        [
+            _stock_row("AAPL", change_pct=3.2, market_cap=2_800_000_000_000, sector="Technology"),
+            _stock_row("MSFT", change_pct=-1.5, market_cap=2_600_000_000_000, sector="Technology"),
+            _stock_row("JPM", change_pct=0.5, market_cap=700_000_000_000, sector="Financial"),
+        ],
+        [],
+        generated_at="2026-04-04T00:00:00+00:00",
+        provider="fmp",
+        status="ok",
+        stale=False,
+        message=None,
+    )
+    crypto_payload = _finalize_crypto_payload(
+        [
+            _crypto_row("BTC", change_pct=4.1, market_cap=1_300_000_000_000),
+            _crypto_row("ETH", change_pct=-2.2, market_cap=400_000_000_000),
+            _crypto_row("SOL", change_pct=1.0, market_cap=80_000_000_000),
+        ],
+        categories=[
+            {"name": "Layer 1", "market_cap": 500_000_000_000, "market_cap_change_24h": 2.1},
+            {"name": "Meme", "market_cap": 80_000_000_000, "market_cap_change_24h": -1.0},
+        ],
+        trending=[{"symbol": "BTC", "name": "Bitcoin", "market_cap_rank": 1, "detail_url": "https://example.com/btc"}],
+        generated_at="2026-04-04T00:00:00+00:00",
+        provider="coingecko",
+        status="ok",
+        stale=False,
+        message=None,
+    )
+
+    bundle = build_markets_bundle(
+        settings,
+        {
+            "generated_at": "2026-04-04T00:00:00+00:00",
+            "articles": [
+                {
+                    "title": "US market rally broadens",
+                    "source_name": "Reuters",
+                    "canonical_url": "https://example.com/news/1",
+                    "published_at": "2026-04-04T00:00:00+00:00",
+                    "primary_category": "us-markets",
+                    "section_label": "Markets",
+                },
+                {
+                    "title": "Bitcoin holds above support",
+                    "source_name": "CoinDesk",
+                    "canonical_url": "https://example.com/news/2",
+                    "published_at": "2026-04-03T23:00:00+00:00",
+                    "primary_category": "crypto",
+                    "section_label": "Crypto",
+                },
+                {
+                    "title": "Ignore this tech article",
+                    "source_name": "TechCrunch",
+                    "canonical_url": "https://example.com/news/3",
+                    "published_at": "2026-04-03T22:00:00+00:00",
+                    "primary_category": "tech-it",
+                    "section_label": "Tech",
+                },
+            ],
+        },
+        stock_dataset_builder=lambda *_args, **_kwargs: stocks_payload,
+        crypto_dataset_builder=lambda *_args, **_kwargs: crypto_payload,
+    )
+
+    assert bundle["status"]["overall_status"] == "ok"
+    assert bundle["overview"]["top_cards"][0]["value"] == 3
+    assert bundle["overview"]["stocks"]["breadth"]["advancers"] == 2
+    assert bundle["overview"]["crypto"]["breadth"]["decliners"] == 1
+    assert len(bundle["overview"]["market_news"]) == 2
+
+
+def test_build_stocks_dataset_reuses_archive_when_key_missing():
+    archived_row = _stock_row(
+        "ARCH",
+        change_pct=1.0,
+        market_cap=12_000_000_000,
+        sector="Technology",
+    ).to_public_dict()
+    archive_payload = {
+        "generated_at": "2026-04-03T00:00:00+00:00",
+        "asset_type": "stock",
+        "provider": "fmp",
+        "status": "ok",
+        "stale": False,
+        "message": None,
+        "as_of": "2026-04-03T00:00:00+00:00",
+        "row_count": 1,
+        "presets": [],
+        "filter_options": {"exchanges": ["NASDAQ"], "sectors": ["Technology"], "industries": ["Software"]},
+        "rows": [archived_row],
+        "benchmarks": [],
+        "breadth": {"advancers": 1, "decliners": 0, "unchanged": 0, "new_highs": 0, "new_lows": 0},
+        "movers": {"gainers": [], "losers": [], "active": []},
+        "group_performance": [],
+        "heatmap": [],
+    }
+    settings = Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        fmp_api_key=None,
+    )
+
+    payload = _build_stocks_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data=archive_payload,
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["stale"] is True
+    assert payload["row_count"] == 1
+    assert "NEWSBOT_FMP_API_KEY" in payload["message"]
