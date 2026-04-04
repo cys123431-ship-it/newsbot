@@ -1131,7 +1131,7 @@ a {
 }
 
 .analysis-more-analytics {
-  max-width: 760px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 0.72rem 0.78rem;
   background: var(--panel);
@@ -1146,8 +1146,9 @@ a {
   color: var(--muted);
 }
 
-.analysis-more-grid {
+.analysis-grid.analysis-more-grid {
   margin-top: 0.72rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .analysis-more-panel {
@@ -1810,6 +1811,10 @@ a {
   .analysis-kpis,
   .analysis-grid {
     grid-template-columns: 1fr;
+  }
+
+  .analysis-grid.analysis-more-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .masthead {
