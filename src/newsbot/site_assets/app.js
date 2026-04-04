@@ -379,7 +379,7 @@ function renderHubFilters() {
     createPillButton({
       datasetKey: "hubAction",
       datasetValue: "chooser",
-      label: "허브 다시 선택",
+      label: "뒤로 가기",
       active: false,
       onClick: () => {
         state.hub = "all";
