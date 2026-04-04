@@ -6,7 +6,7 @@
     <title>newsbot markets</title>
     <meta
       name="description"
-      content="미국주식과 코인을 분리해 보는 정적 마켓 대시보드"
+      content="newsbot markets dashboard for overview, US stocks, and crypto"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
@@ -21,31 +21,19 @@
       <div class="compact-summary-top">
         <div class="compact-summary-copy">
           <p class="eyebrow">newsbot markets</p>
-          <h1>Finviz-inspired market view for newsbot</h1>
+          <h1>markets</h1>
           <p class="compact-summary-description">
-            Delayed US equity and crypto snapshots rendered into static JSON for the public site, with dedicated Stocks and Crypto detail views.
+            Overview는 통합 시장 보기, Stocks와 Crypto는 자산군 전용 상세 보드입니다.
           </p>
         </div>
         <div class="compact-summary-meta">
-          <span class="summary-chip">Overview, Stocks, Crypto</span>
+          <span class="summary-chip">Overview / Stocks / Crypto</span>
           <span class="summary-chip">Delayed market data only</span>
           <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
         </div>
       </div>
-      <div class="compact-summary-bottom">
-        <div class="compact-summary-inline compact-summary-inline-wide">
-          <div class="compact-summary-inline-copy">
-            <p class="compact-summary-kicker">Coverage</p>
-            <strong class="compact-summary-value">Compact overview, separate detailed boards</strong>
-            <p class="compact-summary-meta-line">
-              Overview is a short entry surface only. Full heatmaps, movers, breadth, and screeners live inside the Stocks and Crypto tabs.
-            </p>
-          </div>
-          <div class="compact-summary-inline-chips">
-            <span class="summary-chip">Heatmaps, breadth, movers, screeners</span>
-            <span class="summary-chip">Public GitHub Pages market surface</span>
-          </div>
-        </div>
+      <div class="compact-summary-status-strip">
+        <p class="compact-summary-status-copy">Overview에서는 주식과 코인을 한눈에 보고, 상세 분석은 전용 탭에서 확인합니다.</p>
         <p id="markets-status-line" class="compact-summary-status-line">Loading market dashboard.</p>
       </div>
     </header>

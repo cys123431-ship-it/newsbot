@@ -279,41 +279,69 @@ function renderOverviewSurface() {
   const stocks = overview.stocks || {};
   const crypto = overview.crypto || {};
   const news = overview.market_news || [];
-  const status = payloads.status?.providers || {};
+  const stockHeatmap = (stocks.heatmap || []).slice(0, 12);
+  const cryptoHeatmap = (crypto.heatmap || []).slice(0, 12);
+  const stockGroups = (stocks.group_performance || []).slice(0, 6);
+  const cryptoGroups = (crypto.group_performance || []).slice(0, 6);
+  const cryptoTrending = (crypto.trending || []).slice(0, 6);
   refs.overview.innerHTML = `
-    <section class="market-summary-grid">
-      ${renderOverviewSummaryCard({
-        kicker: "US Stocks",
-        title: "Stocks overview",
-        summary: "Use this as a quick snapshot, then move into Stocks for the full screener, sector bars, and heatmap.",
-        status: stocks.status,
-        message: stocks.message,
-        metrics: [
-          { label: "Tracked", value: formatNumber(status.stocks?.row_count || 0) },
-          { label: "Advancers", value: formatNumber(stocks.breadth?.advancers || 0) },
-          { label: "Decliners", value: formatNumber(stocks.breadth?.decliners || 0) },
-          { label: "Near 52W High", value: formatNumber(stocks.breadth?.new_highs || 0) },
-        ],
-        benchmarks: stocks.benchmarks || [],
-        surfaceKey: "stocks",
-        actionLabel: "Go to Stocks",
-      })}
-      ${renderOverviewSummaryCard({
-        kicker: "Crypto",
-        title: "Crypto overview",
-        summary: "Keep the overview short here and use Crypto for the professional board with category heatmap, movers, and trending.",
-        status: crypto.status,
-        message: crypto.message,
-        metrics: [
-          { label: "Tracked", value: formatNumber(status.crypto?.row_count || 0) },
-          { label: "Advancers", value: formatNumber(crypto.breadth?.advancers || 0) },
-          { label: "Decliners", value: formatNumber(crypto.breadth?.decliners || 0) },
-          { label: "Near 24H High", value: formatNumber(crypto.breadth?.new_highs || 0) },
-        ],
-        benchmarks: crypto.benchmarks || [],
-        surfaceKey: "crypto",
-        actionLabel: "Go to Crypto",
-      })}
+    <section class="analysis-grid market-overview-grid">
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Overview</p>
+            <h2>US Stocks at a glance</h2>
+          </div>
+          <button type="button" class="market-jump-button" data-surface-jump="stocks">Open Stocks</button>
+        </div>
+        ${stocks.message ? `<p class="market-message">${escapeHtml(summarizeText(stocks.message, 140))}</p>` : ""}
+        ${renderBenchmarkCards(stocks.benchmarks || [], "No stock benchmarks available.")}
+        ${renderBreadth(stocks.breadth || {}, "stock")}
+        ${renderHeatmap("Stock heatmap", stockHeatmap, "No stock heatmap data available.")}
+      </section>
+
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Overview</p>
+            <h2>Crypto at a glance</h2>
+          </div>
+          <button type="button" class="market-jump-button" data-surface-jump="crypto">Open Crypto</button>
+        </div>
+        ${crypto.message ? `<p class="market-message">${escapeHtml(summarizeText(crypto.message, 140))}</p>` : ""}
+        ${renderBenchmarkCards(crypto.benchmarks || [], "No crypto benchmarks available.")}
+        ${renderBreadth(crypto.breadth || {}, "crypto")}
+        ${renderHeatmap("Category heatmap", cryptoHeatmap, "No category heatmap data available.")}
+      </section>
+    </section>
+
+    <section class="analysis-grid market-overview-grid">
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Movers</p>
+            <h2>Cross-market movers</h2>
+          </div>
+        </div>
+        <div class="markets-three-up">
+          ${renderMiniList("Stock gainers", stocks.top_gainers || [], "No stock gainers available.")}
+          ${renderMiniList("Most active stocks", stocks.most_active || [], "No stock activity data available.")}
+          ${renderMiniList("Crypto gainers", crypto.top_gainers || [], "No crypto gainers available.")}
+          ${renderMiniList("Most active crypto", crypto.most_active || [], "No crypto activity data available.")}
+        </div>
+      </section>
+
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Leaders</p>
+            <h2>Sector and category pulse</h2>
+          </div>
+        </div>
+        ${renderGroupBars("Stock sectors", stockGroups, "No stock sector data available.")}
+        ${renderGroupBars("Crypto categories", cryptoGroups, "No crypto category data available.")}
+        ${renderTrending(cryptoTrending)}
+      </section>
     </section>
 
     <section class="analysis-table-panel market-news-rail">

@@ -6,7 +6,7 @@
     <title>newsbot</title>
     <meta
       name="description"
-      content="한국과 미국 주요 뉴스 흐름을 한 화면에서 빠르게 훑는 뉴스 허브"
+      content="newsbot personal newsboard for Korean and US headlines"
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
@@ -21,42 +21,33 @@
       <div class="compact-summary-top">
         <div class="compact-summary-copy">
           <p class="eyebrow">newsbot</p>
-          <h1>대한민국과 미국을 한 화면에서 읽는 뉴스 허브</h1>
+          <h1>newsbot</h1>
           <p class="compact-summary-description">
-            국내 언론사와 미국 주요 신문·방송 네트워크 보도를 허브별로 모아, 섹션 단위로 빠르게 넘겨볼 수 있게 구성했습니다.
+            한국·미국 주요 뉴스를 허브와 섹션 기준으로 빠르게 훑는 개인 뉴스보드입니다.
           </p>
         </div>
         <div class="compact-summary-meta">
-          <span class="summary-chip">기사 {{ article_count }}건</span>
+          <span id="hub-count-chip" class="summary-chip">기사 {{ article_count }}건</span>
           <span class="summary-chip">15분마다 자동 갱신</span>
-          <span class="summary-chip">마지막 갱신 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+          <span class="summary-chip">마지막 갱신 <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time></span>
         </div>
       </div>
-      <div class="compact-summary-bottom compact-summary-bottom-news">
-        <section id="refresh-spotlight" class="compact-summary-inline compact-summary-inline-refresh">
+      <div id="refresh-spotlight" class="compact-summary-status-strip compact-summary-status-strip-news">
+        <div class="compact-summary-status-main">
           <div class="refresh-pulse" aria-hidden="true"></div>
-          <div class="compact-summary-inline-copy">
-            <p id="refresh-label" class="compact-summary-kicker">최근 갱신</p>
-            <strong id="refresh-title" class="compact-summary-value">최근 갱신 기준 기사 묶음을 보고 있어요.</strong>
-            <p class="compact-summary-meta-line">
-              <span>{{ article_count }}건 정리</span>
-              <span>마지막 갱신 <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time></span>
-            </p>
-          </div>
-        </section>
-        <section class="compact-summary-inline compact-summary-inline-scope">
-          <div class="compact-summary-inline-copy">
-            <p id="hub-kicker" class="compact-summary-kicker">뉴스 허브</p>
-            <strong id="hub-title" class="compact-summary-value">{{ initial_hub.label }}</strong>
-            <p id="hub-description" class="compact-summary-meta-line">
-              {{ initial_hub.description if initial_hub.description else "허브를 고르면 국내·미국·글로벌 전문 뉴스를 각각 탐색할 수 있습니다." }}
-            </p>
-          </div>
-          <div class="compact-summary-inline-chips">
-            <span id="hub-count-chip" class="summary-chip">기사 {{ article_count }}건</span>
-            <span id="hub-range-chip" class="summary-chip">허브별 세부 탐색</span>
-          </div>
-        </section>
+          <p id="refresh-label" class="compact-summary-chip-label">최근 갱신</p>
+          <strong id="refresh-title" class="compact-summary-status-strong">최근 갱신 기준 기사 흐름을 보고 있어요.</strong>
+        </div>
+        <div class="compact-summary-status-group">
+          <span id="hub-kicker" class="compact-summary-chip-label">뉴스 허브</span>
+          <strong id="hub-title">{{ initial_hub.label }}</strong>
+          <span id="hub-description">
+            {{ initial_hub.description if initial_hub.description else "허브와 섹션 필터로 한국·미국·글로벌 뉴스를 빠르게 이동할 수 있습니다." }}
+          </span>
+        </div>
+        <div class="compact-summary-meta compact-summary-meta-inline">
+          <span id="hub-range-chip" class="summary-chip">허브별 세부 탐색</span>
+        </div>
       </div>
     </header>
 

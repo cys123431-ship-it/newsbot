@@ -6,7 +6,7 @@
     <title>newsbot analysis</title>
     <meta
       name="description"
-      content="수집된 전체 뉴스 흐름을 기준으로 키워드, 타임라인, 소스 점유율을 분석하는 대시보드"
+      content="newsbot analysis dashboard for the full stream of collected news"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
@@ -21,30 +21,19 @@
       <div class="compact-summary-top">
         <div class="compact-summary-copy">
           <p class="eyebrow">newsbot analytics</p>
-          <h1>Dashboard for the full stream of collected news</h1>
+          <h1>analysis</h1>
           <p class="compact-summary-description">
-            본선 뉴스 목록과 별개로, 분류와 기본 검증을 통과한 전체 수집 흐름을 기준으로 키워드와 반복 제목 패턴을 분석합니다.
+            수집된 전체 뉴스 흐름에서 키워드, 타임라인, 반복 제목을 요약합니다.
           </p>
         </div>
         <div class="compact-summary-meta">
           <span class="summary-chip">Retention {{ retention_days }} days</span>
-          <span class="summary-chip">Keywords, timelines, sources, repeats</span>
+          <span class="summary-chip">Keywords, timelines, repeats</span>
           <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
         </div>
       </div>
-      <div class="compact-summary-bottom">
-        <div class="compact-summary-inline compact-summary-inline-wide">
-          <div class="compact-summary-inline-copy">
-            <p class="compact-summary-kicker">Coverage</p>
-            <strong class="compact-summary-value">Broader than the published news list</strong>
-            <p class="compact-summary-meta-line">
-              Counts include the validated raw article flow before per-source caps and before the final representative-story merge used on the news page.
-            </p>
-          </div>
-          <div class="compact-summary-inline-chips">
-            <span class="summary-chip">Public GitHub Pages analytics</span>
-          </div>
-        </div>
+      <div class="compact-summary-status-strip">
+        <p class="compact-summary-status-copy">최종 게시 전 원본 수집 흐름까지 포함한 누적 분석 보기입니다.</p>
         <p id="analysis-status" class="compact-summary-status-line">Loading analysis data.</p>
       </div>
     </header>
