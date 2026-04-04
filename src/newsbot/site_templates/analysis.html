@@ -45,59 +45,27 @@
 
       <section id="analysis-kpis" class="analysis-kpis" aria-label="Key metrics"></section>
 
-      <section class="analysis-grid">
-        <section class="analysis-panel analysis-panel-wide">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Timeline</p>
-              <h2>Article timeline</h2>
-            </div>
+      <section class="analysis-panel analysis-panel-wide">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Timeline</p>
+            <h2>Article timeline</h2>
           </div>
-          <div id="analysis-timeline" class="analysis-chart-slot"></div>
-        </section>
-
-        <section class="analysis-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Keywords</p>
-              <h2>Top keywords</h2>
-            </div>
-          </div>
-          <div id="analysis-keywords" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Sources</p>
-              <h2>Source share</h2>
-            </div>
-          </div>
-          <div id="analysis-sources" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Sections</p>
-              <h2>Hub and section share</h2>
-            </div>
-          </div>
-          <div id="analysis-sections" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Languages</p>
-              <h2>Language mix</h2>
-            </div>
-          </div>
-          <div id="analysis-languages" class="analysis-list-slot"></div>
-        </section>
+        </div>
+        <div id="analysis-timeline" class="analysis-chart-slot"></div>
       </section>
 
-      <section class="analysis-table-panel">
+      <section class="analysis-table-panel analysis-focus-switcher">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">Focus</p>
+            <h2>Open one content panel</h2>
+          </div>
+        </div>
+        <div id="analysis-focus-tabs" class="pill-row analysis-focus-tabs"></div>
+      </section>
+
+      <section id="analysis-repeated-panel" class="analysis-table-panel" hidden>
         <div class="analysis-panel-head">
           <div>
             <p class="analysis-kicker">Repeated Titles</p>
@@ -107,7 +75,7 @@
         <div id="analysis-repeated" class="analysis-table-slot"></div>
       </section>
 
-      <section class="analysis-table-panel">
+      <section id="analysis-samples-panel" class="analysis-table-panel" hidden>
         <div class="analysis-panel-head">
           <div>
             <p class="analysis-kicker">Recent Samples</p>
@@ -116,6 +84,51 @@
         </div>
         <div id="analysis-samples" class="analysis-table-slot"></div>
       </section>
+
+      <details id="analysis-more-analytics" class="analysis-more-analytics">
+        <summary>More analytics</summary>
+        <div class="analysis-grid analysis-more-grid">
+          <section class="analysis-panel">
+            <div class="analysis-panel-head">
+              <div>
+                <p class="analysis-kicker">Keywords</p>
+                <h2>Top keywords</h2>
+              </div>
+            </div>
+            <div id="analysis-keywords" class="analysis-list-slot"></div>
+          </section>
+
+          <section class="analysis-panel">
+            <div class="analysis-panel-head">
+              <div>
+                <p class="analysis-kicker">Sources</p>
+                <h2>Source share</h2>
+              </div>
+            </div>
+            <div id="analysis-sources" class="analysis-list-slot"></div>
+          </section>
+
+          <section class="analysis-panel">
+            <div class="analysis-panel-head">
+              <div>
+                <p class="analysis-kicker">Sections</p>
+                <h2>Hub and section share</h2>
+              </div>
+            </div>
+            <div id="analysis-sections" class="analysis-list-slot"></div>
+          </section>
+
+          <section class="analysis-panel">
+            <div class="analysis-panel-head">
+              <div>
+                <p class="analysis-kicker">Languages</p>
+                <h2>Language mix</h2>
+              </div>
+            </div>
+            <div id="analysis-languages" class="analysis-list-slot"></div>
+          </section>
+        </div>
+      </details>
 
       <noscript class="noscript-note">This analysis page needs JavaScript to render charts and tables.</noscript>
     </main>

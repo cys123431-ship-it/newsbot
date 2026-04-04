@@ -1,6 +1,8 @@
 const payload = JSON.parse(document.getElementById("site-data").textContent);
 
 const refs = {
+  hubChooser: document.getElementById("news-hub-chooser"),
+  newsContentShell: document.getElementById("news-content-shell"),
   hubFilters: document.getElementById("hub-filters"),
   categoryFilters: document.getElementById("category-filters"),
   recencyFilters: document.getElementById("recency-filters"),
@@ -39,6 +41,12 @@ const RECENCY_OPTIONS = [
   { key: "older", label: "이전" },
   { key: "unknown", label: "시간 미상" },
 ];
+const ENTRY_HUB_ORDER = ["kr", "us", "global"];
+const ENTRY_HUB_LABELS = {
+  kr: "한국뉴스",
+  us: "미국뉴스",
+  global: "글로벌뉴스",
+};
 
 const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
 
@@ -71,6 +79,10 @@ if (state.section !== "all" && state.hub === "all") {
 }
 if (!RECENCY_OPTIONS.some((entry) => entry.key === state.recency)) {
   state.recency = "all";
+}
+
+function isChooserMode() {
+  return state.hub === "all";
 }
 
 function escapeHtml(value) {
@@ -317,47 +329,80 @@ function createPillButton({ datasetKey, datasetValue, label, count, active, onCl
   return button;
 }
 
-function renderHubFilters() {
-  const counts = new Map(hubs.map((hub) => [hub.key, 0]));
-  getSourceAndQueryFilteredArticles().forEach((article) => {
-    counts.set(article.hub, (counts.get(article.hub) || 0) + 1);
-  });
-  const totalCount = Array.from(counts.values()).reduce((sum, value) => sum + value, 0);
+function renderHubChooser() {
+  const chooserHubs = ENTRY_HUB_ORDER
+    .map((key) => hubMap[key])
+    .filter(Boolean);
 
+  refs.hubChooser.innerHTML = `
+    <section class="toolbar news-entry-toolbar">
+      <div class="news-entry-copy">
+        <p class="analysis-kicker">News entry</p>
+        <h2>먼저 뉴스 범위를 고르세요.</h2>
+        <p>한국뉴스, 미국뉴스, 글로벌뉴스 중 하나를 고르면 세부 섹션과 기사 목록이 열립니다.</p>
+      </div>
+      <div class="news-entry-grid">
+        ${chooserHubs
+          .map(
+            (hub) => `
+              <button type="button" class="news-entry-button" data-entry-hub="${escapeHtml(hub.key)}">
+                <strong>${escapeHtml(ENTRY_HUB_LABELS[hub.key] || hub.label)}</strong>
+                <span>${escapeHtml(String(hub.count || 0))}건</span>
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+
+  refs.hubChooser.querySelectorAll("[data-entry-hub]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hub = button.getAttribute("data-entry-hub") || "all";
+      state.section = "all";
+      state.recency = "all";
+      state.source = "all";
+      state.q = "";
+      state.page = 1;
+      render();
+    });
+  });
+}
+
+function renderHubFilters() {
   refs.hubFilters.innerHTML = "";
+  if (isChooserMode()) {
+    return;
+  }
+
   refs.hubFilters.appendChild(
     createPillButton({
-      datasetKey: "hub",
-      datasetValue: "all",
-      label: "전체 허브",
-      count: totalCount,
-      active: state.hub === "all",
+      datasetKey: "hubAction",
+      datasetValue: "chooser",
+      label: "허브 다시 선택",
+      active: false,
       onClick: () => {
         state.hub = "all";
         state.section = "all";
+        state.recency = "all";
+        state.source = "all";
+        state.q = "";
         state.page = 1;
         render();
       },
     }),
   );
 
-  hubs.forEach((hub) => {
-    refs.hubFilters.appendChild(
-      createPillButton({
-        datasetKey: "hub",
-        datasetValue: hub.key,
-        label: hub.label,
-        count: counts.get(hub.key) || 0,
-        active: state.hub === hub.key,
-        onClick: () => {
-          state.hub = hub.key;
-          state.section = "all";
-          state.page = 1;
-          render();
-        },
-      }),
-    );
-  });
+  refs.hubFilters.appendChild(
+    createPillButton({
+      datasetKey: "hub",
+      datasetValue: state.hub,
+      label: ENTRY_HUB_LABELS[state.hub] || getHubTitle(state.hub),
+      count: getSourceAndQueryFilteredArticles().filter((article) => article.hub === state.hub).length,
+      active: true,
+      onClick: () => {},
+    }),
+  );
 }
 
 function renderCategoryFilters() {
@@ -443,6 +488,16 @@ function renderRecencyFilters() {
 }
 
 function renderHubHero(articles) {
+  if (isChooserMode()) {
+    refs.hubKicker.textContent = "첫 화면";
+    refs.hubTitle.textContent = "뉴스 범위 선택";
+    refs.hubDescription.textContent =
+      "한국뉴스, 미국뉴스, 글로벌뉴스 중 하나를 먼저 고르고 그 다음 세부 섹션과 기사 목록을 보세요.";
+    refs.hubCountChip.textContent = `기사 ${payload.article_count || payload.articles.length}건`;
+    refs.hubRangeChip.textContent = "한국 · 미국 · 글로벌";
+    return;
+  }
+
   const hubTitle = getHubTitle(state.hub);
   const category = state.section !== "all" ? categoryMap[state.section] : null;
 
@@ -631,6 +686,9 @@ function renderSections(articles) {
 
 function render() {
   renderRefreshSpotlight();
+  renderHubChooser();
+  refs.hubChooser.hidden = !isChooserMode();
+  refs.newsContentShell.hidden = isChooserMode();
   renderHubFilters();
   renderCategoryFilters();
   renderRecencyFilters();
@@ -640,6 +698,13 @@ function render() {
   const pagination = getPaginationMeta(articles.length);
   syncUrl();
   renderHubHero(articles);
+  if (isChooserMode()) {
+    refs.statusLine.textContent = "허브를 고르면 세부 섹션과 기사 목록이 열립니다.";
+    refs.newsSections.innerHTML = "";
+    refs.paginationNav.innerHTML = "";
+    refs.paginationNav.hidden = true;
+    return;
+  }
   renderStatusLine(articles, pagination);
   renderSections(articles.slice(pagination.start, pagination.end));
   renderPagination(pagination);

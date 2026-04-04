@@ -7,6 +7,10 @@ const refs = {
   status: document.getElementById("analysis-status"),
   kpis: document.getElementById("analysis-kpis"),
   timeline: document.getElementById("analysis-timeline"),
+  focusTabs: document.getElementById("analysis-focus-tabs"),
+  repeatedPanel: document.getElementById("analysis-repeated-panel"),
+  samplesPanel: document.getElementById("analysis-samples-panel"),
+  moreAnalytics: document.getElementById("analysis-more-analytics"),
   keywords: document.getElementById("analysis-keywords"),
   sources: document.getElementById("analysis-sources"),
   sections: document.getElementById("analysis-sections"),
@@ -17,6 +21,7 @@ const refs = {
 
 const state = {
   window: bootstrap.default_window || "7d",
+  focusPanel: null,
 };
 
 let payload = null;
@@ -85,6 +90,26 @@ function renderWindowTabs() {
     });
     refs.windowTabs.appendChild(button);
   }
+}
+
+function renderFocusTabs() {
+  const items = [
+    { key: "repeated", label: "Repeated Titles" },
+    { key: "samples", label: "Recent Samples" },
+  ];
+  refs.focusTabs.innerHTML = "";
+  items.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `pill${state.focusPanel === item.key ? " is-active" : ""}`;
+    button.textContent = `${index + 1} ${item.label}`;
+    button.addEventListener("click", () => {
+      state.focusPanel = state.focusPanel === item.key ? null : item.key;
+      renderFocusTabs();
+      renderFocusPanels();
+    });
+    refs.focusTabs.appendChild(button);
+  });
 }
 
 function renderStatus() {
@@ -347,8 +372,14 @@ function renderSamplesTable() {
   `;
 }
 
+function renderFocusPanels() {
+  refs.repeatedPanel.hidden = state.focusPanel !== "repeated";
+  refs.samplesPanel.hidden = state.focusPanel !== "samples";
+}
+
 function renderDashboard() {
   renderWindowTabs();
+  renderFocusTabs();
   renderStatus();
   renderKpis();
   renderTimeline();
@@ -376,6 +407,7 @@ function renderDashboard() {
   );
   renderRepeatedTable();
   renderSamplesTable();
+  renderFocusPanels();
 }
 
 async function init() {
@@ -393,6 +425,7 @@ async function init() {
     refs.status.textContent = "Failed to load analysis data.";
     const message = escapeHtml(error instanceof Error ? error.message : String(error));
     const fallback = `<div class="analysis-empty">${message}</div>`;
+    refs.focusTabs.innerHTML = "";
     refs.kpis.innerHTML = fallback;
     refs.timeline.innerHTML = fallback;
     refs.keywords.innerHTML = fallback;

@@ -26,6 +26,8 @@ const state = {
   stocksSector: "all",
   stocksIndustry: "all",
   stocksValuation: "all",
+  stocksDetail: "",
+  cryptoDetail: "",
 };
 
 const payloads = {
@@ -532,84 +534,138 @@ function getFilteredRows(surface) {
   return rows;
 }
 
-function renderDetailSummary(surface, snapshot, dataset) {
+function getDetailPanelState(surface) {
+  return surface === "stocks" ? state.stocksDetail : state.cryptoDetail;
+}
+
+function setDetailPanelState(surface, nextPanel) {
+  const key = surface === "stocks" ? "stocksDetail" : "cryptoDetail";
+  state[key] = state[key] === nextPanel ? "" : nextPanel;
+}
+
+function renderBenchmarkTickerRow(items, emptyMessage) {
+  if (!items.length) {
+    return `<div class="analysis-empty compact-empty">${escapeHtml(emptyMessage)}</div>`;
+  }
+  return `
+    <div class="market-benchmark-row">
+      ${items
+        .slice(0, 5)
+        .map(
+          (item) => `
+            <a class="market-benchmark-pill" href="${escapeHtml(item.detail_url || "#")}" target="_blank" rel="noreferrer">
+              <strong>${escapeHtml(item.symbol || "-")}</strong>
+              <span>${escapeHtml(formatCurrency(item.last))}</span>
+              <b class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</b>
+            </a>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderDetailTabs(surface) {
+  const activePanel = getDetailPanelState(surface);
+  const items = [
+    { key: "heatmap", label: "1 Heatmap" },
+    { key: "movers", label: "2 Movers" },
+    { key: "screener", label: "3 Screener" },
+  ];
+  return `
+    <section class="analysis-table-panel market-detail-switcher">
+      <div class="market-detail-tabs">
+        ${items
+          .map(
+            (item) => `
+              <button
+                type="button"
+                class="pill${activePanel === item.key ? " is-active" : ""}"
+                data-detail-panel="${escapeHtml(item.key)}"
+              >
+                ${escapeHtml(item.label)}
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+      <p class="market-detail-hint">필요한 패널만 눌러서 열 수 있습니다.</p>
+    </section>
+  `;
+}
+
+function renderSummaryStrip(surface, snapshot, dataset) {
   const isStocks = surface === "stocks";
-  const groupTitle = isStocks ? "Sector performance" : "Category performance";
-  const heatmapTitle = isStocks ? "Stock heatmap" : "Crypto heatmap";
-  const heatmapEmpty = isStocks ? "No stock heatmap data available." : "No crypto heatmap data available.";
-  const groupEmpty = isStocks ? "No stock sector data available." : "No crypto category data available.";
-  const moverTitle = isStocks ? "US Stocks movers" : "Crypto movers";
   const benchmarkEmpty = isStocks ? "No stock benchmarks available." : "No crypto benchmarks available.";
-  const gainersEmpty = isStocks ? "No gainers available." : "No crypto gainers available.";
-  const losersEmpty = isStocks ? "No losers available." : "No crypto losers available.";
-  const activeEmpty = isStocks ? "No stock activity data available." : "No crypto activity data available.";
 
   return `
-    <section class="analysis-grid">
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-            <h2>Benchmarks and breadth</h2>
-          </div>
-          <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
+    <section class="analysis-panel market-strip-panel">
+      <div class="market-strip-head">
+        <div>
+          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+          <h2>${isStocks ? "Benchmarks and breadth" : "Benchmarks and breadth"}</h2>
         </div>
-        ${dataset.message ? `<p class="market-message">${escapeHtml(dataset.message)}</p>` : ""}
-        ${renderBenchmarkCards(snapshot.benchmarks || [], benchmarkEmpty)}
+        <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
+      </div>
+      ${dataset.message ? `<p class="market-message market-strip-message">${escapeHtml(dataset.message)}</p>` : ""}
+      <div class="market-strip-layout">
+        ${renderBenchmarkTickerRow(snapshot.benchmarks || [], benchmarkEmpty)}
         ${renderBreadth(snapshot.breadth || {}, isStocks ? "stock" : "crypto")}
-      </section>
-
-      <section class="analysis-panel">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-            <h2>${groupTitle}</h2>
-          </div>
-        </div>
-        ${renderGroupBars(groupTitle, snapshot.group_performance || [], groupEmpty)}
-        ${!isStocks ? renderTrending(snapshot.trending || []) : ""}
-      </section>
-    </section>
-
-    <section class="analysis-panel market-detail-heatmap">
-      <div class="analysis-panel-head">
-        <div>
-          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-          <h2>${heatmapTitle}</h2>
-        </div>
-      </div>
-      ${renderHeatmap(heatmapTitle, snapshot.heatmap || [], heatmapEmpty)}
-    </section>
-
-    <section class="analysis-panel">
-      <div class="analysis-panel-head">
-        <div>
-          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-          <h2>${moverTitle}</h2>
-        </div>
-      </div>
-      <div class="markets-three-up">
-        ${renderMiniList("Top gainers", (snapshot.top_gainers || []).slice(0, 6), gainersEmpty)}
-        ${renderMiniList("Top losers", (snapshot.top_losers || []).slice(0, 6), losersEmpty)}
-        ${renderMiniList("Most active", (snapshot.most_active || []).slice(0, 6), activeEmpty)}
       </div>
     </section>
   `;
 }
 
-function renderDatasetSurface(surface) {
-  const dataset = getDataset(surface);
-  const target = surface === "stocks" ? refs.stocks : refs.crypto;
-  if (!dataset) {
-    target.innerHTML = '<div class="analysis-empty">Dataset not loaded.</div>';
-    return;
+function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
+  const isStocks = surface === "stocks";
+  const activePanel = getDetailPanelState(surface);
+  const groupTitle = isStocks ? "Sector performance" : "Category performance";
+  const heatmapTitle = isStocks ? "Stock heatmap" : "Crypto heatmap";
+  const heatmapEmpty = isStocks ? "No stock heatmap data available." : "No crypto heatmap data available.";
+  const groupEmpty = isStocks ? "No stock sector data available." : "No crypto category data available.";
+  const gainersEmpty = isStocks ? "No gainers available." : "No crypto gainers available.";
+  const losersEmpty = isStocks ? "No losers available." : "No crypto losers available.";
+  const activeEmpty = isStocks ? "No stock activity data available." : "No crypto activity data available.";
+
+  if (!activePanel) {
+    return "";
   }
 
-  const rows = getFilteredRows(surface);
-  const isStocks = surface === "stocks";
-  const snapshot = isStocks ? payloads.overview?.stocks || {} : payloads.overview?.crypto || {};
-  const controls = `
-    ${renderDetailSummary(surface, snapshot, dataset)}
+  if (activePanel === "heatmap") {
+    return `
+      <section class="analysis-panel market-detail-heatmap">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+            <h2>${heatmapTitle}</h2>
+          </div>
+        </div>
+        ${renderGroupBars(groupTitle, snapshot.group_performance || [], groupEmpty)}
+        ${!isStocks ? renderTrending(snapshot.trending || []) : ""}
+        ${renderHeatmap(heatmapTitle, snapshot.heatmap || [], heatmapEmpty)}
+      </section>
+    `;
+  }
+
+  if (activePanel === "movers") {
+    return `
+      <section class="analysis-panel">
+        <div class="analysis-panel-head">
+          <div>
+            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
+            <h2>${isStocks ? "US Stocks movers" : "Crypto movers"}</h2>
+          </div>
+        </div>
+        <div class="markets-three-up">
+          ${renderMiniList("Top gainers", (snapshot.top_gainers || []).slice(0, 6), gainersEmpty)}
+          ${renderMiniList("Top losers", (snapshot.top_losers || []).slice(0, 6), losersEmpty)}
+          ${renderMiniList("Most active", (snapshot.most_active || []).slice(0, 6), activeEmpty)}
+        </div>
+      </section>
+    `;
+  }
+
+  return `
     <section class="analysis-table-panel">
       <div class="analysis-panel-head">
         <div>
@@ -694,7 +750,32 @@ function renderDatasetSurface(surface) {
       </div>
     </section>
   `;
+}
+
+function renderDatasetSurface(surface) {
+  const dataset = getDataset(surface);
+  const target = surface === "stocks" ? refs.stocks : refs.crypto;
+  if (!dataset) {
+    target.innerHTML = '<div class="analysis-empty">Dataset not loaded.</div>';
+    return;
+  }
+
+  const rows = getFilteredRows(surface);
+  const isStocks = surface === "stocks";
+  const snapshot = isStocks ? payloads.overview?.stocks || {} : payloads.overview?.crypto || {};
+  const controls = `
+    ${renderSummaryStrip(surface, snapshot, dataset)}
+    ${renderDetailTabs(surface)}
+    ${renderSelectedDetailPanel(surface, snapshot, dataset, rows)}
+  `;
   target.innerHTML = controls;
+
+  target.querySelectorAll("[data-detail-panel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setDetailPanelState(surface, button.getAttribute("data-detail-panel") || "");
+      renderDatasetSurface(surface);
+    });
+  });
 
   target.querySelector(`#${surface}-search`)?.addEventListener("input", (event) => {
     if (isStocks) {
