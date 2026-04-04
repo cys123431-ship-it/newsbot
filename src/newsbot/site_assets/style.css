@@ -1150,17 +1150,15 @@ a {
   margin-top: 0.72rem;
 }
 
-.analysis-more-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.72rem;
-  margin-top: 0.72rem;
+.analysis-more-panel {
+  min-height: 0;
 }
 
-.analysis-more-column {
-  display: grid;
-  gap: 0.72rem;
-  align-content: start;
+.analysis-more-list-slot {
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: 0.16rem;
+  scrollbar-gutter: stable;
 }
 
 .market-chip {
@@ -1810,8 +1808,7 @@ a {
   .market-overview-stat-grid,
   .market-summary-metrics,
   .analysis-kpis,
-  .analysis-grid,
-  .analysis-more-columns {
+  .analysis-grid {
     grid-template-columns: 1fr;
   }
 
