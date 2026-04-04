@@ -4,6 +4,8 @@ from newsbot.config import Settings
 from newsbot.markets_builder import _build_stocks_dataset
 from newsbot.markets_builder import _finalize_crypto_payload
 from newsbot.markets_builder import _finalize_stocks_payload
+from newsbot.markets_builder import _parse_finviz_quote_snapshot
+from newsbot.markets_builder import _parse_finviz_screener_rows
 from newsbot.markets_builder import build_markets_bundle
 from newsbot.markets_builder import MarketSnapshotRow
 
@@ -143,7 +145,107 @@ def test_build_markets_bundle_computes_overview_and_news_rail():
     assert len(bundle["overview"]["market_news"]) == 2
 
 
-def test_build_stocks_dataset_reuses_archive_when_key_missing():
+def test_parse_finviz_screener_rows_extracts_market_fields():
+    html = """
+    <table>
+      <tr class="styled-row is-bordered is-rounded is-hoverable is-striped has-color-text" valign="top">
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">1</a></td>
+        <td height="10" align="left" data-boxover-ticker="AAPL"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" class="tab-link">AAPL</a></td>
+        <td height="10" align="left"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">Apple Inc</a></td>
+        <td height="10" align="left"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">Technology</a></td>
+        <td height="10" align="left"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">Consumer Electronics</a></td>
+        <td height="10" align="left"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">USA</a></td>
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">3.75T</a></td>
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">32.38</a></td>
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" "><span class="color-text is-positive">255.92</span></a></td>
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" "><span class="color-text is-negative">-0.74%</span></a></td>
+        <td height="10" align="right"><a href="quote.ashx?t=AAPL&ty=c&p=d&b=1" ">57,416,203</a></td>
+      </tr>
+    </table>
+    """
+
+    rows = _parse_finviz_screener_rows(
+        html,
+        generated_at="2026-04-04T00:00:00+00:00",
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.symbol == "AAPL"
+    assert row.name == "Apple Inc"
+    assert row.sector_or_category == "Technology"
+    assert row.industry == "Consumer Electronics"
+    assert row.market_cap == 3_750_000_000_000
+    assert row.pe == 32.38
+    assert row.last == 255.92
+    assert row.change_pct == -0.74
+    assert row.volume == 57_416_203
+
+
+def test_parse_finviz_quote_snapshot_extracts_label_pairs():
+    html = """
+    <table class="snapshot-table2 screener_snapshot-table-body">
+      <tr class="table-dark-row">
+        <td class="snapshot-td2 cursor-pointer w-[7%]" align="left">P/E</td>
+        <td class="snapshot-td2 w-[8%]" align="left"><b>32.38</b></td>
+        <td class="snapshot-td2 cursor-pointer w-[7%]" align="left">Price</td>
+        <td class="snapshot-td2 w-[8%]" align="left"><b>255.92</b></td>
+        <td class="snapshot-td2 cursor-pointer w-[7%]" align="left">Change</td>
+        <td class="snapshot-td2 w-[8%]" align="left"><b><span class="color-text is-negative">-0.74%</span></b></td>
+      </tr>
+    </table>
+    """
+
+    snapshot = _parse_finviz_quote_snapshot(html)
+
+    assert snapshot["P/E"] == "32.38"
+    assert snapshot["Price"] == "255.92"
+    assert snapshot["Change"] == "-0.74%"
+
+
+def test_build_stocks_dataset_uses_public_finviz_fallback_when_key_missing():
+    settings = Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        fmp_api_key=None,
+    )
+
+    def fake_finviz_builder(_settings, *, generated_at, archive_data, note):
+        assert archive_data is None
+        return _finalize_stocks_payload(
+            [
+                _stock_row(
+                    "AAPL",
+                    change_pct=2.4,
+                    market_cap=3_000_000_000_000,
+                    sector="Technology",
+                )
+            ],
+            [],
+            generated_at=generated_at,
+            provider="finviz-public",
+            status="ok",
+            stale=False,
+            message=note,
+        )
+
+    payload = _build_stocks_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data=None,
+        finviz_dataset_builder=fake_finviz_builder,
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["provider"] == "finviz-public"
+    assert payload["row_count"] == 1
+    assert "NEWSBOT_FMP_API_KEY" in payload["message"]
+
+
+def test_build_stocks_dataset_reuses_archive_when_fallback_fails():
     archived_row = _stock_row(
         "ARCH",
         change_pct=1.0,
@@ -181,9 +283,13 @@ def test_build_stocks_dataset_reuses_archive_when_key_missing():
         settings,
         generated_at="2026-04-04T00:00:00+00:00",
         archive_data=archive_payload,
+        finviz_dataset_builder=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("blocked")
+        ),
     )
 
     assert payload["status"] == "warning"
     assert payload["stale"] is True
     assert payload["row_count"] == 1
     assert "NEWSBOT_FMP_API_KEY" in payload["message"]
+    assert "blocked" in payload["message"]

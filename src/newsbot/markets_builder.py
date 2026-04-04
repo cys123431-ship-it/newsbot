@@ -5,8 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
+from html import unescape
 from math import ceil
+import re
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -20,7 +23,25 @@ MARKETS_CRYPTO_FILENAME = "markets-crypto.json"
 MARKETS_STATUS_FILENAME = "markets-status.json"
 DEFAULT_STOCKS_PROVIDER = "fmp"
 DEFAULT_CRYPTO_PROVIDER = "coingecko"
+PUBLIC_FINVIZ_PROVIDER = "finviz-public"
 _STOCK_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE"}
+_FINVIZ_BASE_URL = "https://finviz.com/"
+_FINVIZ_SCREENER_FILTER = "cap_largeover,sh_avgvol_o500,sh_price_o3"
+_FINVIZ_SCREENER_SORT = "-marketcap"
+_FINVIZ_PAGE_SIZE = 20
+_FINVIZ_ROW_PATTERN = re.compile(
+    r'<tr class="styled-row[^"]*"[^>]*>(.*?)</tr>',
+    re.S,
+)
+_FINVIZ_CELL_PATTERN = re.compile(r"<td\b[^>]*>(.*?)</td>", re.S)
+_FINVIZ_SNAPSHOT_PAIR_PATTERN = re.compile(
+    r'<td class="snapshot-td2[^>]*>(.*?)</td>\s*<td class="snapshot-td2[^>]*>(.*?)</td>',
+    re.S,
+)
+_FINVIZ_TITLE_PATTERN = re.compile(r"<title>(.*?)</title>", re.S)
+_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+_FIRST_NUMBER_PATTERN = re.compile(r"[-+]?\d[\d,]*\.?\d*")
+_COMPACT_NUMBER_PATTERN = re.compile(r"([-+]?\d[\d,]*\.?\d*)\s*([KMBT])?", re.I)
 _STOCK_PRESETS = (
     {"key": "all", "label": "All Stocks"},
     {"key": "mega", "label": "Mega Caps"},
@@ -194,9 +215,11 @@ def _build_stocks_dataset(
     *,
     generated_at: str,
     archive_data: dict[str, Any] | None,
+    finviz_dataset_builder: Any = None,
 ) -> dict[str, Any]:
     provider = settings.markets_stocks_provider
-    if provider != "fmp":
+    finviz_builder = finviz_dataset_builder or _build_public_finviz_stocks_dataset
+    if provider not in {"fmp", "finviz", PUBLIC_FINVIZ_PROVIDER}:
         return _reuse_or_empty_market_payload(
             archive_data,
             asset_type="stock",
@@ -205,21 +228,29 @@ def _build_stocks_dataset(
             status="warning",
             message=f"Unsupported stocks provider: {provider}.",
         )
-    if not settings.fmp_api_key:
-        return _reuse_or_empty_market_payload(
-            archive_data,
-            asset_type="stock",
+    if provider in {"finviz", PUBLIC_FINVIZ_PROVIDER}:
+        return _build_public_finviz_or_reuse(
+            settings,
             generated_at=generated_at,
-            provider=provider,
-            status="warning",
-            message="Stocks provider not configured: missing NEWSBOT_FMP_API_KEY.",
+            archive_data=archive_data,
+            finviz_dataset_builder=finviz_builder,
+            note=None,
+        )
+
+    if not settings.fmp_api_key:
+        return _build_public_finviz_or_reuse(
+            settings,
+            generated_at=generated_at,
+            archive_data=archive_data,
+            finviz_dataset_builder=finviz_builder,
+            note="Using public Finviz fallback because NEWSBOT_FMP_API_KEY is not configured.",
         )
 
     try:
         with httpx.Client(
             follow_redirects=True,
             timeout=settings.request_timeout_sec,
-            headers={"User-Agent": "newsbot-markets/0.1"},
+            headers=_market_request_headers(),
         ) as client:
             screener_rows = _fetch_fmp_screener_rows(client, settings)
             quote_map = _fetch_fmp_batch_quotes(
@@ -242,6 +273,8 @@ def _build_stocks_dataset(
             generated_at=generated_at,
             max_rows=settings.markets_max_stocks,
         )
+        if not rows:
+            raise RuntimeError("FMP returned no stock rows.")
         benchmark_rows = _normalize_fmp_benchmark_rows(
             benchmark_quote_map,
             generated_at=generated_at,
@@ -256,13 +289,12 @@ def _build_stocks_dataset(
             message=None,
         )
     except Exception as exc:
-        return _reuse_or_empty_market_payload(
-            archive_data,
-            asset_type="stock",
+        return _build_public_finviz_or_reuse(
+            settings,
             generated_at=generated_at,
-            provider=provider,
-            status="warning",
-            message=f"Stocks provider request failed: {exc}",
+            archive_data=archive_data,
+            finviz_dataset_builder=finviz_builder,
+            note=f"Using public Finviz fallback after FMP request failed: {exc}",
         )
 
 
@@ -313,6 +345,212 @@ def _build_crypto_dataset(
             status="warning",
             message=f"Crypto provider request failed: {exc}",
         )
+
+
+def _build_public_finviz_or_reuse(
+    settings: Settings,
+    *,
+    generated_at: str,
+    archive_data: dict[str, Any] | None,
+    finviz_dataset_builder: Any,
+    note: str | None,
+) -> dict[str, Any]:
+    try:
+        return finviz_dataset_builder(
+            settings,
+            generated_at=generated_at,
+            archive_data=archive_data,
+            note=note,
+        )
+    except Exception as exc:
+        message = f"Public Finviz stocks request failed: {exc}"
+        if note:
+            message = f"{note} Public Finviz fallback failed: {exc}"
+        return _reuse_or_empty_market_payload(
+            archive_data,
+            asset_type="stock",
+            generated_at=generated_at,
+            provider=PUBLIC_FINVIZ_PROVIDER,
+            status="warning",
+            message=message,
+        )
+
+
+def _build_public_finviz_stocks_dataset(
+    settings: Settings,
+    *,
+    generated_at: str,
+    archive_data: dict[str, Any] | None,
+    note: str | None,
+) -> dict[str, Any]:
+    _ = archive_data
+    with httpx.Client(
+        follow_redirects=True,
+        timeout=settings.request_timeout_sec,
+        headers=_market_request_headers(),
+    ) as client:
+        rows = _fetch_finviz_screener_rows(
+            client,
+            generated_at=generated_at,
+            max_rows=settings.markets_max_stocks,
+        )
+        benchmark_rows = _fetch_finviz_benchmark_rows(
+            client,
+            generated_at=generated_at,
+        )
+    if not rows:
+        raise RuntimeError("Finviz screener returned no stock rows.")
+    return _finalize_stocks_payload(
+        rows,
+        benchmark_rows,
+        generated_at=generated_at,
+        provider=PUBLIC_FINVIZ_PROVIDER,
+        status="ok",
+        stale=False,
+        message=note,
+    )
+
+
+def _fetch_finviz_screener_rows(
+    client: httpx.Client,
+    *,
+    generated_at: str,
+    max_rows: int,
+) -> list[MarketSnapshotRow]:
+    rows: list[MarketSnapshotRow] = []
+    seen_symbols: set[str] = set()
+    max_pages = max(1, ceil(max(max_rows, 1) / _FINVIZ_PAGE_SIZE) + 2)
+    for page_index in range(max_pages):
+        params: dict[str, Any] = {
+            "v": 111,
+            "f": _FINVIZ_SCREENER_FILTER,
+            "o": _FINVIZ_SCREENER_SORT,
+        }
+        start_index = page_index * _FINVIZ_PAGE_SIZE + 1
+        if start_index > 1:
+            params["r"] = start_index
+        response = client.get(
+            urljoin(_FINVIZ_BASE_URL, "screener.ashx"),
+            params=params,
+        )
+        response.raise_for_status()
+        page_rows = _parse_finviz_screener_rows(
+            response.text,
+            generated_at=generated_at,
+        )
+        if not page_rows:
+            break
+        new_rows = 0
+        for row in page_rows:
+            if row.symbol in seen_symbols:
+                continue
+            seen_symbols.add(row.symbol)
+            rows.append(row)
+            new_rows += 1
+            if len(rows) >= max_rows:
+                return rows[:max_rows]
+        if new_rows == 0 or len(page_rows) < _FINVIZ_PAGE_SIZE:
+            break
+    return rows[:max_rows]
+
+
+def _fetch_finviz_benchmark_rows(
+    client: httpx.Client,
+    *,
+    generated_at: str,
+) -> list[MarketSnapshotRow]:
+    rows: list[MarketSnapshotRow] = []
+    for symbol in _STOCK_BENCHMARKS:
+        response = client.get(
+            urljoin(_FINVIZ_BASE_URL, "quote.ashx"),
+            params={"t": symbol, "p": "d"},
+        )
+        response.raise_for_status()
+        snapshot = _parse_finviz_quote_snapshot(response.text)
+        rows.append(
+            MarketSnapshotRow(
+                asset_type="stock",
+                symbol=symbol,
+                name=_parse_finviz_quote_name(response.text, symbol),
+                exchange="US",
+                country="USA",
+                sector_or_category="Benchmark",
+                industry="ETF",
+                last=_parse_first_number(snapshot.get("Price")),
+                change_pct=_parse_percent_value(snapshot.get("Change")),
+                market_cap=_parse_compact_number(snapshot.get("Market Cap")),
+                volume=_parse_plain_number(snapshot.get("Volume")),
+                avg_volume=_parse_plain_number(snapshot.get("Avg Volume")),
+                pe=_parse_first_number(snapshot.get("P/E")),
+                dividend_yield=_parse_percent_value(snapshot.get("Dividend")),
+                as_of=generated_at,
+                detail_url=f"https://finviz.com/quote.ashx?t={symbol}&p=d",
+                high_52w=_parse_first_number(snapshot.get("52W High")),
+                low_52w=_parse_first_number(snapshot.get("52W Low")),
+            )
+        )
+    return rows
+
+
+def _parse_finviz_screener_rows(
+    html_text: str,
+    *,
+    generated_at: str,
+) -> list[MarketSnapshotRow]:
+    rows: list[MarketSnapshotRow] = []
+    for row_html in _FINVIZ_ROW_PATTERN.findall(html_text or ""):
+        cells = _FINVIZ_CELL_PATTERN.findall(row_html)
+        if len(cells) < 11:
+            continue
+        values = [_clean_html_fragment(cell) for cell in cells[:11]]
+        symbol = values[1].strip().upper()
+        if not symbol or not re.fullmatch(r"[A-Z.\-]+", symbol):
+            continue
+        rows.append(
+            MarketSnapshotRow(
+                asset_type="stock",
+                symbol=symbol,
+                name=values[2] or symbol,
+                exchange="US",
+                country=values[5] or "USA",
+                sector_or_category=values[3] or "Unclassified",
+                industry=values[4] or "Unknown",
+                last=_parse_first_number(values[8]),
+                change_pct=_parse_percent_value(values[9]),
+                market_cap=_parse_compact_number(values[6]),
+                volume=_parse_plain_number(values[10]),
+                avg_volume=None,
+                pe=_parse_first_number(values[7]),
+                dividend_yield=None,
+                as_of=generated_at,
+                detail_url=f"https://finviz.com/quote.ashx?t={symbol}&p=d",
+                high_52w=None,
+                low_52w=None,
+            )
+        )
+    return rows
+
+
+def _parse_finviz_quote_snapshot(html_text: str) -> dict[str, str]:
+    snapshot: dict[str, str] = {}
+    for raw_label, raw_value in _FINVIZ_SNAPSHOT_PAIR_PATTERN.findall(html_text or ""):
+        label = _clean_html_fragment(raw_label)
+        value = _clean_html_fragment(raw_value)
+        if label:
+            snapshot[label] = value
+    return snapshot
+
+
+def _parse_finviz_quote_name(html_text: str, symbol: str) -> str:
+    match = _FINVIZ_TITLE_PATTERN.search(html_text or "")
+    if not match:
+        return symbol
+    title = _clean_html_fragment(match.group(1))
+    prefix = f"{symbol} - "
+    suffix = " Stock Price and Quote"
+    if title.startswith(prefix) and title.endswith(suffix):
+        return title[len(prefix):-len(suffix)].strip() or symbol
+    return title or symbol
 
 
 def _fetch_fmp_screener_rows(
@@ -1037,6 +1275,60 @@ def _compact_row_dict(row: MarketSnapshotRow) -> dict[str, Any]:
 
 def _sorted_unique(values: Any) -> list[str]:
     return sorted({str(value).strip() for value in values if str(value).strip()})
+
+
+def _market_request_headers() -> dict[str, str]:
+    return {
+        "User-Agent": "Mozilla/5.0 (compatible; newsbot-markets/0.2)",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": _FINVIZ_BASE_URL,
+    }
+
+
+def _clean_html_fragment(value: str) -> str:
+    text = unescape(_HTML_TAG_PATTERN.sub(" ", value or ""))
+    return " ".join(text.split())
+
+
+def _parse_first_number(value: Any) -> float | None:
+    text = str(value or "").strip()
+    match = _FIRST_NUMBER_PATTERN.search(text.replace("%", ""))
+    if not match:
+        return None
+    try:
+        return float(match.group(0).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _parse_plain_number(value: Any) -> float | None:
+    return _parse_first_number(value)
+
+
+def _parse_percent_value(value: Any) -> float | None:
+    return _parse_first_number(value)
+
+
+def _parse_compact_number(value: Any) -> float | None:
+    text = str(value or "").strip().upper()
+    if not text or text == "-":
+        return None
+    match = _COMPACT_NUMBER_PATTERN.search(text)
+    if not match:
+        return None
+    try:
+        number = float(match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    suffix = (match.group(2) or "").upper()
+    multiplier = {
+        "": 1.0,
+        "K": 1_000.0,
+        "M": 1_000_000.0,
+        "B": 1_000_000_000.0,
+        "T": 1_000_000_000_000.0,
+    }.get(suffix, 1.0)
+    return number * multiplier
 
 
 def _normalize_percent(value: float | None) -> float | None:

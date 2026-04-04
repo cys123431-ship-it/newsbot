@@ -107,6 +107,6 @@ Windows PowerShell:
 
 - 공개 배포에서는 낮은 신뢰도의 발견용 소스만 제외합니다. 텔레그램 채널 기사도 정적 사이트에 포함됩니다.
 - GitHub Actions에서 텔레그램 채널을 읽으려면 `NEWSBOT_TELEGRAM_API_ID`, `NEWSBOT_TELEGRAM_API_HASH`, `NEWSBOT_TELEGRAM_SESSION_STRING` 시크릿을 설정해야 합니다.
-- Markets 탭의 미국주식 데이터를 공개 배포에서 채우려면 `NEWSBOT_FMP_API_KEY` 시크릿이 필요합니다. 키가 없으면 코인 데이터만 live로 갱신되고 주식은 warning/stale 상태로 표시됩니다.
+- Markets 탭의 미국주식 데이터는 `NEWSBOT_FMP_API_KEY`가 있으면 FMP를 우선 사용하고, 키가 없거나 요청이 실패하면 public Finviz fallback으로 계속 채웁니다.
 - 빌드 결과 기사 수가 너무 적으면 워크플로를 실패시켜 기존 Pages 배포본을 유지합니다.
 - 로컬 비밀값 파일인 `.env`, 텔레그램 세션 파일, 로컬 패키지 폴더는 Git에서 제외됩니다.
