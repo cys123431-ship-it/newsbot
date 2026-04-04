@@ -6,7 +6,7 @@
     <title>newsbot markets</title>
     <meta
       name="description"
-      content="newsbot markets dashboard for overview, US stocks, and crypto"
+      content="newsbot markets dashboard for overview, US stocks, Korea stocks, and crypto"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
@@ -23,17 +23,17 @@
           <p class="eyebrow">newsbot markets</p>
           <h1>markets</h1>
           <p class="compact-summary-description">
-            Overview는 통합 시장 보기, Stocks와 Crypto는 자산군 전용 상세 보드입니다.
+            Overview is the combined market view. Stocks, Korea, and Crypto open asset-specific boards.
           </p>
         </div>
         <div class="compact-summary-meta">
-          <span class="summary-chip">Overview / Stocks / Crypto</span>
+          <span class="summary-chip">Overview / Stocks / Korea / Crypto</span>
           <span class="summary-chip">Delayed market data only</span>
           <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
         </div>
       </div>
       <div class="compact-summary-status-strip">
-        <p class="compact-summary-status-copy">Overview에서는 주식과 코인을 한눈에 보고, 상세 분석은 전용 탭에서 확인합니다.</p>
+        <p class="compact-summary-status-copy">Overview shows the combined picture. Detailed analysis lives in the dedicated tabs.</p>
         <p id="markets-status-line" class="compact-summary-status-line">Loading market dashboard.</p>
       </div>
     </header>
@@ -45,6 +45,7 @@
 
       <section id="markets-overview-surface" class="markets-surface"></section>
       <section id="markets-stocks-surface" class="markets-surface" hidden></section>
+      <section id="markets-korea-surface" class="markets-surface" hidden></section>
       <section id="markets-crypto-surface" class="markets-surface" hidden></section>
 
       <noscript class="noscript-note">This markets page needs JavaScript to render data.</noscript>

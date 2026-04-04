@@ -142,14 +142,30 @@ class Settings:
         ).strip().lower()
         or "coingecko"
     )
+    markets_korea_provider: str = field(
+        default_factory=lambda: os.getenv(
+            "NEWSBOT_MARKETS_KOREA_PROVIDER",
+            "kis",
+        ).strip().lower()
+        or "kis"
+    )
     fmp_api_key: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_FMP_API_KEY")
+    )
+    kis_app_key: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_KIS_APP_KEY")
+    )
+    kis_app_secret: str | None = field(
+        default_factory=lambda: os.getenv("NEWSBOT_KIS_APP_SECRET")
     )
     coingecko_api_key: str | None = field(
         default_factory=lambda: os.getenv("NEWSBOT_COINGECKO_API_KEY")
     )
     markets_max_stocks: int = field(
         default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_STOCKS", 180)
+    )
+    markets_max_kr_stocks: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_KR_STOCKS", 120)
     )
     markets_max_coins: int = field(
         default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_COINS", 120)

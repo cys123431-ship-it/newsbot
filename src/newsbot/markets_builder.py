@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from html import unescape
+from io import BytesIO
 from math import ceil
 import re
 from typing import Any
 from urllib.parse import urljoin
+import zipfile
 
 import httpx
 
@@ -19,11 +21,30 @@ from newsbot.config import Settings
 MARKETS_DIRECTORY_NAME = "markets"
 MARKETS_OVERVIEW_FILENAME = "markets-overview.json"
 MARKETS_STOCKS_FILENAME = "markets-stocks.json"
+MARKETS_KOREA_FILENAME = "markets-korea.json"
 MARKETS_CRYPTO_FILENAME = "markets-crypto.json"
 MARKETS_STATUS_FILENAME = "markets-status.json"
 DEFAULT_STOCKS_PROVIDER = "fmp"
+DEFAULT_KOREA_PROVIDER = "kis"
 DEFAULT_CRYPTO_PROVIDER = "coingecko"
 PUBLIC_FINVIZ_PROVIDER = "finviz-public"
+_KIS_PROVIDER = "kis"
+_KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
+_KIS_TOKEN_URL = _KIS_BASE_URL + "/oauth2/tokenP"
+_KIS_MASTER_BASE_URL = "https://new.real.download.dws.co.kr/common/master/"
+_KIS_KOSPI_MASTER_URL = _KIS_MASTER_BASE_URL + "kospi_code.mst.zip"
+_KIS_KOSDAQ_MASTER_URL = _KIS_MASTER_BASE_URL + "kosdaq_code.mst.zip"
+_KIS_SECTOR_MASTER_URL = _KIS_MASTER_BASE_URL + "idxcode.mst.zip"
+_KIS_INDEX_PRICE_URL = _KIS_BASE_URL + "/uapi/domestic-stock/v1/quotations/inquire-index-price"
+_KIS_STOCK_PRICE_URL = _KIS_BASE_URL + "/uapi/domestic-stock/v1/quotations/inquire-price"
+_KIS_INDEX_TR_ID = "FHPUP02100000"
+_KIS_STOCK_PRICE_TR_ID = "FHKST01010100"
+_KIS_INDEX_CODES = (("KOSPI", "0001"), ("KOSDAQ", "1001"))
+_KOREA_BENCHMARK_URLS = {
+    "KOSPI": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+    "KOSDAQ": "https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ",
+}
+_KOREA_STOCK_URL = "https://finance.naver.com/item/main.naver?code={symbol}"
 _STOCK_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE"}
 _FINVIZ_BASE_URL = "https://finviz.com/"
 _FINVIZ_SCREENER_FILTER = "cap_largeover,sh_avgvol_o500,sh_price_o3"
@@ -51,6 +72,14 @@ _STOCK_PRESETS = (
     {"key": "value", "label": "Value"},
     {"key": "income", "label": "Income"},
 )
+_KOREA_PRESETS = (
+    {"key": "all", "label": "All Korea"},
+    {"key": "mega", "label": "Large Caps"},
+    {"key": "gainers", "label": "Top Gainers"},
+    {"key": "active", "label": "Most Active"},
+    {"key": "kospi", "label": "KOSPI"},
+    {"key": "kosdaq", "label": "KOSDAQ"},
+)
 _CRYPTO_PRESETS = (
     {"key": "all", "label": "All Coins"},
     {"key": "majors", "label": "Majors"},
@@ -61,6 +90,70 @@ _CRYPTO_PRESETS = (
 _STOCK_BENCHMARKS = ("SPY", "QQQ", "DIA", "IWM")
 _CRYPTO_BENCHMARKS = ("BTC", "ETH", "SOL", "XRP")
 _MARKET_NEWS_CATEGORIES = {"us-markets", "crypto"}
+_KOSPI_SUFFIX_LENGTH = 228
+_KOSDAQ_SUFFIX_LENGTH = 222
+_KOSPI_FIELD_WIDTHS = [
+    2, 1, 4, 4, 4,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 9, 5, 5, 1,
+    1, 1, 2, 1, 1,
+    1, 2, 2, 2, 3,
+    1, 3, 12, 12, 8,
+    15, 21, 2, 7, 1,
+    1, 1, 1, 1, 9,
+    9, 9, 5, 9, 8,
+    9, 3, 1, 1, 1,
+]
+_KOSPI_FIELD_NAMES = [
+    "그룹코드", "시가총액규모", "지수업종대분류", "지수업종중분류", "지수업종소분류",
+    "제조업", "저유동성", "지배구조지수종목", "KOSPI200섹터업종", "KOSPI100",
+    "KOSPI50", "KRX", "ETP", "ELW발행", "KRX100",
+    "KRX자동차", "KRX반도체", "KRX바이오", "KRX은행", "SPAC",
+    "KRX에너지화학", "KRX철강", "단기과열", "KRX미디어통신", "KRX건설",
+    "Non1", "KRX증권", "KRX선박", "KRX섹터_보험", "KRX섹터_운송",
+    "SRI", "기준가", "매매수량단위", "시간외수량단위", "거래정지",
+    "정리매매", "관리종목", "시장경고", "경고예고", "불성실공시",
+    "우회상장", "락구분", "액면변경", "증자구분", "증거금비율",
+    "신용가능", "신용기간", "전일거래량", "액면가", "상장일자",
+    "상장주수", "자본금", "결산월", "공모가", "우선주",
+    "공매도과열", "이상급등", "KRX300", "KOSPI", "매출액",
+    "영업이익", "경상이익", "당기순이익", "ROE", "기준년월",
+    "시가총액", "그룹사코드", "회사신용한도초과", "담보대출가능", "대주가능",
+]
+_KOSDAQ_FIELD_WIDTHS = [
+    2, 1, 4, 4, 4, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 9,
+    5, 5, 1, 1, 1,
+    2, 1, 1, 1, 2,
+    2, 2, 3, 1, 3,
+    12, 12, 8, 15, 21,
+    2, 7, 1, 1, 1,
+    1, 9, 9, 9, 5,
+    9, 8, 9, 3, 1,
+    1, 1,
+]
+_KOSDAQ_FIELD_NAMES = [
+    "증권그룹구분코드", "시가총액규모", "지수업종대분류", "지수업종중분류", "지수업종소분류",
+    "벤처기업", "저유동성", "KRX", "ETP", "KRX100",
+    "KRX자동차", "KRX반도체", "KRX바이오", "KRX은행", "SPAC",
+    "KRX에너지화학", "KRX철강", "단기과열", "KRX미디어통신", "KRX건설",
+    "투자주의환기", "KRX증권", "KRX선박", "KRX섹터_보험", "KRX섹터_운송",
+    "KOSDAQ150", "기준가", "매매수량단위", "시간외수량단위", "거래정지",
+    "정리매매", "관리종목", "시장경고", "경고예고", "불성실공시",
+    "우회상장", "락구분", "액면변경", "증자구분", "증거금비율",
+    "신용가능", "신용기간", "전일거래량", "액면가", "상장일자",
+    "상장주수천", "자본금", "결산월", "공모가", "우선주",
+    "공매도과열", "이상급등", "KRX300", "매출액", "영업이익",
+    "경상이익", "당기순이익", "ROE", "기준년월", "시가총액억",
+    "그룹사코드", "회사신용한도초과", "담보대출가능", "대주가능",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +229,7 @@ def build_markets_bundle(
     *,
     archive_bundle: dict[str, dict[str, Any] | None] | None = None,
     stock_dataset_builder: Any = None,
+    korea_dataset_builder: Any = None,
     crypto_dataset_builder: Any = None,
 ) -> dict[str, dict[str, Any]]:
     generated_at = str(
@@ -160,14 +254,25 @@ def build_markets_bundle(
             stale=False,
             message="Markets dashboard is disabled by NEWSBOT_MARKETS_ENABLED.",
         )
+        disabled_korea = _empty_market_payload(
+            asset_type="stock",
+            generated_at=generated_at,
+            provider=settings.markets_korea_provider,
+            status="warning",
+            stale=False,
+            message="Markets dashboard is disabled by NEWSBOT_MARKETS_ENABLED.",
+            presets=_KOREA_PRESETS,
+        )
         status_payload = _build_markets_status_payload(
             generated_at,
             disabled_stocks,
+            disabled_korea,
             disabled_crypto,
         )
         overview_payload = _build_markets_overview_payload(
             generated_at,
             stocks_payload=disabled_stocks,
+            korea_payload=disabled_korea,
             crypto_payload=disabled_crypto,
             status_payload=status_payload,
             news_payload=news_payload,
@@ -175,16 +280,23 @@ def build_markets_bundle(
         return {
             "overview": overview_payload,
             "stocks": disabled_stocks,
+            "korea": disabled_korea,
             "crypto": disabled_crypto,
             "status": status_payload,
         }
 
     stock_builder = stock_dataset_builder or _build_stocks_dataset
+    korea_builder = korea_dataset_builder or _build_korea_dataset
     crypto_builder = crypto_dataset_builder or _build_crypto_dataset
     stock_payload = stock_builder(
         settings,
         generated_at=generated_at,
         archive_data=archive_bundle.get("stocks"),
+    )
+    korea_payload = korea_builder(
+        settings,
+        generated_at=generated_at,
+        archive_data=archive_bundle.get("korea"),
     )
     crypto_payload = crypto_builder(
         settings,
@@ -194,11 +306,13 @@ def build_markets_bundle(
     status_payload = _build_markets_status_payload(
         generated_at,
         stock_payload,
+        korea_payload,
         crypto_payload,
     )
     overview_payload = _build_markets_overview_payload(
         generated_at,
         stocks_payload=stock_payload,
+        korea_payload=korea_payload,
         crypto_payload=crypto_payload,
         status_payload=status_payload,
         news_payload=news_payload,
@@ -206,6 +320,7 @@ def build_markets_bundle(
     return {
         "overview": overview_payload,
         "stocks": stock_payload,
+        "korea": korea_payload,
         "crypto": crypto_payload,
         "status": status_payload,
     }
@@ -296,6 +411,100 @@ def _build_stocks_dataset(
             archive_data=archive_data,
             finviz_dataset_builder=finviz_builder,
             note=f"Using public Finviz fallback after FMP request failed: {exc}",
+        )
+
+
+def _build_korea_dataset(
+    settings: Settings,
+    *,
+    generated_at: str,
+    archive_data: dict[str, Any] | None,
+    token_fetcher: Any = None,
+    sector_fetcher: Any = None,
+    universe_fetcher: Any = None,
+    price_fetcher: Any = None,
+    benchmark_fetcher: Any = None,
+) -> dict[str, Any]:
+    provider = settings.markets_korea_provider
+    if provider != _KIS_PROVIDER:
+        return _reuse_or_empty_market_payload(
+            archive_data,
+            asset_type="stock",
+            generated_at=generated_at,
+            provider=provider,
+            status="warning",
+            message=f"Unsupported Korea stocks provider: {provider}.",
+            presets=_KOREA_PRESETS,
+        )
+
+    if not settings.kis_app_key or not settings.kis_app_secret:
+        return _reuse_or_empty_market_payload(
+            archive_data,
+            asset_type="stock",
+            generated_at=generated_at,
+            provider=provider,
+            status="warning",
+            message="Korea stocks provider requires NEWSBOT_KIS_APP_KEY and NEWSBOT_KIS_APP_SECRET.",
+            presets=_KOREA_PRESETS,
+        )
+
+    token_loader = token_fetcher or _fetch_kis_access_token
+    sector_loader = sector_fetcher or _fetch_kis_sector_name_map
+    universe_loader = universe_fetcher or _fetch_kis_korea_universe
+    price_loader = price_fetcher or _fetch_kis_korea_price_rows
+    benchmark_loader = benchmark_fetcher or _fetch_kis_korea_benchmarks
+
+    try:
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=settings.request_timeout_sec,
+            headers=_market_request_headers(),
+        ) as client:
+            token = token_loader(client, settings)
+            sector_names = sector_loader(client)
+            metadata_rows = universe_loader(client, sector_names)
+            notes: list[str] = []
+            benchmark_rows: list[MarketSnapshotRow] = []
+            breadth_override: dict[str, int] | None = None
+
+            try:
+                benchmark_rows, breadth_override = benchmark_loader(
+                    client,
+                    settings,
+                    token=token,
+                    generated_at=generated_at,
+                )
+            except Exception as exc:
+                notes.append(f"Korea benchmark view unavailable: {exc}")
+
+            rows = price_loader(
+                client,
+                settings,
+                token=token,
+                metadata_rows=metadata_rows,
+                generated_at=generated_at,
+            )
+        if not rows:
+            raise RuntimeError("KIS returned no Korea stock rows.")
+        return _finalize_korea_payload(
+            rows,
+            benchmark_rows=benchmark_rows,
+            generated_at=generated_at,
+            provider=provider,
+            status="ok",
+            stale=False,
+            message=_merge_notes(*notes),
+            breadth_override=breadth_override,
+        )
+    except Exception as exc:
+        return _reuse_or_empty_market_payload(
+            archive_data,
+            asset_type="stock",
+            generated_at=generated_at,
+            provider=provider,
+            status="warning",
+            message=f"Korea stocks provider request failed: {exc}",
+            presets=_KOREA_PRESETS,
         )
 
 
@@ -538,6 +747,414 @@ def _fetch_finviz_benchmark_rows(
             )
         )
     return rows
+
+
+def _fetch_kis_access_token(client: httpx.Client, settings: Settings) -> str:
+    response = client.post(
+        _KIS_TOKEN_URL,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "text/plain",
+            "charset": "UTF-8",
+        },
+        json={
+            "grant_type": "client_credentials",
+            "appkey": settings.kis_app_key,
+            "appsecret": settings.kis_app_secret,
+        },
+    )
+    response.raise_for_status()
+    payload = response.json()
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        raise RuntimeError("KIS token response did not include access_token.")
+    return token
+
+
+def _fetch_kis_sector_name_map(client: httpx.Client) -> dict[str, str]:
+    text = _download_zip_member_text(client, _KIS_SECTOR_MASTER_URL, "idxcode.mst")
+    mapping: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        if len(line) < 5:
+            continue
+        code = line[1:5].strip()
+        name = line[3:43].strip()
+        if code and name:
+            mapping[code] = name
+    return mapping
+
+
+def _fetch_kis_korea_universe(
+    client: httpx.Client,
+    sector_names: dict[str, str],
+) -> list[dict[str, Any]]:
+    kospi_text = _download_zip_member_text(client, _KIS_KOSPI_MASTER_URL, "kospi_code.mst")
+    kosdaq_text = _download_zip_member_text(client, _KIS_KOSDAQ_MASTER_URL, "kosdaq_code.mst")
+    rows = _parse_kis_master_rows(
+        kospi_text,
+        exchange="KOSPI",
+        suffix_length=_KOSPI_SUFFIX_LENGTH,
+        field_widths=_KOSPI_FIELD_WIDTHS,
+        field_names=_KOSPI_FIELD_NAMES,
+        sector_names=sector_names,
+        listed_shares_in_thousands=False,
+    )
+    rows.extend(
+        _parse_kis_master_rows(
+            kosdaq_text,
+            exchange="KOSDAQ",
+            suffix_length=_KOSDAQ_SUFFIX_LENGTH,
+            field_widths=_KOSDAQ_FIELD_WIDTHS,
+            field_names=_KOSDAQ_FIELD_NAMES,
+            sector_names=sector_names,
+            listed_shares_in_thousands=True,
+        )
+    )
+    rows.sort(
+        key=lambda item: (
+            _safe_number(_as_float(item.get("market_cap"))),
+            _safe_number(_as_float(item.get("listed_shares"))),
+            str(item.get("symbol") or ""),
+        ),
+        reverse=True,
+    )
+    return rows
+
+
+def _download_zip_member_text(
+    client: httpx.Client,
+    url: str,
+    expected_member: str,
+) -> str:
+    response = client.get(url)
+    response.raise_for_status()
+    with zipfile.ZipFile(BytesIO(response.content)) as archive:
+        member_name = next(
+            (name for name in archive.namelist() if name.lower().endswith(expected_member.lower())),
+            None,
+        )
+        if not member_name:
+            raise RuntimeError(f"Unable to find {expected_member} in {url}.")
+        return archive.read(member_name).decode("cp949", errors="ignore")
+
+
+def _parse_kis_master_rows(
+    raw_text: str,
+    *,
+    exchange: str,
+    suffix_length: int,
+    field_widths: list[int],
+    field_names: list[str],
+    sector_names: dict[str, str],
+    listed_shares_in_thousands: bool,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for raw_line in raw_text.splitlines():
+        line = raw_line.rstrip("\r\n")
+        if len(line) <= suffix_length:
+            continue
+        part1 = line[:-suffix_length]
+        part2 = line[-suffix_length:]
+        symbol = part1[0:9].strip()
+        standard_code = part1[9:21].strip()
+        name = part1[21:].strip()
+        if not symbol or not name:
+            continue
+
+        values: dict[str, str] = {}
+        cursor = 0
+        for width, field_name in zip(field_widths, field_names):
+            values[field_name] = part2[cursor:cursor + width].strip()
+            cursor += width
+
+        record = _normalize_kis_master_record(
+            symbol=symbol,
+            standard_code=standard_code,
+            name=name,
+            exchange=exchange,
+            values=values,
+            sector_names=sector_names,
+            listed_shares_in_thousands=listed_shares_in_thousands,
+        )
+        if record:
+            records.append(record)
+    return records
+
+
+def _normalize_kis_master_record(
+    *,
+    symbol: str,
+    standard_code: str,
+    name: str,
+    exchange: str,
+    values: dict[str, str],
+    sector_names: dict[str, str],
+    listed_shares_in_thousands: bool,
+) -> dict[str, Any] | None:
+    if not _is_korea_common_stock(symbol, name, values):
+        return None
+
+    top_code = str(values.get("지수업종대분류") or "").strip()
+    middle_code = str(values.get("지수업종중분류") or "").strip()
+    small_code = str(values.get("지수업종소분류") or "").strip()
+    top_label = sector_names.get(top_code)
+    middle_label = sector_names.get(middle_code)
+    small_label = sector_names.get(small_code)
+    sector_label = top_label or middle_label or small_label or exchange
+    industry_label = small_label or middle_label or top_label or sector_label
+
+    listed_shares = _parse_plain_number(values.get("상장주수") or values.get("상장주수천"))
+    if listed_shares_in_thousands and listed_shares is not None:
+        listed_shares *= 1_000
+
+    market_cap = _parse_plain_number(values.get("시가총액") or values.get("시가총액억"))
+    if market_cap is not None:
+        market_cap *= 100_000_000
+
+    return {
+        "symbol": symbol,
+        "standard_code": standard_code,
+        "name": name,
+        "exchange": exchange,
+        "sector": sector_label,
+        "industry": industry_label,
+        "listed_shares": listed_shares,
+        "market_cap": market_cap,
+    }
+
+
+def _is_korea_common_stock(symbol: str, name: str, values: dict[str, str]) -> bool:
+    cleaned_name = name.replace(" ", "")
+    if symbol.startswith("Q"):
+        return False
+    if any(token in cleaned_name.upper() for token in ("ETF", "ETN", "ELW")):
+        return False
+    if any(token in cleaned_name for token in ("스팩", "리츠")):
+        return False
+    if cleaned_name.endswith("우") or "우B" in cleaned_name or "우C" in cleaned_name:
+        return False
+    if _is_truthy_flag(values.get("ETP")):
+        return False
+    if _is_truthy_flag(values.get("SPAC")) or _is_truthy_flag(values.get("기업인수목적회사여부")):
+        return False
+    if _is_truthy_flag(values.get("우선주")) or _is_truthy_flag(values.get("우선주 구분 코드")):
+        return False
+    return True
+
+
+def _is_truthy_flag(value: Any) -> bool:
+    text = str(value or "").strip().upper()
+    if not text:
+        return False
+    return text not in {"0", "N", "NO", "FALSE"}
+
+
+def _fetch_kis_korea_price_rows(
+    client: httpx.Client,
+    settings: Settings,
+    *,
+    token: str,
+    metadata_rows: list[dict[str, Any]],
+    generated_at: str,
+) -> list[MarketSnapshotRow]:
+    selected_rows = sorted(
+        metadata_rows,
+        key=lambda item: (
+            _safe_number(_as_float(item.get("market_cap"))),
+            _safe_number(_as_float(item.get("listed_shares"))),
+            str(item.get("symbol") or ""),
+        ),
+        reverse=True,
+    )[: max(settings.markets_max_kr_stocks, 1)]
+
+    rows: list[MarketSnapshotRow] = []
+    for metadata in selected_rows:
+        symbol = str(metadata.get("symbol") or "").strip()
+        if not symbol:
+            continue
+        try:
+            output = _fetch_kis_stock_price_output(client, settings, token=token, symbol=symbol)
+        except Exception:
+            continue
+        row = _normalize_kis_stock_price_row(metadata, output, generated_at=generated_at)
+        if row:
+            rows.append(row)
+
+    rows.sort(
+        key=lambda item: (
+            _safe_number(item.market_cap),
+            _safe_number(item.volume),
+            item.symbol,
+        ),
+        reverse=True,
+    )
+    return rows
+
+
+def _fetch_kis_stock_price_output(
+    client: httpx.Client,
+    settings: Settings,
+    *,
+    token: str,
+    symbol: str,
+) -> dict[str, Any]:
+    payload = _kis_api_get(
+        client,
+        settings,
+        token=token,
+        path=_KIS_STOCK_PRICE_URL,
+        tr_id=_KIS_STOCK_PRICE_TR_ID,
+        params={
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": symbol,
+        },
+    )
+    output = payload.get("output")
+    if not isinstance(output, dict):
+        raise RuntimeError(f"KIS price response missing output for {symbol}.")
+    return output
+
+
+def _normalize_kis_stock_price_row(
+    metadata: dict[str, Any],
+    output: dict[str, Any],
+    *,
+    generated_at: str,
+) -> MarketSnapshotRow | None:
+    symbol = str(metadata.get("symbol") or "").strip()
+    if not symbol:
+        return None
+    last = _as_float(output.get("stck_prpr"))
+    if last is None:
+        return None
+    listed_shares = _as_float(metadata.get("listed_shares"))
+    market_cap = _as_float(output.get("hts_avls")) or _as_float(metadata.get("market_cap"))
+    if market_cap is None and last is not None and listed_shares:
+        market_cap = last * listed_shares
+    return MarketSnapshotRow(
+        asset_type="stock",
+        symbol=symbol,
+        name=str(output.get("hts_kor_isnm") or metadata.get("name") or symbol).strip(),
+        exchange=str(metadata.get("exchange") or "KOSPI").strip(),
+        country="KR",
+        sector_or_category=str(metadata.get("sector") or "Korea").strip(),
+        industry=str(metadata.get("industry") or metadata.get("sector") or "Korea").strip(),
+        last=last,
+        change_pct=_as_float(output.get("prdy_ctrt")),
+        market_cap=market_cap,
+        volume=_as_float(output.get("acml_vol")),
+        avg_volume=None,
+        pe=_as_float(output.get("per")),
+        dividend_yield=None,
+        as_of=generated_at,
+        detail_url=_KOREA_STOCK_URL.format(symbol=symbol),
+        high_52w=_as_float(output.get("w52_hgpr") or output.get("stck_dryy_hgpr")),
+        low_52w=_as_float(output.get("w52_lwpr") or output.get("stck_dryy_lwpr")),
+    )
+
+
+def _fetch_kis_korea_benchmarks(
+    client: httpx.Client,
+    settings: Settings,
+    *,
+    token: str,
+    generated_at: str,
+) -> tuple[list[MarketSnapshotRow], dict[str, int]]:
+    rows: list[MarketSnapshotRow] = []
+    breadth = {
+        "advancers": 0,
+        "decliners": 0,
+        "unchanged": 0,
+        "new_highs": 0,
+        "new_lows": 0,
+    }
+    for label, code in _KIS_INDEX_CODES:
+        output = _fetch_kis_index_price_output(
+            client,
+            settings,
+            token=token,
+            index_code=code,
+        )
+        breadth["advancers"] += int(_as_float(output.get("ascn_issu_cnt")) or 0)
+        breadth["decliners"] += int(_as_float(output.get("down_issu_cnt")) or 0)
+        breadth["unchanged"] += int(_as_float(output.get("stnr_issu_cnt")) or 0)
+        row = MarketSnapshotRow(
+            asset_type="stock",
+            symbol=label,
+            name=label,
+            exchange=label,
+            country="KR",
+            sector_or_category="Benchmark",
+            industry="Index",
+            last=_as_float(output.get("bstp_nmix_prpr")),
+            change_pct=_as_float(output.get("bstp_nmix_prdy_ctrt")),
+            market_cap=None,
+            volume=_as_float(output.get("acml_vol")),
+            avg_volume=None,
+            pe=None,
+            dividend_yield=None,
+            as_of=generated_at,
+            detail_url=_KOREA_BENCHMARK_URLS.get(label, "#"),
+            high_52w=_as_float(output.get("dryy_bstp_nmix_hgpr")),
+            low_52w=_as_float(output.get("dryy_bstp_nmix_lwpr")),
+        )
+        rows.append(row)
+    return rows, breadth
+
+
+def _fetch_kis_index_price_output(
+    client: httpx.Client,
+    settings: Settings,
+    *,
+    token: str,
+    index_code: str,
+) -> dict[str, Any]:
+    payload = _kis_api_get(
+        client,
+        settings,
+        token=token,
+        path=_KIS_INDEX_PRICE_URL,
+        tr_id=_KIS_INDEX_TR_ID,
+        params={
+            "FID_COND_MRKT_DIV_CODE": "U",
+            "FID_INPUT_ISCD": index_code,
+        },
+    )
+    output = payload.get("output")
+    if not isinstance(output, dict):
+        raise RuntimeError(f"KIS index response missing output for {index_code}.")
+    return output
+
+
+def _kis_api_get(
+    client: httpx.Client,
+    settings: Settings,
+    *,
+    token: str,
+    path: str,
+    tr_id: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    response = client.get(
+        path,
+        headers={
+            "authorization": f"Bearer {token}",
+            "appkey": str(settings.kis_app_key or ""),
+            "appsecret": str(settings.kis_app_secret or ""),
+            "tr_id": tr_id,
+            "custtype": "P",
+            "Content-Type": "application/json",
+            "Accept": "text/plain",
+            "charset": "UTF-8",
+        },
+        params=params,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if str(payload.get("rt_cd") or "") != "0":
+        raise RuntimeError(str(payload.get("msg1") or payload.get("msg_cd") or "KIS request failed"))
+    return payload
 
 
 def _parse_finviz_screener_rows(
@@ -914,6 +1531,50 @@ def _finalize_stocks_payload(
     }
 
 
+def _finalize_korea_payload(
+    rows: list[MarketSnapshotRow],
+    *,
+    benchmark_rows: list[MarketSnapshotRow],
+    generated_at: str,
+    provider: str,
+    status: str,
+    stale: bool,
+    message: str | None,
+    breadth_override: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    breadth = _build_breadth_payload(rows)
+    if breadth_override:
+        breadth["advancers"] = int(breadth_override.get("advancers") or 0)
+        breadth["decliners"] = int(breadth_override.get("decliners") or 0)
+        breadth["unchanged"] = int(breadth_override.get("unchanged") or 0)
+    return {
+        "generated_at": generated_at,
+        "asset_type": "stock",
+        "provider": provider,
+        "status": status,
+        "stale": stale,
+        "message": message,
+        "as_of": _resolve_latest_as_of(rows, generated_at),
+        "row_count": len(rows),
+        "presets": list(_KOREA_PRESETS),
+        "filter_options": {
+            "exchanges": _sorted_unique(row.exchange for row in rows if row.exchange),
+            "sectors": _sorted_unique(
+                row.sector_or_category for row in rows if row.sector_or_category
+            ),
+            "industries": _sorted_unique(row.industry for row in rows if row.industry),
+        },
+        "rows": [row.to_public_dict() for row in rows],
+        "benchmarks": [
+            row.to_public_dict() for row in (benchmark_rows or rows[:2])
+        ],
+        "breadth": breadth,
+        "movers": _build_mover_payload(rows),
+        "group_performance": _build_group_performance(rows),
+        "heatmap": _build_equity_heatmap(rows),
+    }
+
+
 def _finalize_crypto_payload(
     rows: list[MarketSnapshotRow],
     *,
@@ -958,6 +1619,7 @@ def _reuse_or_empty_market_payload(
     provider: str,
     status: str,
     message: str,
+    presets: tuple[dict[str, str], ...] | None = None,
 ) -> dict[str, Any]:
     if archive_data:
         payload = dict(archive_data)
@@ -974,6 +1636,7 @@ def _reuse_or_empty_market_payload(
         status=status,
         stale=False,
         message=message,
+        presets=presets,
     )
 
 
@@ -985,6 +1648,7 @@ def _empty_market_payload(
     status: str,
     stale: bool,
     message: str | None,
+    presets: tuple[dict[str, str], ...] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "generated_at": generated_at,
@@ -995,7 +1659,9 @@ def _empty_market_payload(
         "message": message,
         "as_of": None,
         "row_count": 0,
-        "presets": list(_STOCK_PRESETS if asset_type == "stock" else _CRYPTO_PRESETS),
+        "presets": list(
+            presets or (_STOCK_PRESETS if asset_type == "stock" else _CRYPTO_PRESETS)
+        ),
         "filter_options": (
             {"exchanges": [], "sectors": [], "industries": []}
             if asset_type == "stock"
@@ -1016,10 +1682,12 @@ def _empty_market_payload(
 def _build_markets_status_payload(
     generated_at: str,
     stocks_payload: dict[str, Any],
+    korea_payload: dict[str, Any],
     crypto_payload: dict[str, Any],
 ) -> dict[str, Any]:
     providers = {
         "stocks": _dataset_status_entry(stocks_payload),
+        "korea": _dataset_status_entry(korea_payload),
         "crypto": _dataset_status_entry(crypto_payload),
     }
     statuses = [entry["status"] for entry in providers.values()]
@@ -1050,13 +1718,16 @@ def _build_markets_overview_payload(
     generated_at: str,
     *,
     stocks_payload: dict[str, Any],
+    korea_payload: dict[str, Any],
     crypto_payload: dict[str, Any],
     status_payload: dict[str, Any],
     news_payload: dict[str, Any],
 ) -> dict[str, Any]:
     stock_rows = _dataset_rows(stocks_payload)
+    korea_rows = _dataset_rows(korea_payload)
     crypto_rows = _dataset_rows(crypto_payload)
     stock_breadth = stocks_payload.get("breadth") or _build_breadth_payload(stock_rows)
+    korea_breadth = korea_payload.get("breadth") or _build_breadth_payload(korea_rows)
     crypto_breadth = crypto_payload.get("breadth") or _build_breadth_payload(crypto_rows)
     return {
         "generated_at": generated_at,
@@ -1066,6 +1737,12 @@ def _build_markets_overview_payload(
                 "value": len(stock_rows),
                 "detail": stocks_payload.get("message") or stocks_payload.get("provider"),
                 "status": stocks_payload.get("status", "warning"),
+            },
+            {
+                "label": "Korea stocks tracked",
+                "value": len(korea_rows),
+                "detail": korea_payload.get("message") or korea_payload.get("provider"),
+                "status": korea_payload.get("status", "warning"),
             },
             {
                 "label": "Crypto assets tracked",
@@ -1078,6 +1755,12 @@ def _build_markets_overview_payload(
                 "value": int(stock_breadth.get("advancers") or 0),
                 "detail": f"Decliners {int(stock_breadth.get('decliners') or 0)}",
                 "status": stocks_payload.get("status", "warning"),
+            },
+            {
+                "label": "Korea advancers",
+                "value": int(korea_breadth.get("advancers") or 0),
+                "detail": f"Decliners {int(korea_breadth.get('decliners') or 0)}",
+                "status": korea_payload.get("status", "warning"),
             },
             {
                 "label": "Crypto advancers",
@@ -1098,6 +1781,18 @@ def _build_markets_overview_payload(
             "most_active": list((stocks_payload.get("movers") or {}).get("active", []))[:6],
             "group_performance": list(stocks_payload.get("group_performance") or [])[:8],
             "heatmap": list(stocks_payload.get("heatmap") or [])[:24],
+        },
+        "korea": {
+            "status": korea_payload.get("status", "warning"),
+            "stale": bool(korea_payload.get("stale")),
+            "message": korea_payload.get("message"),
+            "benchmarks": list(korea_payload.get("benchmarks") or []),
+            "breadth": korea_breadth,
+            "top_gainers": list((korea_payload.get("movers") or {}).get("gainers", []))[:6],
+            "top_losers": list((korea_payload.get("movers") or {}).get("losers", []))[:6],
+            "most_active": list((korea_payload.get("movers") or {}).get("active", []))[:6],
+            "group_performance": list(korea_payload.get("group_performance") or [])[:8],
+            "heatmap": list(korea_payload.get("heatmap") or [])[:24],
         },
         "crypto": {
             "status": crypto_payload.get("status", "warning"),

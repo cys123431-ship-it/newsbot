@@ -191,6 +191,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "data" / "analysis-dashboard.json").exists()
     assert (output_dir / "data" / "markets-overview.json").exists()
     assert (output_dir / "data" / "markets-stocks.json").exists()
+    assert (output_dir / "data" / "markets-korea.json").exists()
     assert (output_dir / "data" / "markets-crypto.json").exists()
     assert (output_dir / "data" / "markets-status.json").exists()
     assert (output_dir / "data" / "removed-articles.txt").exists()
@@ -218,6 +219,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     markets_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
     assert 'id="markets-surface-tabs"' in markets_html
+    assert 'id="markets-korea-surface"' in markets_html
+    assert '"korea_url":"' in markets_html
     assert "../assets/markets.js" in markets_html
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
     assert 'data-detail-panel="' in markets_js
@@ -236,6 +239,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     markets_status = _read_json(output_dir / "data" / "markets-status.json")
     assert markets_status["providers"]["stocks"]["status"] == "warning"
+    assert markets_status["providers"]["korea"]["status"] == "warning"
     assert markets_status["providers"]["crypto"]["status"] == "warning"
 
 

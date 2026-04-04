@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from newsbot.markets_builder import _build_crypto_dataset
+from newsbot.markets_builder import _build_korea_dataset
 from newsbot.config import Settings
 from newsbot.markets_builder import _build_stocks_dataset
 from newsbot.markets_builder import _finalize_crypto_payload
+from newsbot.markets_builder import _finalize_korea_payload
 from newsbot.markets_builder import _normalize_coingecko_rows
 from newsbot.markets_builder import _finalize_stocks_payload
 from newsbot.markets_builder import _parse_finviz_quote_snapshot
@@ -20,8 +22,11 @@ def _settings() -> Settings:
         static_output_dir="site-dist",
         markets_enabled=True,
         fmp_api_key="test-fmp-key",
+        kis_app_key="test-kis-key",
+        kis_app_secret="test-kis-secret",
         coingecko_api_key=None,
         markets_max_stocks=12,
+        markets_max_kr_stocks=8,
         markets_max_coins=12,
     )
 
@@ -72,6 +77,29 @@ def _crypto_row(symbol: str, *, change_pct: float, market_cap: float) -> MarketS
     )
 
 
+def _korea_row(symbol: str, *, change_pct: float, market_cap: float, exchange: str, sector: str) -> MarketSnapshotRow:
+    return MarketSnapshotRow(
+        asset_type="stock",
+        symbol=symbol,
+        name=symbol,
+        exchange=exchange,
+        country="KR",
+        sector_or_category=sector,
+        industry="Semiconductors",
+        last=82000.0,
+        change_pct=change_pct,
+        market_cap=market_cap,
+        volume=4_500_000,
+        avg_volume=None,
+        pe=14.5,
+        dividend_yield=None,
+        as_of="2026-04-04T00:00:00+00:00",
+        detail_url=f"https://finance.naver.com/item/main.naver?code={symbol}",
+        high_52w=91000.0,
+        low_52w=61000.0,
+    )
+
+
 def test_build_markets_bundle_computes_overview_and_news_rail():
     settings = _settings()
     stocks_payload = _finalize_stocks_payload(
@@ -86,6 +114,23 @@ def test_build_markets_bundle_computes_overview_and_news_rail():
         status="ok",
         stale=False,
         message=None,
+    )
+    korea_payload = _finalize_korea_payload(
+        [
+            _korea_row("005930", change_pct=1.8, market_cap=480_000_000_000_000, exchange="KOSPI", sector="Technology"),
+            _korea_row("000660", change_pct=-0.7, market_cap=120_000_000_000_000, exchange="KOSPI", sector="Technology"),
+            _korea_row("035720", change_pct=2.4, market_cap=45_000_000_000_000, exchange="KOSDAQ", sector="Internet"),
+        ],
+        benchmark_rows=[
+            _korea_row("KOSPI", change_pct=0.6, market_cap=0.0, exchange="KOSPI", sector="Benchmark"),
+            _korea_row("KOSDAQ", change_pct=1.1, market_cap=0.0, exchange="KOSDAQ", sector="Benchmark"),
+        ],
+        generated_at="2026-04-04T00:00:00+00:00",
+        provider="kis",
+        status="ok",
+        stale=False,
+        message=None,
+        breadth_override={"advancers": 1200, "decliners": 630, "unchanged": 85},
     )
     crypto_payload = _finalize_crypto_payload(
         [
@@ -141,12 +186,15 @@ def test_build_markets_bundle_computes_overview_and_news_rail():
             ],
         },
         stock_dataset_builder=lambda *_args, **_kwargs: stocks_payload,
+        korea_dataset_builder=lambda *_args, **_kwargs: korea_payload,
         crypto_dataset_builder=lambda *_args, **_kwargs: crypto_payload,
     )
 
     assert bundle["status"]["overall_status"] == "ok"
     assert bundle["overview"]["top_cards"][0]["value"] == 3
+    assert bundle["status"]["providers"]["korea"]["status"] == "ok"
     assert bundle["overview"]["stocks"]["breadth"]["advancers"] == 2
+    assert bundle["overview"]["korea"]["breadth"]["advancers"] == 1200
     assert bundle["overview"]["crypto"]["breadth"]["decliners"] == 1
     assert len(bundle["overview"]["market_news"]) == 2
 
@@ -369,3 +417,169 @@ def test_build_stocks_dataset_reuses_archive_when_fallback_fails():
     assert payload["row_count"] == 1
     assert "NEWSBOT_FMP_API_KEY" in payload["message"]
     assert "blocked" in payload["message"]
+
+
+def test_build_korea_dataset_warns_when_kis_credentials_missing():
+    settings = Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        kis_app_key=None,
+        kis_app_secret=None,
+    )
+
+    payload = _build_korea_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data=None,
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["provider"] == "kis"
+    assert "NEWSBOT_KIS_APP_KEY" in payload["message"]
+    assert "NEWSBOT_KIS_APP_SECRET" in payload["message"]
+
+
+def test_build_korea_dataset_builds_snapshot_with_injected_kis_loaders():
+    settings = _settings()
+
+    def fake_universe_fetcher(_client, _sector_names):
+        return [
+            {
+                "symbol": "005930",
+                "name": "삼성전자",
+                "exchange": "KOSPI",
+                "sector": "Technology",
+                "industry": "Semiconductors",
+                "listed_shares": 5_900_000_000,
+                "market_cap": 480_000_000_000_000,
+            },
+            {
+                "symbol": "035720",
+                "name": "카카오",
+                "exchange": "KOSDAQ",
+                "sector": "Internet",
+                "industry": "Internet Services",
+                "listed_shares": 440_000_000,
+                "market_cap": 45_000_000_000_000,
+            },
+        ]
+
+    def fake_price_fetcher(_client, _settings, *, token, metadata_rows, generated_at):
+        assert token == "kis-token"
+        assert len(metadata_rows) == 2
+        return [
+            MarketSnapshotRow(
+                asset_type="stock",
+                symbol="005930",
+                name="삼성전자",
+                exchange="KOSPI",
+                country="KR",
+                sector_or_category="Technology",
+                industry="Semiconductors",
+                last=82000.0,
+                change_pct=1.21,
+                market_cap=480_000_000_000_000,
+                volume=20_000_000,
+                avg_volume=None,
+                pe=14.2,
+                dividend_yield=None,
+                as_of=generated_at,
+                detail_url="https://finance.naver.com/item/main.naver?code=005930",
+                high_52w=91000.0,
+                low_52w=61000.0,
+            ),
+            MarketSnapshotRow(
+                asset_type="stock",
+                symbol="035720",
+                name="카카오",
+                exchange="KOSDAQ",
+                country="KR",
+                sector_or_category="Internet",
+                industry="Internet Services",
+                last=58200.0,
+                change_pct=-0.42,
+                market_cap=45_000_000_000_000,
+                volume=3_200_000,
+                avg_volume=None,
+                pe=18.8,
+                dividend_yield=None,
+                as_of=generated_at,
+                detail_url="https://finance.naver.com/item/main.naver?code=035720",
+                high_52w=66000.0,
+                low_52w=42000.0,
+            ),
+        ]
+
+    def fake_benchmark_fetcher(_client, _settings, *, token, generated_at):
+        assert token == "kis-token"
+        assert generated_at == "2026-04-04T00:00:00+00:00"
+        return (
+            [
+                MarketSnapshotRow(
+                    asset_type="stock",
+                    symbol="KOSPI",
+                    name="KOSPI",
+                    exchange="KOSPI",
+                    country="KR",
+                    sector_or_category="Benchmark",
+                    industry="Index",
+                    last=2750.1,
+                    change_pct=0.61,
+                    market_cap=None,
+                    volume=700_000_000,
+                    avg_volume=None,
+                    pe=None,
+                    dividend_yield=None,
+                    as_of=generated_at,
+                    detail_url="https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+                    high_52w=2900.0,
+                    low_52w=2200.0,
+                ),
+                MarketSnapshotRow(
+                    asset_type="stock",
+                    symbol="KOSDAQ",
+                    name="KOSDAQ",
+                    exchange="KOSDAQ",
+                    country="KR",
+                    sector_or_category="Benchmark",
+                    industry="Index",
+                    last=910.5,
+                    change_pct=1.12,
+                    market_cap=None,
+                    volume=500_000_000,
+                    avg_volume=None,
+                    pe=None,
+                    dividend_yield=None,
+                    as_of=generated_at,
+                    detail_url="https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ",
+                    high_52w=980.0,
+                    low_52w=700.0,
+                ),
+            ],
+            {"advancers": 1400, "decliners": 620, "unchanged": 93},
+        )
+
+    payload = _build_korea_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data=None,
+        token_fetcher=lambda _client, _settings: "kis-token",
+        sector_fetcher=lambda _client: {"Technology": "Technology", "Internet": "Internet"},
+        universe_fetcher=fake_universe_fetcher,
+        price_fetcher=fake_price_fetcher,
+        benchmark_fetcher=fake_benchmark_fetcher,
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["provider"] == "kis"
+    assert payload["row_count"] == 2
+    assert payload["benchmarks"][0]["symbol"] == "KOSPI"
+    assert payload["breadth"]["advancers"] == 1400
+    assert payload["filter_options"]["exchanges"] == ["KOSDAQ", "KOSPI"]
+    assert "Technology" in payload["filter_options"]["sectors"]
+    assert "Internet Services" in payload["filter_options"]["industries"]
+    assert payload["group_performance"]
+    assert payload["heatmap"]

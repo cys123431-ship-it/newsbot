@@ -7,26 +7,36 @@ const refs = {
   statusLine: document.getElementById("markets-status-line"),
   overview: document.getElementById("markets-overview-surface"),
   stocks: document.getElementById("markets-stocks-surface"),
+  korea: document.getElementById("markets-korea-surface"),
   crypto: document.getElementById("markets-crypto-surface"),
 };
 
 const state = {
   surface: "overview",
   stocksLoaded: false,
+  koreaLoaded: false,
   cryptoLoaded: false,
   stocksSearch: "",
+  koreaSearch: "",
   cryptoSearch: "",
   stocksPreset: "all",
+  koreaPreset: "all",
   cryptoPreset: "all",
   stocksSort: "market_cap",
+  koreaSort: "market_cap",
   cryptoSort: "market_cap",
   stocksDirection: "desc",
+  koreaDirection: "desc",
   cryptoDirection: "desc",
   stocksExchange: "all",
+  koreaExchange: "all",
   stocksSector: "all",
+  koreaSector: "all",
   stocksIndustry: "all",
+  koreaIndustry: "all",
   stocksValuation: "all",
   stocksDetail: "",
+  koreaDetail: "",
   cryptoDetail: "",
 };
 
@@ -34,6 +44,7 @@ const payloads = {
   status: null,
   overview: null,
   stocks: null,
+  korea: null,
   crypto: null,
 };
 
@@ -63,11 +74,19 @@ function formatCompactNumber(value) {
   }).format(Number(value));
 }
 
-function formatCurrency(value) {
+function formatCurrency(value, currency = "USD") {
   if (value === null || value === undefined || value === "") {
     return "-";
   }
   const numeric = Number(value);
+  const locale = currency === "KRW" ? "ko-KR" : "en-US";
+  if (currency === "KRW") {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(numeric);
+  }
   if (Math.abs(numeric) >= 1000000) {
     return `$${formatCompactNumber(numeric)}`;
   }
@@ -140,6 +159,10 @@ async function ensureDataset(surface) {
     payloads.stocks = await loadJson(bootstrap.stocks_url);
     state.stocksLoaded = true;
   }
+  if (surface === "korea" && !payloads.korea) {
+    payloads.korea = await loadJson(bootstrap.korea_url);
+    state.koreaLoaded = true;
+  }
   if (surface === "crypto" && !payloads.crypto) {
     payloads.crypto = await loadJson(bootstrap.crypto_url);
     state.cryptoLoaded = true;
@@ -167,6 +190,7 @@ function renderSurfaceTabs() {
   const surfaces = [
     { key: "overview", label: "Overview" },
     { key: "stocks", label: "Stocks" },
+    { key: "korea", label: "Korea" },
     { key: "crypto", label: "Crypto" },
   ];
   refs.tabs.innerHTML = surfaces
@@ -196,9 +220,11 @@ function renderStatusLine() {
     return;
   }
   const stocks = payloads.status.providers?.stocks;
+  const korea = payloads.status.providers?.korea;
   const crypto = payloads.status.providers?.crypto;
   refs.statusLine.textContent =
     `Stocks ${stocks?.status || "-"} (${formatNumber(stocks?.row_count || 0)} rows), ` +
+    `Korea ${korea?.status || "-"} (${formatNumber(korea?.row_count || 0)} rows), ` +
     `Crypto ${crypto?.status || "-"} (${formatNumber(crypto?.row_count || 0)} rows), ` +
     `Updated ${formatDateTime(payloads.status.generated_at)}`;
 }
@@ -211,9 +237,11 @@ function renderOverviewSurface() {
   }
   refs.overview.hidden = state.surface !== "overview";
   refs.stocks.hidden = state.surface !== "stocks";
+  refs.korea.hidden = state.surface !== "korea";
   refs.crypto.hidden = state.surface !== "crypto";
 
   const stocks = overview.stocks || {};
+  const korea = overview.korea || {};
   const crypto = overview.crypto || {};
   refs.overview.innerHTML = `
     <section class="analysis-table-panel market-overview-shell">
@@ -240,7 +268,26 @@ function renderOverviewSurface() {
             { label: "Decliners", value: formatNumber(stocks.breadth?.decliners || 0) },
             { label: "Near 52W High", value: formatNumber(stocks.breadth?.new_highs || 0) },
             { label: "Near 52W Low", value: formatNumber(stocks.breadth?.new_lows || 0) },
-          ])}
+          ], "USD")}
+        </section>
+
+        <section class="market-overview-block">
+          <div class="market-overview-block-head">
+            <div class="market-overview-copy">
+              <p class="analysis-kicker">Korea</p>
+              <h3>Korea stocks summary</h3>
+              <p>Detailed heatmap and screener live in Korea.</p>
+            </div>
+            <button type="button" class="market-jump-button" data-surface-jump="korea">Korea</button>
+          </div>
+          ${korea.message ? `<p class="market-message">${escapeHtml(summarizeText(korea.message, 120))}</p>` : ""}
+          ${renderBenchmarkCards((korea.benchmarks || []).slice(0, 4), "No Korea benchmarks available.", "KRW")}
+          ${renderOverviewStatGrid([
+            { label: "Advancers", value: formatNumber(korea.breadth?.advancers || 0) },
+            { label: "Decliners", value: formatNumber(korea.breadth?.decliners || 0) },
+            { label: "Near 52W High", value: formatNumber(korea.breadth?.new_highs || 0) },
+            { label: "Near 52W Low", value: formatNumber(korea.breadth?.new_lows || 0) },
+          ], "KRW")}
         </section>
 
         <section class="market-overview-block">
@@ -259,7 +306,7 @@ function renderOverviewSurface() {
             { label: "Decliners", value: formatNumber(crypto.breadth?.decliners || 0) },
             { label: "Near 24H High", value: formatNumber(crypto.breadth?.new_highs || 0) },
             { label: "Near 24H Low", value: formatNumber(crypto.breadth?.new_lows || 0) },
-          ])}
+          ], "USD")}
         </section>
       </div>
     </section>
@@ -271,7 +318,7 @@ function renderOverviewSurface() {
   });
 }
 
-function renderBenchmarkCards(items, emptyMessage) {
+function renderBenchmarkCards(items, emptyMessage, currency = "USD") {
   if (!items.length) {
     return `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
   }
@@ -282,7 +329,7 @@ function renderBenchmarkCards(items, emptyMessage) {
           (item) => `
             <a class="market-benchmark-card" href="${escapeHtml(item.detail_url || "#")}" target="_blank" rel="noreferrer">
               <span class="market-benchmark-symbol">${escapeHtml(item.symbol || "-")}</span>
-              <strong>${escapeHtml(formatCurrency(item.last))}</strong>
+              <strong>${escapeHtml(formatCurrency(item.last, currency))}</strong>
               <span class="market-value ${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
             </a>
           `,
@@ -335,7 +382,7 @@ function renderBreadth(breadth, assetType) {
   `;
 }
 
-function renderMiniList(title, items, emptyMessage) {
+function renderMiniList(title, items, emptyMessage, currency = "USD") {
   return `
     <section class="market-mini-panel">
       <h3>${escapeHtml(title)}</h3>
@@ -351,7 +398,7 @@ function renderMiniList(title, items, emptyMessage) {
                         <span>${escapeHtml(item.name || "-")}</span>
                       </div>
                       <div class="market-mini-values">
-                        <span>${escapeHtml(formatCurrency(item.last))}</span>
+                        <span>${escapeHtml(formatCurrency(item.last, currency))}</span>
                         <span class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
                       </div>
                     </a>
@@ -451,7 +498,59 @@ function renderTrending(items) {
 }
 
 function getDataset(surface) {
-  return surface === "stocks" ? payloads.stocks : payloads.crypto;
+  return payloads[surface] || null;
+}
+
+function isStockSurface(surface) {
+  return surface === "stocks" || surface === "korea";
+}
+
+function getCurrencyForSurface(surface) {
+  return surface === "korea" ? "KRW" : "USD";
+}
+
+function getSurfaceStateKeys(surface) {
+  if (surface === "stocks") {
+    return {
+      search: "stocksSearch",
+      preset: "stocksPreset",
+      sort: "stocksSort",
+      direction: "stocksDirection",
+      exchange: "stocksExchange",
+      sector: "stocksSector",
+      industry: "stocksIndustry",
+      detail: "stocksDetail",
+      valuation: "stocksValuation",
+    };
+  }
+  if (surface === "korea") {
+    return {
+      search: "koreaSearch",
+      preset: "koreaPreset",
+      sort: "koreaSort",
+      direction: "koreaDirection",
+      exchange: "koreaExchange",
+      sector: "koreaSector",
+      industry: "koreaIndustry",
+      detail: "koreaDetail",
+      valuation: null,
+    };
+  }
+  return {
+    search: "cryptoSearch",
+    preset: "cryptoPreset",
+    sort: "cryptoSort",
+    direction: "cryptoDirection",
+    exchange: null,
+    sector: null,
+    industry: null,
+    detail: "cryptoDetail",
+    valuation: null,
+  };
+}
+
+function getOverviewSnapshot(surface) {
+  return payloads.overview?.[surface] || {};
 }
 
 function getFilteredRows(surface) {
@@ -459,8 +558,9 @@ function getFilteredRows(surface) {
   if (!dataset) {
     return [];
   }
-  const search = surface === "stocks" ? state.stocksSearch : state.cryptoSearch;
-  const preset = surface === "stocks" ? state.stocksPreset : state.cryptoPreset;
+  const stateKeys = getSurfaceStateKeys(surface);
+  const search = stateKeys.search ? state[stateKeys.search] : "";
+  const preset = stateKeys.preset ? state[stateKeys.preset] : "all";
   let rows = [...(dataset.rows || [])];
 
   if (search) {
@@ -472,26 +572,26 @@ function getFilteredRows(surface) {
     );
   }
 
-  if (surface === "stocks") {
-    if (state.stocksExchange !== "all") {
-      rows = rows.filter((row) => row.exchange === state.stocksExchange);
+  if (isStockSurface(surface)) {
+    if (stateKeys.exchange && state[stateKeys.exchange] !== "all") {
+      rows = rows.filter((row) => row.exchange === state[stateKeys.exchange]);
     }
-    if (state.stocksSector !== "all") {
-      rows = rows.filter((row) => row.sector_or_category === state.stocksSector);
+    if (stateKeys.sector && state[stateKeys.sector] !== "all") {
+      rows = rows.filter((row) => row.sector_or_category === state[stateKeys.sector]);
     }
-    if (state.stocksIndustry !== "all") {
-      rows = rows.filter((row) => row.industry === state.stocksIndustry);
+    if (stateKeys.industry && state[stateKeys.industry] !== "all") {
+      rows = rows.filter((row) => row.industry === state[stateKeys.industry]);
     }
-    if (state.stocksValuation === "value") {
+    if (surface === "stocks" && state.stocksValuation === "value") {
       rows = rows.filter((row) => row.pe !== null && row.pe <= 15);
     }
-    if (state.stocksValuation === "blend") {
+    if (surface === "stocks" && state.stocksValuation === "blend") {
       rows = rows.filter((row) => row.pe !== null && row.pe > 15 && row.pe <= 30);
     }
-    if (state.stocksValuation === "growth") {
+    if (surface === "stocks" && state.stocksValuation === "growth") {
       rows = rows.filter((row) => row.pe !== null && row.pe > 30);
     }
-    if (state.stocksValuation === "income") {
+    if (surface === "stocks" && state.stocksValuation === "income") {
       rows = rows.filter((row) => (row.dividend_yield || 0) >= 2);
     }
   }
@@ -508,6 +608,12 @@ function getFilteredRows(surface) {
   if (preset === "active") {
     rows = rows.filter((row) => Number(row.volume || 0) > 0);
   }
+  if (preset === "kospi") {
+    rows = rows.filter((row) => row.exchange === "KOSPI");
+  }
+  if (preset === "kosdaq") {
+    rows = rows.filter((row) => row.exchange === "KOSDAQ");
+  }
   if (preset === "value") {
     rows = rows.filter((row) => row.pe !== null && row.pe <= 15);
   }
@@ -518,8 +624,8 @@ function getFilteredRows(surface) {
     rows = rows.filter((row) => ["BTC", "ETH", "SOL", "XRP"].includes(row.symbol));
   }
 
-  const sortKey = surface === "stocks" ? state.stocksSort : state.cryptoSort;
-  const direction = surface === "stocks" ? state.stocksDirection : state.cryptoDirection;
+  const sortKey = stateKeys.sort ? state[stateKeys.sort] : "market_cap";
+  const direction = stateKeys.direction ? state[stateKeys.direction] : "desc";
   rows.sort((left, right) => {
     const leftValue = left?.[sortKey] ?? 0;
     const rightValue = right?.[sortKey] ?? 0;
@@ -535,15 +641,17 @@ function getFilteredRows(surface) {
 }
 
 function getDetailPanelState(surface) {
-  return surface === "stocks" ? state.stocksDetail : state.cryptoDetail;
+  const stateKeys = getSurfaceStateKeys(surface);
+  return stateKeys.detail ? state[stateKeys.detail] : "";
 }
 
 function setDetailPanelState(surface, nextPanel) {
-  const key = surface === "stocks" ? "stocksDetail" : "cryptoDetail";
+  const stateKeys = getSurfaceStateKeys(surface);
+  const key = stateKeys.detail;
   state[key] = state[key] === nextPanel ? "" : nextPanel;
 }
 
-function renderBenchmarkTickerRow(items, emptyMessage) {
+function renderBenchmarkTickerRow(items, emptyMessage, currency = "USD") {
   if (!items.length) {
     return `<div class="analysis-empty compact-empty">${escapeHtml(emptyMessage)}</div>`;
   }
@@ -555,7 +663,7 @@ function renderBenchmarkTickerRow(items, emptyMessage) {
           (item) => `
             <a class="market-benchmark-pill" href="${escapeHtml(item.detail_url || "#")}" target="_blank" rel="noreferrer">
               <strong>${escapeHtml(item.symbol || "-")}</strong>
-              <span>${escapeHtml(formatCurrency(item.last))}</span>
+              <span>${escapeHtml(formatCurrency(item.last, currency))}</span>
               <b class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</b>
             </a>
           `,
@@ -595,37 +703,78 @@ function renderDetailTabs(surface) {
 }
 
 function renderSummaryStrip(surface, snapshot, dataset) {
-  const isStocks = surface === "stocks";
-  const benchmarkEmpty = isStocks ? "No stock benchmarks available." : "No crypto benchmarks available.";
+  const currency = getCurrencyForSurface(surface);
+  const labels = {
+    stocks: { kicker: "US Stocks", benchmark: "No stock benchmarks available." },
+    korea: { kicker: "Korea", benchmark: "No Korea benchmarks available." },
+    crypto: { kicker: "Crypto", benchmark: "No crypto benchmarks available." },
+  };
+  const labelSet = labels[surface] || labels.crypto;
 
   return `
     <section class="analysis-panel market-strip-panel">
       <div class="market-strip-head">
         <div>
-          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-          <h2>${isStocks ? "Benchmarks and breadth" : "Benchmarks and breadth"}</h2>
+          <p class="analysis-kicker">${labelSet.kicker}</p>
+          <h2>Benchmarks and breadth</h2>
         </div>
         <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
       </div>
       ${dataset.message ? `<p class="market-message market-strip-message">${escapeHtml(dataset.message)}</p>` : ""}
       <div class="market-strip-layout">
-        ${renderBenchmarkTickerRow(snapshot.benchmarks || [], benchmarkEmpty)}
-        ${renderBreadth(snapshot.breadth || {}, isStocks ? "stock" : "crypto")}
+        ${renderBenchmarkTickerRow(snapshot.benchmarks || [], labelSet.benchmark, currency)}
+        ${renderBreadth(snapshot.breadth || {}, surface === "crypto" ? "crypto" : "stock")}
       </div>
     </section>
   `;
 }
 
 function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
-  const isStocks = surface === "stocks";
+  const isStockLike = isStockSurface(surface);
+  const currency = getCurrencyForSurface(surface);
   const activePanel = getDetailPanelState(surface);
-  const groupTitle = isStocks ? "Sector performance" : "Category performance";
-  const heatmapTitle = isStocks ? "Stock heatmap" : "Crypto heatmap";
-  const heatmapEmpty = isStocks ? "No stock heatmap data available." : "No crypto heatmap data available.";
-  const groupEmpty = isStocks ? "No stock sector data available." : "No crypto category data available.";
-  const gainersEmpty = isStocks ? "No gainers available." : "No crypto gainers available.";
-  const losersEmpty = isStocks ? "No losers available." : "No crypto losers available.";
-  const activeEmpty = isStocks ? "No stock activity data available." : "No crypto activity data available.";
+  const surfaceLabels = {
+    stocks: {
+      kicker: "US Stocks",
+      groupTitle: "Sector performance",
+      heatmapTitle: "Stock heatmap",
+      heatmapEmpty: "No stock heatmap data available.",
+      groupEmpty: "No stock sector data available.",
+      gainersEmpty: "No gainers available.",
+      losersEmpty: "No losers available.",
+      activeEmpty: "No stock activity data available.",
+      moversTitle: "US Stocks movers",
+      screenerTitle: "Screener",
+      searchPlaceholder: "Search ticker, company, sector",
+    },
+    korea: {
+      kicker: "Korea",
+      groupTitle: "Sector performance",
+      heatmapTitle: "Korea heatmap",
+      heatmapEmpty: "No Korea heatmap data available.",
+      groupEmpty: "No Korea sector data available.",
+      gainersEmpty: "No Korea gainers available.",
+      losersEmpty: "No Korea losers available.",
+      activeEmpty: "No Korea activity data available.",
+      moversTitle: "Korea movers",
+      screenerTitle: "Korea Screener",
+      searchPlaceholder: "Search ticker, company, sector",
+    },
+    crypto: {
+      kicker: "Crypto",
+      groupTitle: "Category performance",
+      heatmapTitle: "Crypto heatmap",
+      heatmapEmpty: "No crypto heatmap data available.",
+      groupEmpty: "No crypto category data available.",
+      gainersEmpty: "No crypto gainers available.",
+      losersEmpty: "No crypto losers available.",
+      activeEmpty: "No crypto activity data available.",
+      moversTitle: "Crypto movers",
+      screenerTitle: "Coin Screener",
+      searchPlaceholder: "Search symbol or coin",
+    },
+  };
+  const labels = surfaceLabels[surface] || surfaceLabels.crypto;
 
   if (!activePanel) {
     return "";
@@ -636,13 +785,13 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
       <section class="analysis-panel market-detail-heatmap">
         <div class="analysis-panel-head">
           <div>
-            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-            <h2>${heatmapTitle}</h2>
+            <p class="analysis-kicker">${labels.kicker}</p>
+            <h2>${labels.heatmapTitle}</h2>
           </div>
         </div>
-        ${renderGroupBars(groupTitle, snapshot.group_performance || [], groupEmpty)}
-        ${!isStocks ? renderTrending(snapshot.trending || []) : ""}
-        ${renderHeatmap(heatmapTitle, snapshot.heatmap || [], heatmapEmpty)}
+        ${renderGroupBars(labels.groupTitle, snapshot.group_performance || [], labels.groupEmpty)}
+        ${surface === "crypto" ? renderTrending(snapshot.trending || []) : ""}
+        ${renderHeatmap(labels.heatmapTitle, snapshot.heatmap || [], labels.heatmapEmpty)}
       </section>
     `;
   }
@@ -652,14 +801,14 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
       <section class="analysis-panel">
         <div class="analysis-panel-head">
           <div>
-            <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-            <h2>${isStocks ? "US Stocks movers" : "Crypto movers"}</h2>
+            <p class="analysis-kicker">${labels.kicker}</p>
+            <h2>${labels.moversTitle}</h2>
           </div>
         </div>
         <div class="markets-three-up">
-          ${renderMiniList("Top gainers", (snapshot.top_gainers || []).slice(0, 6), gainersEmpty)}
-          ${renderMiniList("Top losers", (snapshot.top_losers || []).slice(0, 6), losersEmpty)}
-          ${renderMiniList("Most active", (snapshot.most_active || []).slice(0, 6), activeEmpty)}
+          ${renderMiniList("Top gainers", (snapshot.top_gainers || []).slice(0, 6), labels.gainersEmpty, currency)}
+          ${renderMiniList("Top losers", (snapshot.top_losers || []).slice(0, 6), labels.losersEmpty, currency)}
+          ${renderMiniList("Most active", (snapshot.most_active || []).slice(0, 6), labels.activeEmpty, currency)}
         </div>
       </section>
     `;
@@ -669,8 +818,8 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
     <section class="analysis-table-panel">
       <div class="analysis-panel-head">
         <div>
-          <p class="analysis-kicker">${isStocks ? "US Stocks" : "Crypto"}</p>
-          <h2>${isStocks ? "Screener" : "Coin Screener"}</h2>
+          <p class="analysis-kicker">${labels.kicker}</p>
+          <h2>${labels.screenerTitle}</h2>
         </div>
       </div>
       <div class="market-controls">
@@ -678,14 +827,14 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
           id="${surface}-search"
           class="market-search"
           type="search"
-          value="${escapeHtml(isStocks ? state.stocksSearch : state.cryptoSearch)}"
-          placeholder="${isStocks ? "Search ticker, company, sector" : "Search symbol or coin"}"
+          value="${escapeHtml(state[getSurfaceStateKeys(surface).search] || "")}"
+          placeholder="${labels.searchPlaceholder}"
         />
         <select id="${surface}-preset">
           ${(dataset.presets || [])
             .map(
               (item) => `
-                <option value="${escapeHtml(item.key)}" ${(isStocks ? state.stocksPreset : state.cryptoPreset) === item.key ? "selected" : ""}>
+                <option value="${escapeHtml(item.key)}" ${state[getSurfaceStateKeys(surface).preset] === item.key ? "selected" : ""}>
                   ${escapeHtml(item.label)}
                 </option>
               `,
@@ -693,60 +842,66 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
             .join("")}
         </select>
         ${
-          isStocks
+          isStockLike
             ? `
-              <select id="stocks-exchange">
+              <select id="${surface}-exchange">
                 <option value="all">All Exchanges</option>
                 ${(dataset.filter_options?.exchanges || [])
                   .map(
                     (item) => `
-                      <option value="${escapeHtml(item)}" ${state.stocksExchange === item ? "selected" : ""}>${escapeHtml(item)}</option>
+                      <option value="${escapeHtml(item)}" ${state[getSurfaceStateKeys(surface).exchange] === item ? "selected" : ""}>${escapeHtml(item)}</option>
                     `,
                   )
                   .join("")}
               </select>
-              <select id="stocks-sector">
+              <select id="${surface}-sector">
                 <option value="all">All Sectors</option>
                 ${(dataset.filter_options?.sectors || [])
                   .map(
                     (item) => `
-                      <option value="${escapeHtml(item)}" ${state.stocksSector === item ? "selected" : ""}>${escapeHtml(item)}</option>
+                      <option value="${escapeHtml(item)}" ${state[getSurfaceStateKeys(surface).sector] === item ? "selected" : ""}>${escapeHtml(item)}</option>
                     `,
                   )
                   .join("")}
               </select>
-              <select id="stocks-industry">
+              <select id="${surface}-industry">
                 <option value="all">All Industries</option>
                 ${(dataset.filter_options?.industries || [])
                   .map(
                     (item) => `
-                      <option value="${escapeHtml(item)}" ${state.stocksIndustry === item ? "selected" : ""}>${escapeHtml(item)}</option>
+                      <option value="${escapeHtml(item)}" ${state[getSurfaceStateKeys(surface).industry] === item ? "selected" : ""}>${escapeHtml(item)}</option>
                     `,
                   )
                   .join("")}
               </select>
-              <select id="stocks-valuation">
-                <option value="all" ${state.stocksValuation === "all" ? "selected" : ""}>All Valuation</option>
-                <option value="value" ${state.stocksValuation === "value" ? "selected" : ""}>PE <= 15</option>
-                <option value="blend" ${state.stocksValuation === "blend" ? "selected" : ""}>PE 15-30</option>
-                <option value="growth" ${state.stocksValuation === "growth" ? "selected" : ""}>PE > 30</option>
-                <option value="income" ${state.stocksValuation === "income" ? "selected" : ""}>Yield >= 2%</option>
-              </select>
+              ${
+                surface === "stocks"
+                  ? `
+                    <select id="stocks-valuation">
+                      <option value="all" ${state.stocksValuation === "all" ? "selected" : ""}>All Valuation</option>
+                      <option value="value" ${state.stocksValuation === "value" ? "selected" : ""}>PE <= 15</option>
+                      <option value="blend" ${state.stocksValuation === "blend" ? "selected" : ""}>PE 15-30</option>
+                      <option value="growth" ${state.stocksValuation === "growth" ? "selected" : ""}>PE > 30</option>
+                      <option value="income" ${state.stocksValuation === "income" ? "selected" : ""}>Yield >= 2%</option>
+                    </select>
+                  `
+                  : ""
+              }
             `
             : ""
         }
         <select id="${surface}-sort">
-          <option value="market_cap" ${(isStocks ? state.stocksSort : state.cryptoSort) === "market_cap" ? "selected" : ""}>Sort: Market Cap</option>
-          <option value="change_pct" ${(isStocks ? state.stocksSort : state.cryptoSort) === "change_pct" ? "selected" : ""}>Sort: Change</option>
-          <option value="volume" ${(isStocks ? state.stocksSort : state.cryptoSort) === "volume" ? "selected" : ""}>Sort: Volume</option>
-          ${isStocks ? `<option value="pe" ${state.stocksSort === "pe" ? "selected" : ""}>Sort: PE</option>` : ""}
+          <option value="market_cap" ${state[getSurfaceStateKeys(surface).sort] === "market_cap" ? "selected" : ""}>Sort: Market Cap</option>
+          <option value="change_pct" ${state[getSurfaceStateKeys(surface).sort] === "change_pct" ? "selected" : ""}>Sort: Change</option>
+          <option value="volume" ${state[getSurfaceStateKeys(surface).sort] === "volume" ? "selected" : ""}>Sort: Volume</option>
+          ${isStockLike ? `<option value="pe" ${state[getSurfaceStateKeys(surface).sort] === "pe" ? "selected" : ""}>Sort: PE</option>` : ""}
         </select>
         <button id="${surface}-sort-direction" type="button" class="pill">
-          ${(isStocks ? state.stocksDirection : state.cryptoDirection) === "asc" ? "Ascending" : "Descending"}
+          ${state[getSurfaceStateKeys(surface).direction] === "asc" ? "Ascending" : "Descending"}
         </button>
       </div>
       <div class="market-table-shell">
-        ${rows.length ? renderTable(rows, isStocks) : '<div class="analysis-empty">No rows match the current filters.</div>'}
+        ${rows.length ? renderTable(rows, surface) : '<div class="analysis-empty">No rows match the current filters.</div>'}
       </div>
     </section>
   `;
@@ -754,15 +909,16 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
 
 function renderDatasetSurface(surface) {
   const dataset = getDataset(surface);
-  const target = surface === "stocks" ? refs.stocks : refs.crypto;
+  const target = refs[surface];
   if (!dataset) {
     target.innerHTML = '<div class="analysis-empty">Dataset not loaded.</div>';
     return;
   }
 
   const rows = getFilteredRows(surface);
-  const isStocks = surface === "stocks";
-  const snapshot = isStocks ? payloads.overview?.stocks || {} : payloads.overview?.crypto || {};
+  const isStockLike = isStockSurface(surface);
+  const stateKeys = getSurfaceStateKeys(surface);
+  const snapshot = getOverviewSnapshot(surface);
   const controls = `
     ${renderSummaryStrip(surface, snapshot, dataset)}
     ${renderDetailTabs(surface)}
@@ -778,50 +934,36 @@ function renderDatasetSurface(surface) {
   });
 
   target.querySelector(`#${surface}-search`)?.addEventListener("input", (event) => {
-    if (isStocks) {
-      state.stocksSearch = event.target.value;
-    } else {
-      state.cryptoSearch = event.target.value;
-    }
+    state[stateKeys.search] = event.target.value;
     renderDatasetSurface(surface);
   });
   target.querySelector(`#${surface}-preset`)?.addEventListener("change", (event) => {
-    if (isStocks) {
-      state.stocksPreset = event.target.value;
-    } else {
-      state.cryptoPreset = event.target.value;
-    }
+    state[stateKeys.preset] = event.target.value;
     renderDatasetSurface(surface);
   });
   target.querySelector(`#${surface}-sort`)?.addEventListener("change", (event) => {
-    if (isStocks) {
-      state.stocksSort = event.target.value;
-    } else {
-      state.cryptoSort = event.target.value;
-    }
+    state[stateKeys.sort] = event.target.value;
     renderDatasetSurface(surface);
   });
   target.querySelector(`#${surface}-sort-direction`)?.addEventListener("click", () => {
-    if (isStocks) {
-      state.stocksDirection = state.stocksDirection === "asc" ? "desc" : "asc";
-    } else {
-      state.cryptoDirection = state.cryptoDirection === "asc" ? "desc" : "asc";
-    }
+    state[stateKeys.direction] = state[stateKeys.direction] === "asc" ? "desc" : "asc";
     renderDatasetSurface(surface);
   });
-  if (isStocks) {
-    target.querySelector("#stocks-exchange")?.addEventListener("change", (event) => {
-      state.stocksExchange = event.target.value;
+  if (isStockLike) {
+    target.querySelector(`#${surface}-exchange`)?.addEventListener("change", (event) => {
+      state[stateKeys.exchange] = event.target.value;
       renderDatasetSurface(surface);
     });
-    target.querySelector("#stocks-sector")?.addEventListener("change", (event) => {
-      state.stocksSector = event.target.value;
+    target.querySelector(`#${surface}-sector`)?.addEventListener("change", (event) => {
+      state[stateKeys.sector] = event.target.value;
       renderDatasetSurface(surface);
     });
-    target.querySelector("#stocks-industry")?.addEventListener("change", (event) => {
-      state.stocksIndustry = event.target.value;
+    target.querySelector(`#${surface}-industry`)?.addEventListener("change", (event) => {
+      state[stateKeys.industry] = event.target.value;
       renderDatasetSurface(surface);
     });
+  }
+  if (surface === "stocks") {
     target.querySelector("#stocks-valuation")?.addEventListener("change", (event) => {
       state.stocksValuation = event.target.value;
       renderDatasetSurface(surface);
@@ -829,19 +971,21 @@ function renderDatasetSurface(surface) {
   }
 }
 
-function renderTable(rows, isStocks) {
+function renderTable(rows, surface) {
+  const isStockLike = isStockSurface(surface);
+  const currency = getCurrencyForSurface(surface);
   return `
     <table class="market-table">
       <thead>
         <tr>
           <th>Symbol</th>
           <th>Name</th>
-          <th>${isStocks ? "Sector" : "Type"}</th>
+          <th>${isStockLike ? "Sector" : "Type"}</th>
           <th>Price</th>
           <th>Change</th>
           <th>Market Cap</th>
           <th>Volume</th>
-          ${isStocks ? "<th>PE</th><th>Yield</th>" : ""}
+          ${isStockLike ? "<th>PE</th><th>Yield</th>" : ""}
         </tr>
       </thead>
       <tbody>
@@ -853,11 +997,11 @@ function renderTable(rows, isStocks) {
                 <td><a href="${escapeHtml(row.detail_url || "#")}" target="_blank" rel="noreferrer">${escapeHtml(row.symbol || "-")}</a></td>
                 <td>${escapeHtml(row.name || "-")}</td>
                 <td>${escapeHtml(row.sector_or_category || row.industry || "-")}</td>
-                <td>${escapeHtml(formatCurrency(row.last))}</td>
+                <td>${escapeHtml(formatCurrency(row.last, currency))}</td>
                 <td class="${signedClass(row.change_pct)}">${escapeHtml(formatPercent(row.change_pct))}</td>
                 <td>${escapeHtml(formatCompactNumber(row.market_cap))}</td>
                 <td>${escapeHtml(formatCompactNumber(row.volume))}</td>
-                ${isStocks ? `<td>${escapeHtml(row.pe === null || row.pe === undefined ? "-" : Number(row.pe).toFixed(2))}</td><td>${escapeHtml(row.dividend_yield === null || row.dividend_yield === undefined ? "-" : formatPercent(row.dividend_yield))}</td>` : ""}
+                ${isStockLike ? `<td>${escapeHtml(row.pe === null || row.pe === undefined ? "-" : Number(row.pe).toFixed(2))}</td><td>${escapeHtml(row.dividend_yield === null || row.dividend_yield === undefined ? "-" : formatPercent(row.dividend_yield))}</td>` : ""}
               </tr>
             `,
           )
@@ -870,6 +1014,7 @@ function renderTable(rows, isStocks) {
 async function renderSurface() {
   refs.overview.hidden = state.surface !== "overview";
   refs.stocks.hidden = state.surface !== "stocks";
+  refs.korea.hidden = state.surface !== "korea";
   refs.crypto.hidden = state.surface !== "crypto";
   if (state.surface === "overview") {
     renderOverviewSurface();
@@ -879,7 +1024,7 @@ async function renderSurface() {
     await ensureDataset(state.surface);
     renderDatasetSurface(state.surface);
   } catch (error) {
-    const target = state.surface === "stocks" ? refs.stocks : refs.crypto;
+    const target = refs[state.surface];
     target.innerHTML = `<div class="analysis-empty">${escapeHtml(String(error))}</div>`;
   }
 }

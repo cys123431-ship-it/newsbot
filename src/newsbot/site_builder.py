@@ -32,6 +32,7 @@ from newsbot.contracts import ArticleCandidate
 from newsbot.markets_builder import build_markets_bundle
 from newsbot.markets_builder import MARKETS_CRYPTO_FILENAME
 from newsbot.markets_builder import MARKETS_DIRECTORY_NAME
+from newsbot.markets_builder import MARKETS_KOREA_FILENAME
 from newsbot.markets_builder import MARKETS_OVERVIEW_FILENAME
 from newsbot.markets_builder import MARKETS_STATUS_FILENAME
 from newsbot.markets_builder import MARKETS_STOCKS_FILENAME
@@ -1608,6 +1609,7 @@ def _write_static_site(
         {
             "overview_url": "../data/" + MARKETS_OVERVIEW_FILENAME,
             "stocks_url": "../data/" + MARKETS_STOCKS_FILENAME,
+            "korea_url": "../data/" + MARKETS_KOREA_FILENAME,
             "crypto_url": "../data/" + MARKETS_CRYPTO_FILENAME,
             "status_url": "../data/" + MARKETS_STATUS_FILENAME,
         },
@@ -1647,6 +1649,10 @@ def _write_static_site(
     )
     (output_dir / "data" / MARKETS_STOCKS_FILENAME).write_text(
         json.dumps(markets_bundle["stocks"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "data" / MARKETS_KOREA_FILENAME).write_text(
+        json.dumps(markets_bundle["korea"], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (output_dir / "data" / MARKETS_CRYPTO_FILENAME).write_text(
@@ -1728,6 +1734,7 @@ def _load_markets_archives(
     filenames = {
         "overview": MARKETS_OVERVIEW_FILENAME,
         "stocks": MARKETS_STOCKS_FILENAME,
+        "korea": MARKETS_KOREA_FILENAME,
         "crypto": MARKETS_CRYPTO_FILENAME,
         "status": MARKETS_STATUS_FILENAME,
     }
