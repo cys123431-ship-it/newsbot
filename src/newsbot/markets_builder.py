@@ -29,6 +29,7 @@ _FINVIZ_BASE_URL = "https://finviz.com/"
 _FINVIZ_SCREENER_FILTER = "cap_largeover,sh_avgvol_o500,sh_price_o3"
 _FINVIZ_SCREENER_SORT = "-marketcap"
 _FINVIZ_PAGE_SIZE = 20
+_FINVIZ_FALLBACK_MAX_ROWS = 100
 _FINVIZ_ROW_PATTERN = re.compile(
     r'<tr class="styled-row[^"]*"[^>]*>(.*?)</tr>',
     re.S,
@@ -384,6 +385,10 @@ def _build_public_finviz_stocks_dataset(
     note: str | None,
 ) -> dict[str, Any]:
     _ = archive_data
+    effective_max_rows = min(
+        max(settings.markets_max_stocks, 1),
+        _FINVIZ_FALLBACK_MAX_ROWS,
+    )
     with httpx.Client(
         follow_redirects=True,
         timeout=settings.request_timeout_sec,
@@ -392,7 +397,7 @@ def _build_public_finviz_stocks_dataset(
         rows = _fetch_finviz_screener_rows(
             client,
             generated_at=generated_at,
-            max_rows=settings.markets_max_stocks,
+            max_rows=effective_max_rows,
         )
         benchmark_rows = _fetch_finviz_benchmark_rows(
             client,
@@ -400,6 +405,12 @@ def _build_public_finviz_stocks_dataset(
         )
     if not rows:
         raise RuntimeError("Finviz screener returned no stock rows.")
+    resolved_note = note
+    if settings.markets_max_stocks > effective_max_rows:
+        resolved_note = _merge_notes(
+            resolved_note,
+            f"Public Finviz snapshot is capped at the top {effective_max_rows} stocks to avoid rate limits.",
+        )
     return _finalize_stocks_payload(
         rows,
         benchmark_rows,
@@ -407,7 +418,7 @@ def _build_public_finviz_stocks_dataset(
         provider=PUBLIC_FINVIZ_PROVIDER,
         status="ok",
         stale=False,
-        message=note,
+        message=resolved_note,
     )
 
 
@@ -419,7 +430,7 @@ def _fetch_finviz_screener_rows(
 ) -> list[MarketSnapshotRow]:
     rows: list[MarketSnapshotRow] = []
     seen_symbols: set[str] = set()
-    max_pages = max(1, ceil(max(max_rows, 1) / _FINVIZ_PAGE_SIZE) + 2)
+    max_pages = max(1, ceil(max(max_rows, 1) / _FINVIZ_PAGE_SIZE))
     for page_index in range(max_pages):
         params: dict[str, Any] = {
             "v": 111,
@@ -433,7 +444,12 @@ def _fetch_finviz_screener_rows(
             urljoin(_FINVIZ_BASE_URL, "screener.ashx"),
             params=params,
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            if rows:
+                break
+            raise
         page_rows = _parse_finviz_screener_rows(
             response.text,
             generated_at=generated_at,
@@ -465,7 +481,10 @@ def _fetch_finviz_benchmark_rows(
             urljoin(_FINVIZ_BASE_URL, "quote.ashx"),
             params={"t": symbol, "p": "d"},
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            continue
         snapshot = _parse_finviz_quote_snapshot(response.text)
         rows.append(
             MarketSnapshotRow(
@@ -1288,6 +1307,13 @@ def _market_request_headers() -> dict[str, str]:
 def _clean_html_fragment(value: str) -> str:
     text = unescape(_HTML_TAG_PATTERN.sub(" ", value or ""))
     return " ".join(text.split())
+
+
+def _merge_notes(*parts: str | None) -> str | None:
+    cleaned = [str(part).strip() for part in parts if str(part or "").strip()]
+    if not cleaned:
+        return None
+    return " ".join(cleaned)
 
 
 def _parse_first_number(value: Any) -> float | None:
