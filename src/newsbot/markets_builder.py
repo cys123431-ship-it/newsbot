@@ -304,6 +304,9 @@ def _build_crypto_dataset(
     *,
     generated_at: str,
     archive_data: dict[str, Any] | None,
+    market_rows_fetcher: Any = None,
+    categories_fetcher: Any = None,
+    trending_fetcher: Any = None,
 ) -> dict[str, Any]:
     provider = settings.markets_crypto_provider
     if provider != "coingecko":
@@ -316,26 +319,52 @@ def _build_crypto_dataset(
             message=f"Unsupported crypto provider: {provider}.",
         )
 
+    market_fetcher = market_rows_fetcher or _fetch_coingecko_market_rows
+    group_fetcher = categories_fetcher or _fetch_coingecko_categories
+    trend_fetcher = trending_fetcher or _fetch_coingecko_trending
+    archived_group_performance = list((archive_data or {}).get("group_performance") or [])
+    archived_heatmap = list((archive_data or {}).get("heatmap") or [])
+    archived_trending = list((archive_data or {}).get("trending") or [])
+
     try:
         with httpx.Client(
             follow_redirects=True,
             timeout=settings.request_timeout_sec,
-            headers={"User-Agent": "newsbot-markets/0.1"},
+            headers=_market_request_headers(),
         ) as client:
-            market_rows = _fetch_coingecko_market_rows(client, settings)
-            categories = _fetch_coingecko_categories(client, settings)
-            trending = _fetch_coingecko_trending(client, settings)
+            market_rows = market_fetcher(client, settings)
+            notes: list[str] = []
+            group_performance = archived_group_performance
+            heatmap = archived_heatmap
+            trending = archived_trending
+
+            try:
+                categories = group_fetcher(client, settings)
+            except Exception as exc:
+                notes.append(f"Category view unavailable: {exc}")
+            else:
+                normalized_categories = _normalize_coingecko_categories(categories)
+                group_performance = normalized_categories[:12]
+                heatmap = _build_category_heatmap(normalized_categories[:24])
+
+            try:
+                trending = trend_fetcher(client, settings)[:10]
+            except Exception as exc:
+                notes.append(f"Trending view unavailable: {exc}")
 
         rows = _normalize_coingecko_rows(market_rows)
+        if not rows:
+            raise RuntimeError("CoinGecko markets returned no crypto rows.")
         return _finalize_crypto_payload(
             rows,
-            categories=categories,
+            group_performance=group_performance,
+            heatmap=heatmap,
             trending=trending,
             generated_at=generated_at,
             provider=provider,
             status="ok",
             stale=False,
-            message=None,
+            message=_merge_notes(*notes),
         )
     except Exception as exc:
         return _reuse_or_empty_market_payload(
@@ -834,8 +863,8 @@ def _normalize_coingecko_rows(raw_rows: list[dict[str, Any]]) -> list[MarketSnap
                 dividend_yield=None,
                 as_of=str(raw.get("last_updated") or "").strip() or None,
                 detail_url=f"https://www.coingecko.com/en/coins/{coin_id}",
-                high_52w=_as_float(raw.get("ath")),
-                low_52w=_as_float(raw.get("atl")),
+                high_52w=_as_float(raw.get("high_24h")),
+                low_52w=_as_float(raw.get("low_24h")),
             )
         )
     rows.sort(
@@ -888,7 +917,8 @@ def _finalize_stocks_payload(
 def _finalize_crypto_payload(
     rows: list[MarketSnapshotRow],
     *,
-    categories: list[dict[str, Any]],
+    group_performance: list[dict[str, Any]],
+    heatmap: list[dict[str, Any]],
     trending: list[dict[str, Any]],
     generated_at: str,
     provider: str,
@@ -899,7 +929,6 @@ def _finalize_crypto_payload(
     benchmarks = [row.to_public_dict() for row in rows if row.symbol in _CRYPTO_BENCHMARKS]
     if not benchmarks:
         benchmarks = [row.to_public_dict() for row in rows[:4]]
-    category_groups = _normalize_coingecko_categories(categories)
     return {
         "generated_at": generated_at,
         "asset_type": "crypto",
@@ -915,8 +944,8 @@ def _finalize_crypto_payload(
         "benchmarks": benchmarks,
         "breadth": _build_breadth_payload(rows),
         "movers": _build_mover_payload(rows),
-        "group_performance": category_groups[:12],
-        "heatmap": _build_category_heatmap(category_groups[:24]),
+        "group_performance": list(group_performance)[:12],
+        "heatmap": list(heatmap)[:24],
         "trending": trending[:10],
     }
 

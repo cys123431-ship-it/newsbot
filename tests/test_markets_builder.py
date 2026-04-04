@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from newsbot.markets_builder import _build_crypto_dataset
 from newsbot.config import Settings
 from newsbot.markets_builder import _build_stocks_dataset
 from newsbot.markets_builder import _finalize_crypto_payload
+from newsbot.markets_builder import _normalize_coingecko_rows
 from newsbot.markets_builder import _finalize_stocks_payload
 from newsbot.markets_builder import _parse_finviz_quote_snapshot
 from newsbot.markets_builder import _parse_finviz_screener_rows
@@ -91,9 +93,13 @@ def test_build_markets_bundle_computes_overview_and_news_rail():
             _crypto_row("ETH", change_pct=-2.2, market_cap=400_000_000_000),
             _crypto_row("SOL", change_pct=1.0, market_cap=80_000_000_000),
         ],
-        categories=[
-            {"name": "Layer 1", "market_cap": 500_000_000_000, "market_cap_change_24h": 2.1},
-            {"name": "Meme", "market_cap": 80_000_000_000, "market_cap_change_24h": -1.0},
+        group_performance=[
+            {"label": "Layer 1", "market_cap": 500_000_000_000, "change_pct": 2.1, "volume": 100_000_000},
+            {"label": "Meme", "market_cap": 80_000_000_000, "change_pct": -1.0, "volume": 20_000_000},
+        ],
+        heatmap=[
+            {"label": "Layer 1", "subLabel": "$500.0B", "change_pct": 2.1, "size": 3, "detail_url": "https://example.com/l1"},
+            {"label": "Meme", "subLabel": "$80.0B", "change_pct": -1.0, "size": 1, "detail_url": "https://example.com/meme"},
         ],
         trending=[{"symbol": "BTC", "name": "Bitcoin", "market_cap_rank": 1, "detail_url": "https://example.com/btc"}],
         generated_at="2026-04-04T00:00:00+00:00",
@@ -243,6 +249,76 @@ def test_build_stocks_dataset_uses_public_finviz_fallback_when_key_missing():
     assert payload["provider"] == "finviz-public"
     assert payload["row_count"] == 1
     assert "NEWSBOT_FMP_API_KEY" in payload["message"]
+
+
+def test_normalize_coingecko_rows_uses_24h_high_low_not_ath_atl():
+    rows = _normalize_coingecko_rows(
+        [
+            {
+                "id": "pepe",
+                "symbol": "pepe",
+                "name": "Pepe",
+                "current_price": 0.00000712,
+                "price_change_percentage_24h": 3.21,
+                "market_cap": 3_000_000_000,
+                "total_volume": 800_000_000,
+                "last_updated": "2026-04-04T00:00:00.000Z",
+                "high_24h": 0.0000075,
+                "low_24h": 0.0000068,
+                "ath": 0.00002,
+                "atl": 0.0000001,
+            }
+        ]
+    )
+
+    assert len(rows) == 1
+    assert rows[0].high_52w == 0.0000075
+    assert rows[0].low_52w == 0.0000068
+
+
+def test_build_crypto_dataset_keeps_rows_when_aux_calls_fail():
+    settings = Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        coingecko_api_key=None,
+    )
+
+    payload = _build_crypto_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data={
+            "group_performance": [{"label": "Archived", "market_cap": 100.0, "change_pct": 1.0, "volume": 10.0}],
+            "heatmap": [{"label": "Archived", "subLabel": "$100", "change_pct": 1.0, "size": 1, "detail_url": "https://example.com/arch"}],
+            "trending": [{"symbol": "ARCH", "name": "Archived Coin", "market_cap_rank": 999, "detail_url": "https://example.com/arch"}],
+        },
+        market_rows_fetcher=lambda *_args, **_kwargs: [
+            {
+                "id": "bitcoin",
+                "symbol": "btc",
+                "name": "Bitcoin",
+                "current_price": 68000,
+                "price_change_percentage_24h": 2.5,
+                "market_cap": 1_300_000_000_000,
+                "total_volume": 25_000_000_000,
+                "last_updated": "2026-04-04T00:00:00.000Z",
+                "high_24h": 69000,
+                "low_24h": 66000,
+            }
+        ],
+        categories_fetcher=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("categories blocked")),
+        trending_fetcher=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("trending blocked")),
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["stale"] is False
+    assert payload["row_count"] == 1
+    assert payload["group_performance"][0]["label"] == "Archived"
+    assert payload["trending"][0]["symbol"] == "ARCH"
+    assert "categories blocked" in payload["message"]
+    assert "trending blocked" in payload["message"]
 
 
 def test_build_stocks_dataset_reuses_archive_when_fallback_fails():

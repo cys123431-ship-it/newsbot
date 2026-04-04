@@ -70,6 +70,21 @@ function formatCurrency(value) {
   if (Math.abs(numeric) >= 1000000) {
     return `$${formatCompactNumber(numeric)}`;
   }
+  if (Math.abs(numeric) < 1) {
+    let maximumFractionDigits = 4;
+    if (Math.abs(numeric) < 0.01) {
+      maximumFractionDigits = 6;
+    }
+    if (Math.abs(numeric) < 0.0001) {
+      maximumFractionDigits = 8;
+    }
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits,
+    }).format(numeric);
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -220,7 +235,7 @@ function renderOverviewSurface() {
         </div>
         ${stocks.message ? `<p class="market-message">${escapeHtml(stocks.message)}</p>` : ""}
         ${renderBenchmarkCards(stocks.benchmarks || [], "No stock benchmarks available.")}
-        ${renderBreadth(stocks.breadth || {})}
+        ${renderBreadth(stocks.breadth || {}, "stock")}
         <div class="markets-three-up">
           ${renderMiniList("Top Gainers", stocks.top_gainers || [], "No gainers available.")}
           ${renderMiniList("Top Losers", stocks.top_losers || [], "No losers available.")}
@@ -240,7 +255,7 @@ function renderOverviewSurface() {
         </div>
         ${crypto.message ? `<p class="market-message">${escapeHtml(crypto.message)}</p>` : ""}
         ${renderBenchmarkCards(crypto.benchmarks || [], "No crypto benchmarks available.")}
-        ${renderBreadth(crypto.breadth || {})}
+        ${renderBreadth(crypto.breadth || {}, "crypto")}
         <div class="markets-three-up">
           ${renderMiniList("Top Gainers", crypto.top_gainers || [], "No gainers available.")}
           ${renderMiniList("Top Losers", crypto.top_losers || [], "No losers available.")}
@@ -304,13 +319,15 @@ function renderBenchmarkCards(items, emptyMessage) {
   `;
 }
 
-function renderBreadth(breadth) {
+function renderBreadth(breadth, assetType) {
+  const highLabel = assetType === "crypto" ? "Near 24H High" : "Near 52W High";
+  const lowLabel = assetType === "crypto" ? "Near 24H Low" : "Near 52W Low";
   const items = [
     ["Advancers", breadth.advancers || 0],
     ["Decliners", breadth.decliners || 0],
     ["Flat", breadth.unchanged || 0],
-    ["Near 52W High", breadth.new_highs || 0],
-    ["Near 52W Low", breadth.new_lows || 0],
+    [highLabel, breadth.new_highs || 0],
+    [lowLabel, breadth.new_lows || 0],
   ];
   return `
     <div class="market-breadth-row">
