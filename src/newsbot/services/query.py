@@ -268,7 +268,9 @@ def build_refresh_notice(session: Session) -> dict[str, object]:
         tone = "fresh"
     elif is_recent:
         headline = "방금 다시 확인했어요"
-        detail = f"최근 {window_minutes}분 동안 새 기사는 없었지만 수집은 정상 동작했습니다."
+        detail = (
+            f"최근 {window_minutes}분 동안 새 기사는 없었지만 수집은 정상 동작했습니다."
+        )
         tone = "steady"
     else:
         headline = "마지막 갱신 기록"

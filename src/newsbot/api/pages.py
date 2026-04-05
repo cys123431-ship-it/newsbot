@@ -53,42 +53,42 @@ _FALLBACK_HUBS = {
         key="all",
         label="전체",
         headline="newsbot 전체 뉴스",
-        description="한국, 미국, 글로벌 전문 카테고리를 한 흐름에서 빠르게 확인합니다.",
+        description="국내, 미국, 글로벌 주요 카테고리를 한 화면에서 빠르게 확인합니다.",
         order=0,
     ),
     "kr": HubView(
         key="kr",
-        label="한국",
-        headline="한국 페이지",
-        description="정치, 경제, 사회, 문화, 지역, 스포츠 뉴스를 한국 언론사 중심으로 묶었습니다.",
+        label="국내",
+        headline="국내 뉴스",
+        description="정치, 경제, 사회, 문화, 지역, 스포츠 뉴스를 국내 허브 기준으로 모아봅니다.",
         order=1,
     ),
     "us": HubView(
         key="us",
         label="미국",
-        headline="미국 페이지",
-        description="정치, 경제, 시장, 세계, 기술 뉴스를 미국 언론과 방송사 소스로 넓게 모읍니다.",
+        headline="미국 뉴스",
+        description="정치, 경제, 시장, 세계, 기술 뉴스를 미국 허브 기준으로 정리해 보여줍니다.",
         order=2,
     ),
     "global": HubView(
         key="global",
         label="글로벌",
-        headline="글로벌 전문 페이지",
-        description="코인, 테크, 군사처럼 주제형 전문 카테고리를 모아 빠르게 훑습니다.",
+        headline="글로벌 뉴스",
+        description="코인, 테크, 군사처럼 해외 이슈가 강한 주제를 글로벌 허브에서 모아봅니다.",
         order=3,
     ),
 }
 
 _FALLBACK_CATEGORY_META = {
     "crypto": CategoryView("crypto", "코인", "global", "글로벌", 10),
-    "tech-it": CategoryView("tech-it", "테크(IT)", "global", "글로벌", 20),
+    "tech-it": CategoryView("tech-it", "테크", "global", "글로벌", 20),
     "military": CategoryView("military", "군사", "global", "글로벌", 30),
-    "kr-politics": CategoryView("kr-politics", "정치", "kr", "한국", 10),
-    "kr-economy": CategoryView("kr-economy", "경제", "kr", "한국", 20),
-    "kr-society": CategoryView("kr-society", "사회", "kr", "한국", 30),
-    "kr-culture": CategoryView("kr-culture", "문화", "kr", "한국", 40),
-    "kr-local": CategoryView("kr-local", "지역", "kr", "한국", 50),
-    "kr-sports": CategoryView("kr-sports", "스포츠", "kr", "한국", 60),
+    "kr-politics": CategoryView("kr-politics", "정치", "kr", "국내", 10),
+    "kr-economy": CategoryView("kr-economy", "경제", "kr", "국내", 20),
+    "kr-society": CategoryView("kr-society", "사회", "kr", "국내", 30),
+    "kr-culture": CategoryView("kr-culture", "문화", "kr", "국내", 40),
+    "kr-local": CategoryView("kr-local", "지역", "kr", "국내", 50),
+    "kr-sports": CategoryView("kr-sports", "스포츠", "kr", "국내", 60),
     "us-politics": CategoryView("us-politics", "정치", "us", "미국", 10),
     "us-economy": CategoryView("us-economy", "경제", "us", "미국", 20),
     "us-markets": CategoryView("us-markets", "시장", "us", "미국", 30),
@@ -100,6 +100,7 @@ router = APIRouter()
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent.parent / "templates")
 )
+
 _PERIOD_OPTIONS = (
     {"key": "all", "label": "전체"},
     {"key": "24h", "label": "24시간"},
@@ -132,7 +133,13 @@ def _coerce_category_metadata() -> dict[str, CategoryView]:
                 hub_labels.get(hub, _FALLBACK_HUBS.get(hub, _FALLBACK_HUBS["global"]).label),
             )
             order = int(getattr(definition, "order", 999))
-            metadata[key] = CategoryView(key=key, label=label, hub=hub, hub_label=hub_label, order=order)
+            metadata[key] = CategoryView(
+                key=key,
+                label=label,
+                hub=hub,
+                hub_label=hub_label,
+                order=order,
+            )
         return metadata
 
     metadata = dict(_FALLBACK_CATEGORY_META)
@@ -204,11 +211,7 @@ def _resolve_section(category_meta: dict[str, CategoryView], hub: str, section: 
     return section
 
 
-def _filter_sources_for_scope(
-    sources: list,
-    *,
-    allowed_categories: list[str] | None,
-) -> list:
+def _filter_sources_for_scope(sources: list, *, allowed_categories: list[str] | None) -> list:
     if allowed_categories is None:
         return sources
     allowed = set(allowed_categories)
@@ -263,12 +266,15 @@ def _render_article_page(
     )
 
     all_sources = list_sources(session)
-    visible_sources = _filter_sources_for_scope(all_sources, allowed_categories=allowed_categories)
+    visible_sources = _filter_sources_for_scope(
+        all_sources,
+        allowed_categories=allowed_categories,
+    )
     current_hub_view = next((item for item in hubs if item.key == active_hub), _FALLBACK_HUBS["all"])
     active_section_view = category_meta.get(active_section) if active_section else None
     page_title = title_override or current_hub_view.headline
     page_description = (
-        f"{current_hub_view.label} 허브 안에서 {active_section_view.label} 기사만 최신순으로 모았습니다."
+        f"{current_hub_view.label} 허브 안에서 {active_section_view.label} 기사만 최신순으로 모아봅니다."
         if active_section_view
         else current_hub_view.description
     )
@@ -440,7 +446,10 @@ def category_page(
         period=period,
         page=page,
         path=f"/category/{category}",
-        title_override=_coerce_category_metadata().get(category, CategoryView(category, category, hub, "", 999)).label,
+        title_override=_coerce_category_metadata().get(
+            category,
+            CategoryView(category, category, hub, "", 999),
+        ).label,
     )
 
 

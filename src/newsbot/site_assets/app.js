@@ -1,8 +1,6 @@
 const payload = JSON.parse(document.getElementById("site-data").textContent);
 
 const refs = {
-  hubChooser: document.getElementById("news-hub-chooser"),
-  newsContentShell: document.getElementById("news-content-shell"),
   hubFilters: document.getElementById("hub-filters"),
   categoryFilters: document.getElementById("category-filters"),
   recencyFilters: document.getElementById("recency-filters"),
@@ -29,9 +27,16 @@ const RECENCY_OPTIONS = [
   { key: "older", label: "이전" },
   { key: "unknown", label: "시간 미상" },
 ];
-const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
+
+const PAGE_SIZE = Math.max(
+  1,
+  Number.parseInt(payload.feed_page_size || payload.page_size || "12", 10) || 12,
+);
+
 const hubMap = Object.fromEntries((payload.hubs || []).map((entry) => [entry.key, entry]));
-const categoryMap = Object.fromEntries((payload.categories || []).map((entry) => [entry.key, entry]));
+const categoryMap = Object.fromEntries(
+  (payload.categories || []).map((entry) => [entry.key, entry]),
+);
 const params = new URLSearchParams(window.location.search);
 
 const state = {
@@ -141,8 +146,26 @@ function getHubLabel(hubKey) {
   return hubMap[hubKey]?.label || "전체";
 }
 
+function getVisibleCategories() {
+  if (state.hub === "all") {
+    return payload.categories || [];
+  }
+  return (payload.categories || []).filter((entry) => entry.hub === state.hub);
+}
+
+function getVisibleSources() {
+  const allowedCategories = new Set(getVisibleCategories().map((entry) => entry.key));
+  return (payload.sources || []).filter((source) => {
+    const sourceCategory = source.category || source.section || "";
+    if (state.hub === "all") {
+      return true;
+    }
+    return allowedCategories.has(sourceCategory);
+  });
+}
+
 function getArticlesForCurrentScope() {
-  return payload.articles.filter((article) => {
+  return (payload.articles || []).filter((article) => {
     if (state.hub !== "all" && article.hub !== state.hub) {
       return false;
     }
@@ -162,23 +185,6 @@ function getArticlesForCurrentScope() {
   });
 }
 
-function getVisibleCategories() {
-  if (state.hub === "all") {
-    return payload.categories || [];
-  }
-  return (payload.categories || []).filter((entry) => entry.hub === state.hub);
-}
-
-function getVisibleSources() {
-  const allowedCategories = new Set(getVisibleCategories().map((entry) => entry.key));
-  return (payload.sources || []).filter((source) => {
-    if (state.hub === "all") {
-      return true;
-    }
-    return allowedCategories.has(source.primary_category);
-  });
-}
-
 function renderRefreshStrip() {
   const generatedAt = parsePublishedAt(payload.generated_at);
   const ageMinutes = generatedAt
@@ -188,8 +194,8 @@ function renderRefreshStrip() {
   refs.refreshSpotlight.classList.toggle("is-fresh", Boolean(isFresh));
   refs.refreshLabel.textContent = isFresh ? "방금 갱신" : "최근 갱신";
   refs.refreshTitle.textContent = isFresh
-    ? "새로 들어온 기사부터 바로 읽을 수 있도록 정렬했습니다."
-    : "최근 수집된 기사 흐름을 기준으로 피드를 정렬했습니다.";
+    ? "새로 들어온 기사부터 바로 읽을 수 있게 정렬했습니다."
+    : "최근 수집한 기사 흐름을 시간순으로 정리했습니다.";
   refs.refreshTime.textContent = formatDateTime(payload.generated_at);
   refs.refreshTime.dateTime = payload.generated_at;
 }
@@ -215,10 +221,7 @@ function renderHubFilters() {
     button.addEventListener("click", () => {
       state.hub = button.dataset.hub || "all";
       const categories = getVisibleCategories();
-      if (
-        state.section !== "all" &&
-        !categories.some((entry) => entry.key === state.section)
-      ) {
+      if (state.section !== "all" && !categories.some((entry) => entry.key === state.section)) {
         state.section = "all";
       }
       state.page = 1;
@@ -265,6 +268,7 @@ function renderRecencyFilters() {
       </button>
     `,
   ).join("");
+
   refs.recencyFilters.querySelectorAll("[data-recency]").forEach((button) => {
     button.addEventListener("click", () => {
       state.recency = button.dataset.recency || "all";
@@ -288,11 +292,9 @@ function renderSourceOptions() {
   ].join("");
 }
 
-function buildStoryThumb(article, featured = false) {
+function buildStoryThumb(article) {
   if (article.thumbnail_url) {
-    return `
-      <img src="${escapeHtml(article.thumbnail_url)}" alt="" loading="lazy" />
-    `;
+    return `<img src="${escapeHtml(article.thumbnail_url)}" alt="" loading="lazy" />`;
   }
   return `<span class="story-fallback">${escapeHtml(getSectionLabel(article))}</span>`;
 }
@@ -300,8 +302,8 @@ function buildStoryThumb(article, featured = false) {
 function renderFeaturedStory(article) {
   return `
     <article class="featured-story-card">
-      <a class="featured-story-thumb" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
-        ${buildStoryThumb(article, true)}
+      <a class="featured-story-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+        ${buildStoryThumb(article)}
       </a>
       <div class="featured-story-copy">
         <div class="story-meta-line">
@@ -319,6 +321,26 @@ function renderFeaturedStory(article) {
           <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="${escapeHtml(article.canonical_url)}">Word</button>
           <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
         </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderHeadlineStackItem(article) {
+  return `
+    <article class="headline-stack-item">
+      <a class="headline-stack-thumb" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+        ${buildStoryThumb(article)}
+      </a>
+      <div class="headline-stack-copy">
+        <div class="news-meta-line">
+          <span>${escapeHtml(getSectionLabel(article))}</span>
+          <span>${escapeHtml(article.source_name)}</span>
+        </div>
+        <a class="headline-stack-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+          ${escapeHtml(article.title)}
+        </a>
+        <span class="news-timestamp">${escapeHtml(formatDateTime(article.published_at))}</span>
       </div>
     </article>
   `;
@@ -348,6 +370,46 @@ function renderStoryRow(article) {
         </div>
       </div>
     </article>
+  `;
+}
+
+function renderSideRail(filteredArticles) {
+  const visibleCategories = getVisibleCategories().slice(0, 8);
+  const sourceCount = new Set(filteredArticles.map((article) => article.source_key)).size;
+  const sectionCount = new Set(filteredArticles.map((article) => article.primary_category)).size;
+
+  return `
+    <aside class="news-side-rail">
+      <section class="side-card">
+        <p class="rail-kicker">Overview</p>
+        <div class="side-stat-grid">
+          <div class="side-stat">
+            <span>Feed</span>
+            <strong>${filteredArticles.length}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Hubs</span>
+            <strong>${state.hub === "all" ? payload.hubs.length : 1}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Sections</span>
+            <strong>${sectionCount}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Sources</span>
+            <strong>${sourceCount}</strong>
+          </div>
+        </div>
+      </section>
+      <section class="side-card">
+        <p class="rail-kicker">Quick sections</p>
+        <div class="side-chip-list">
+          ${visibleCategories
+            .map((category) => `<span class="side-chip">${escapeHtml(category.label)}</span>`)
+            .join("")}
+        </div>
+      </section>
+    </aside>
   `;
 }
 
@@ -437,9 +499,11 @@ function renderFeed() {
   const pageArticles = filteredArticles.slice(pagination.start, pagination.end);
   const featured = pageArticles[0] || null;
   const rest = pageArticles.slice(1);
+  const headlineArticles = rest.slice(0, 4);
+  const streamArticles = rest.slice(4);
 
   if (!featured) {
-    refs.newsSections.innerHTML = '<div class="empty-state">조건에 맞는 기사가 없습니다.</div>';
+    refs.newsSections.innerHTML = '<div class="empty-state">선택한 조건에 맞는 기사가 없습니다.</div>';
     refs.statusLine.textContent = "선택한 조건에 맞는 기사가 없습니다.";
     renderPagination(pagination);
     return;
@@ -447,9 +511,27 @@ function renderFeed() {
 
   refs.statusLine.textContent = `${getHubLabel(state.hub)} 피드에서 ${filteredArticles.length}개의 기사를 찾았습니다.`;
   refs.newsSections.innerHTML = `
-    ${renderFeaturedStory(featured)}
-    <div class="news-list">
-      ${rest.map((article) => renderStoryRow(article)).join("")}
+    <div class="news-desktop-lead">
+      ${renderFeaturedStory(featured)}
+      ${
+        headlineArticles.length
+          ? `
+            <aside class="headline-stack">
+              <div class="headline-stack-head">
+                <p class="rail-kicker">Top stories</p>
+                <h3>바로 읽을 핵심 기사</h3>
+              </div>
+              ${headlineArticles.map((article) => renderHeadlineStackItem(article)).join("")}
+            </aside>
+          `
+          : ""
+      }
+    </div>
+    <div class="news-desktop-stream">
+      <div class="news-list">
+        ${streamArticles.map((article) => renderStoryRow(article)).join("")}
+      </div>
+      ${renderSideRail(filteredArticles)}
     </div>
   `;
   renderPagination(pagination);
@@ -477,11 +559,18 @@ function syncUrl() {
 }
 
 async function copyCurrentView() {
-  const rows = Array.from(refs.newsSections.querySelectorAll(".featured-story-card, .news-row"));
+  const rows = Array.from(
+    refs.newsSections.querySelectorAll(
+      ".featured-story-card, .headline-stack-item, .news-row",
+    ),
+  );
   const lines = rows.flatMap((row) => {
-    const title = row.querySelector(".news-title")?.textContent?.trim() || "";
-    const link = row.querySelector(".news-link")?.getAttribute("href") || "";
-    const meta = row.querySelector(".news-meta-line, .story-meta-line")?.textContent?.trim() || "";
+    const title =
+      row.querySelector(".news-title, .headline-stack-link")?.textContent?.trim() || "";
+    const link =
+      row.querySelector(".news-link, .headline-stack-link")?.getAttribute("href") || "";
+    const meta =
+      row.querySelector(".news-meta-line, .story-meta-line")?.textContent?.trim() || "";
     return [title, meta, link, ""].filter(Boolean);
   });
   const text = lines.join("\n").trim();
@@ -500,7 +589,7 @@ async function copyCurrentView() {
 
 function getExportArticles(scope, articleUrl) {
   if (scope === "single") {
-    return payload.articles.filter((article) => article.canonical_url === articleUrl);
+    return (payload.articles || []).filter((article) => article.canonical_url === articleUrl);
   }
   return getArticlesForCurrentScope();
 }
@@ -584,7 +673,7 @@ function buildExcelHtml(articles, title) {
 
 function buildExportTitle(scope, format, articleUrl) {
   if (scope === "single") {
-    const article = payload.articles.find((item) => item.canonical_url === articleUrl);
+    const article = (payload.articles || []).find((item) => item.canonical_url === articleUrl);
     return article ? `${article.title} (${format})` : `newsbot-${format}`;
   }
   return `newsbot-${state.hub}-${state.section}-${format}`;

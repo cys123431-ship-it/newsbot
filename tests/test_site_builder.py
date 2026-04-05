@@ -206,12 +206,16 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="hub-filters"' in html
     assert 'id="recency-filters"' in html
     assert 'class="featured-story-card"' in html
-    assert 'class="featured-story-thumb"' in html
+    assert 'featured-story-thumb' in html
     assert 'class="story-actions"' in html
     assert 'class="hub-tab-rail"' in html
     assert 'class="section-tab-rail"' in html
     assert 'class="filter-grid"' in html
     assert 'class="news-timestamp"' in html
+    assert 'class="news-control-deck"' in html
+    assert 'class="news-desktop-lead"' in html
+    assert 'class="headline-stack"' in html
+    assert 'class="news-side-rail"' in html
     assert 'href="analysis/"' in html
     assert 'href="markets/"' in html
 

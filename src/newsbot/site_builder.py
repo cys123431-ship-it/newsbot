@@ -57,6 +57,7 @@ ANALYSIS_STATE_FILENAME = "analysis-state.json"
 ANALYSIS_DASHBOARD_FILENAME = "analysis-dashboard.json"
 ANALYSIS_DIRECTORY_NAME = "analysis"
 ANALYSIS_RETENTION_DAYS = 90
+STATIC_FEED_PAGE_SIZE = 12
 ANALYSIS_TOP_ITEM_LIMIT = 12
 ANALYSIS_REPEAT_LIMIT = 20
 ANALYSIS_SAMPLE_LIMIT = 30
@@ -359,6 +360,7 @@ async def collect_site_payload(
         "removed_article_count": len(evicted_articles),
         "removed_articles_log_path": f"data/{REMOVED_ARTICLES_LOG_FILENAME}",
         "page_size": settings.article_page_size,
+        "feed_page_size": STATIC_FEED_PAGE_SIZE,
         "healthy_source_count": sum(status.status == "ok" for status in statuses),
         "warning_source_count": sum(status.status == "warning" for status in statuses),
         "failed_source_count": sum(status.status == "failed" for status in statuses),
@@ -1572,7 +1574,7 @@ def _build_initial_feed(payload: dict[str, Any]) -> dict[str, Any]:
     page_articles = _paginate_articles(
         payload["articles"],
         page=1,
-        page_size=int(payload.get("page_size") or 25),
+        page_size=int(payload.get("feed_page_size") or payload.get("page_size") or 25),
     )
     featured = page_articles[0] if page_articles else None
     return {
@@ -1668,9 +1670,9 @@ def _write_static_site(
         hubs=payload["hubs"],
         categories=payload["categories"],
         initial_feed=_build_initial_feed(payload),
-        initial_total_pages=max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
+        initial_total_pages=max(1, ceil(payload["article_count"] / max(payload["feed_page_size"], 1))),
         initial_pagination_tokens=_build_page_tokens(
-            max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
+            max(1, ceil(payload["article_count"] / max(payload["feed_page_size"], 1))),
             1,
         ),
         source_statuses=payload["source_statuses"],

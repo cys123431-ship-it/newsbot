@@ -2,6 +2,8 @@
 {% block content %}
 {% set featured_article = articles[0] if articles else None %}
 {% set list_articles = articles[1:] if articles|length > 1 else [] %}
+{% set brief_articles = list_articles[:4] %}
+{% set stream_articles = list_articles[4:] %}
 
 <section class="hero hero-newsfeed">
   <div class="hero-copy">
@@ -16,54 +18,57 @@
 </section>
 
 <section class="feed-shell">
-  <nav class="hub-tabs" aria-label="허브 선택">
-    {% for item in hub_items %}
-    <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
-    {% endfor %}
-  </nav>
-
-  {% if section_items %}
-  <nav class="section-tabs" aria-label="섹션 선택">
-    <a href="/hub/{{ active_hub }}" class="{% if not active_section %}active{% endif %}">전체</a>
-    {% for item in section_items %}
-    <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
-    {% endfor %}
-  </nav>
-  {% endif %}
-
-  <form class="filters filters-feed" method="get">
-    <div class="filters-topline">
-      {% for item in period_items %}
-      <button
-        type="submit"
-        name="period"
-        value="{{ item.key }}"
-        class="period-chip {% if item.active %}is-active{% endif %}"
-      >
-        {{ item.label }}
-      </button>
+  <div class="feed-controls">
+    <nav class="hub-tabs" aria-label="허브 선택">
+      {% for item in hub_items %}
+      <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
       {% endfor %}
-    </div>
+    </nav>
 
-    <div class="filters-searchline">
-      <input type="text" name="q" value="{{ active_query }}" placeholder="제목이나 키워드 검색" />
-      <select name="source">
-        <option value="">모든 소스</option>
-        {% for source in sources %}
-        <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
-          {{ source.name }}
-        </option>
+    {% if section_items %}
+    <nav class="section-tabs" aria-label="섹션 선택">
+      <a href="/hub/{{ active_hub }}" class="{% if not active_section %}active{% endif %}">전체</a>
+      {% for item in section_items %}
+      <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+
+    <form class="filters filters-feed" method="get">
+      <div class="filters-topline">
+        {% for item in period_items %}
+        <button
+          type="submit"
+          name="period"
+          value="{{ item.key }}"
+          class="period-chip {% if item.active %}is-active{% endif %}"
+        >
+          {{ item.label }}
+        </button>
         {% endfor %}
-      </select>
-      <input type="hidden" name="period" value="{{ active_period }}" />
-      <button type="submit">적용</button>
-    </div>
-  </form>
+      </div>
+
+      <div class="filters-searchline">
+        <input type="text" name="q" value="{{ active_query }}" placeholder="제목이나 키워드 검색" />
+        <select name="source">
+          <option value="">모든 소스</option>
+          {% for source in sources %}
+          <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
+            {{ source.name }}
+          </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="period" value="{{ active_period }}" />
+        <button type="submit">적용</button>
+      </div>
+    </form>
+  </div>
 
   <p class="pagination-summary">{{ total_count }}개의 기사 중 {{ current_page }}페이지를 보고 있습니다.</p>
 
-  {% if featured_article %}
-  <section class="featured-rail">
+  {% if featured_article or brief_articles %}
+  <section class="news-desktop-lead">
+    {% if featured_article %}
     <article class="article-row article-row-featured">
       <a class="story-thumb story-thumb-featured" href="{{ featured_article.canonical_url }}" target="_blank" rel="noreferrer">
         {% if featured_article.thumbnail_url %}
@@ -87,37 +92,105 @@
         <a class="article-link" href="{{ featured_article.canonical_url }}" target="_blank" rel="noreferrer">원문 보기</a>
       </div>
     </article>
+    {% endif %}
+
+    {% if brief_articles %}
+    <aside class="story-briefs">
+      <div class="story-briefs-head">
+        <p class="hero-kicker">Top stories</p>
+        <h3>빠르게 체크할 기사</h3>
+      </div>
+      {% for article in brief_articles %}
+      <article class="story-brief-item">
+        <a class="story-thumb story-thumb-brief" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+          {% if article.thumbnail_url %}
+          <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+          {% else %}
+          <span class="story-placeholder">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+          {% endif %}
+        </a>
+        <div class="story-brief-copy">
+          <div class="compact-meta">
+            <span>{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+            <span>{{ article.source_name }}</span>
+          </div>
+          <h3 class="article-title article-title-brief">
+            <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+          </h3>
+          <span class="compact-time">{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+        </div>
+      </article>
+      {% endfor %}
+    </aside>
+    {% endif %}
   </section>
   {% endif %}
 
-  <section class="story-list">
-    {% for article in list_articles %}
-    <article class="article-row">
-      <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-        {% if article.thumbnail_url %}
-        <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
-        {% else %}
-        <span class="story-placeholder">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
-        {% endif %}
-      </a>
-      <div class="story-copy">
-        <div class="compact-meta">
-          <span>{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
-          <span>{{ article.source_name }}</span>
-          <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+  <div class="feed-desktop-stream">
+    <section class="story-list">
+      {% for article in stream_articles %}
+      <article class="article-row">
+        <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+          {% if article.thumbnail_url %}
+          <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+          {% else %}
+          <span class="story-placeholder">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+          {% endif %}
+        </a>
+        <div class="story-copy">
+          <div class="compact-meta">
+            <span>{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+            <span>{{ article.source_name }}</span>
+            <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+          </div>
+          <h3 class="article-title">
+            <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+          </h3>
+          <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">원문 보기</a>
         </div>
-        <h3 class="article-title">
-          <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
-        </h3>
-        <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">원문 보기</a>
-      </div>
-    </article>
-    {% else %}
-    {% if not featured_article %}
-    <p class="empty">조건에 맞는 기사가 없습니다.</p>
-    {% endif %}
-    {% endfor %}
-  </section>
+      </article>
+      {% else %}
+      {% if not featured_article %}
+      <p class="empty">조건에 맞는 기사가 없습니다.</p>
+      {% endif %}
+      {% endfor %}
+    </section>
+
+    <aside class="feed-side-rail">
+      <section class="side-card">
+        <p class="hero-kicker">Overview</p>
+        <div class="side-stat-grid">
+          <div class="side-stat">
+            <span>Feed</span>
+            <strong>{{ total_count }}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Hub</span>
+            <strong>{{ active_hub }}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Sections</span>
+            <strong>{{ section_items|length if section_items else 0 }}</strong>
+          </div>
+          <div class="side-stat">
+            <span>Sources</span>
+            <strong>{{ sources|length }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% if section_items %}
+      <section class="side-card">
+        <p class="hero-kicker">Quick sections</p>
+        <div class="side-chip-list">
+          {% for item in section_items[:8] %}
+          <a class="side-chip-link" href="{{ item.url }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </aside>
+  </div>
 
   {% if total_pages > 1 %}
   <nav class="pagination-nav" aria-label="기사 페이지 이동">

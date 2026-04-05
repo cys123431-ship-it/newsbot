@@ -6,7 +6,7 @@
     <title>newsbot</title>
     <meta
       name="description"
-      content="newsbot public news feed with a mobile-first news reading layout"
+      content="newsbot public news feed with separate mobile and desktop layouts"
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
@@ -23,7 +23,7 @@
           <span class="news-brand-dot"></span>
           <div>
             <p class="news-brand-kicker">newsbot</p>
-            <h1>newsbot mobile feed</h1>
+            <h1>newsbot news desk</h1>
           </div>
         </div>
         <div class="news-appbar-meta">
@@ -39,123 +39,208 @@
     </header>
 
     <main class="news-shell">
-      <section id="news-hub-chooser" class="feed-rail rail-block">
-        <div class="rail-head">
-          <div>
-            <p class="rail-kicker">Hub</p>
-            <h2>어느 뉴스부터 볼까요?</h2>
+      <div class="news-control-deck">
+        <section id="news-hub-chooser" class="feed-rail rail-block">
+          <div class="rail-head">
+            <div>
+              <p class="rail-kicker">Hub</p>
+              <h2>어느 뉴스부터 볼까요?</h2>
+            </div>
+            <p class="rail-copy">국내, 미국, 글로벌 흐름을 빠르게 전환하며 읽을 수 있게 구성했습니다.</p>
           </div>
-          <p class="rail-copy">국내, 미국, 글로벌 허브를 모바일 탭처럼 빠르게 전환할 수 있습니다.</p>
-        </div>
-        <div id="hub-filters" class="hub-tab-rail"></div>
-      </section>
+          <div id="hub-filters" class="hub-tab-rail"></div>
+        </section>
 
-      <section class="feed-rail rail-block">
-        <div class="rail-head">
-          <div>
-            <p class="rail-kicker">Section</p>
-            <h2>주제를 빠르게 좁혀보세요</h2>
-          </div>
-        </div>
-        <div id="category-filters" class="section-tab-rail"></div>
-      </section>
-
-      <section id="news-content-shell" class="filter-sheet rail-block">
-        <div class="filter-grid">
-          <div class="filter-column">
-            <p class="rail-kicker">Time</p>
-            <div id="recency-filters" class="chip-rail"></div>
-          </div>
-          <div class="filter-column">
-            <p class="rail-kicker">Search</p>
-            <div class="search-row">
-              <input id="search-input" type="search" placeholder="제목이나 키워드 검색" />
-              <select id="source-select">
-                <option value="all">모든 소스</option>
-              </select>
+        <section class="feed-rail rail-block">
+          <div class="rail-head">
+            <div>
+              <p class="rail-kicker">Section</p>
+              <h2>주제를 빠르게 훑어보세요</h2>
             </div>
           </div>
-        </div>
+          <div id="category-filters" class="section-tab-rail"></div>
+        </section>
 
-        <div class="utility-bar">
-          <button id="reset-button" type="button" class="utility-button utility-button-muted">초기화</button>
-          <button id="copy-all-button" type="button" class="utility-button">현재 화면 복사</button>
-          <button id="export-word-button" type="button" class="utility-button">Word</button>
-          <button id="export-excel-button" type="button" class="utility-button">Excel</button>
-          <p id="status-line" class="status-line">{{ article_count }} articles in the feed</p>
-        </div>
-
-        <details class="health-panel">
-          <summary>Source health</summary>
-          <div class="health-list">
-            {% for status in source_statuses %}
-            <div class="health-row health-row-{{ status.status }}">
-              <strong>{{ status.source_name }}</strong>
-              <span>{{ status.status }}</span>
-              <span>Fetched {{ status.fetched_count }}</span>
-              <span>Published {{ status.published_count }}</span>
-              {% if status.message %}
-              <span class="health-message">{{ status.message }}</span>
-              {% endif %}
+        <section id="news-content-shell" class="filter-sheet rail-block">
+          <div class="filter-grid">
+            <div class="filter-column">
+              <p class="rail-kicker">Time</p>
+              <div id="recency-filters" class="chip-rail"></div>
             </div>
-            {% endfor %}
+            <div class="filter-column">
+              <p class="rail-kicker">Search</p>
+              <div class="search-row">
+                <input id="search-input" type="search" placeholder="제목이나 키워드 검색" />
+                <select id="source-select">
+                  <option value="all">모든 소스</option>
+                </select>
+              </div>
+            </div>
           </div>
-        </details>
-      </section>
+
+          <div class="utility-bar">
+            <button id="reset-button" type="button" class="utility-button utility-button-muted">초기화</button>
+            <button id="copy-all-button" type="button" class="utility-button">현재 화면 복사</button>
+            <button id="export-word-button" type="button" class="utility-button">Word</button>
+            <button id="export-excel-button" type="button" class="utility-button">Excel</button>
+            <p id="status-line" class="status-line">{{ article_count }} articles in the feed</p>
+          </div>
+
+          <details class="health-panel">
+            <summary>Source health</summary>
+            <div class="health-list">
+              {% for status in source_statuses %}
+              <div class="health-row health-row-{{ status.status }}">
+                <strong>{{ status.source_name }}</strong>
+                <span>{{ status.status }}</span>
+                <span>Fetched {{ status.fetched_count }}</span>
+                <span>Published {{ status.published_count }}</span>
+                {% if status.message %}
+                <span class="health-message">{{ status.message }}</span>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+        </section>
+      </div>
 
       <section id="news-sections" class="feed-stage">
-        {% if initial_feed.featured %}
-        <article class="featured-story-card">
-          <a class="featured-story-thumb" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
-            {% if initial_feed.featured.thumbnail_url %}
-            <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" />
-            {% else %}
-            <span class="story-fallback">{{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}</span>
-            {% endif %}
-          </a>
-          <div class="featured-story-copy">
-            <div class="story-meta-line">
-              <span>{{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}</span>
-              <span>{{ initial_feed.featured.source_name }}</span>
-              <span class="news-timestamp">{{ initial_feed.featured.published_at if initial_feed.featured.published_at else "시간 미상" }}</span>
-            </div>
-            <a class="news-title news-title-featured" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">{{ initial_feed.featured.title }}</a>
-            <div class="story-actions">
-              <a class="news-link" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
-                {{ initial_feed.featured.link_label if initial_feed.featured.link_label else "원문 보기" }}
-              </a>
-            </div>
-          </div>
-        </article>
-        {% endif %}
+        {% set headline_articles = initial_feed["items"][:4] %}
+        {% set stream_articles = initial_feed["items"][4:] %}
 
-        <div class="news-list">
-          {% for article in initial_feed["items"] %}
-          <article class="news-row">
-            <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-              {% if article.thumbnail_url %}
-              <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+        {% if initial_feed.featured or headline_articles %}
+        <div class="news-desktop-lead">
+          {% if initial_feed.featured %}
+          <article class="featured-story-card">
+            <a
+              class="featured-story-thumb {% if not initial_feed.featured.thumbnail_url %}is-placeholder{% endif %}"
+              href="{{ initial_feed.featured.canonical_url }}"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {% if initial_feed.featured.thumbnail_url %}
+              <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" />
               {% else %}
-              <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+              <span class="story-fallback">
+                {{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}
+              </span>
               {% endif %}
             </a>
-            <div class="story-copy">
-              <div class="news-meta-line">
-                <span>{{ article.section_label if article.section_label else article.hub_label }}</span>
-                <span>{{ article.source_name }}</span>
-                <span class="news-timestamp">{{ article.published_at if article.published_at else "시간 미상" }}</span>
+            <div class="featured-story-copy">
+              <div class="story-meta-line">
+                <span>{{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}</span>
+                <span>{{ initial_feed.featured.source_name }}</span>
+                <span class="news-timestamp">{{ initial_feed.featured.published_at if initial_feed.featured.published_at else "시간 미상" }}</span>
               </div>
-              <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+              <a class="news-title news-title-featured" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
+                {{ initial_feed.featured.title }}
+              </a>
               <div class="story-actions">
-                <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                  {{ article.link_label if article.link_label else "원문 보기" }}
+                <a class="news-link" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
+                  {{ initial_feed.featured.link_label if initial_feed.featured.link_label else "원문 보기" }}
                 </a>
-                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ article.canonical_url }}">Word</button>
-                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ article.canonical_url }}">Excel</button>
+                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ initial_feed.featured.canonical_url }}">Word</button>
+                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ initial_feed.featured.canonical_url }}">Excel</button>
               </div>
             </div>
           </article>
-          {% endfor %}
+          {% endif %}
+
+          {% if headline_articles %}
+          <aside class="headline-stack">
+            <div class="headline-stack-head">
+              <p class="rail-kicker">Top stories</p>
+              <h3>바로 읽을 핵심 기사</h3>
+            </div>
+            {% for article in headline_articles %}
+            <article class="headline-stack-item">
+              <a class="headline-stack-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                {% if article.thumbnail_url %}
+                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+                {% else %}
+                <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+                {% endif %}
+              </a>
+              <div class="headline-stack-copy">
+                <div class="news-meta-line">
+                  <span>{{ article.section_label if article.section_label else article.hub_label }}</span>
+                  <span>{{ article.source_name }}</span>
+                </div>
+                <a class="headline-stack-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                  {{ article.title }}
+                </a>
+                <span class="news-timestamp">{{ article.published_at if article.published_at else "시간 미상" }}</span>
+              </div>
+            </article>
+            {% endfor %}
+          </aside>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="news-desktop-stream">
+          <div class="news-list">
+            {% for article in stream_articles %}
+            <article class="news-row">
+              <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                {% if article.thumbnail_url %}
+                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+                {% else %}
+                <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+                {% endif %}
+              </a>
+              <div class="story-copy">
+                <div class="news-meta-line">
+                  <span>{{ article.section_label if article.section_label else article.hub_label }}</span>
+                  <span>{{ article.source_name }}</span>
+                  <span class="news-timestamp">{{ article.published_at if article.published_at else "시간 미상" }}</span>
+                </div>
+                <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+                <div class="story-actions">
+                  <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                    {{ article.link_label if article.link_label else "원문 보기" }}
+                  </a>
+                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ article.canonical_url }}">Word</button>
+                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ article.canonical_url }}">Excel</button>
+                </div>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+
+          <aside class="news-side-rail">
+            <section class="side-card">
+              <p class="rail-kicker">Overview</p>
+              <div class="side-stat-grid">
+                <div class="side-stat">
+                  <span>Feed</span>
+                  <strong>{{ article_count }}</strong>
+                </div>
+                <div class="side-stat">
+                  <span>Hubs</span>
+                  <strong>{{ hubs | length }}</strong>
+                </div>
+                <div class="side-stat">
+                  <span>Sections</span>
+                  <strong>{{ categories | length }}</strong>
+                </div>
+                <div class="side-stat">
+                  <span>Sources</span>
+                  <strong>{{ source_statuses | length }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="side-card">
+              <p class="rail-kicker">Quick sections</p>
+              <div class="side-chip-list">
+                {% for category in categories[:8] %}
+                <span class="side-chip">{{ category.label }}</span>
+                {% endfor %}
+              </div>
+            </section>
+          </aside>
         </div>
       </section>
 
@@ -173,7 +258,7 @@
         {% endif %}
       </nav>
 
-      <noscript class="noscript-note">이 페이지는 JavaScript가 켜져 있어야 탭과 필터가 동작합니다.</noscript>
+      <noscript class="noscript-note">이 페이지는 JavaScript가 켜져 있어야 필터와 내보내기 기능이 동작합니다.</noscript>
     </main>
 
     <script id="site-data" type="application/json">{{ payload_json | safe }}</script>

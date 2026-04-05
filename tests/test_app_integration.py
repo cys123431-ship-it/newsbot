@@ -99,8 +99,8 @@ def test_refresh_notice_is_visible_across_pages(client, app, monkeypatch):
     for path in ["/", "/sources", "/admin/health"]:
         response = client.get(path)
         assert response.status_code == 200
-        assert "새로 갱신됐어요" in response.text
-        assert "최근 15분 동안 새 기사 1건을 반영했습니다." in response.text
+        assert "\uc0c8\ub85c \uac31\uc2e0\ub410\uc5b4\uc694" in response.text
+        assert "\ucd5c\uadfc 15\ubd84 \ub3d9\uc548 \uc0c8 \uae30\uc0ac 1\uac74\uc744 \ubc18\uc601\ud588\uc2b5\ub2c8\ub2e4." in response.text
 
 
 def test_direct_source_and_telegram_source_merge_into_one_article(app, monkeypatch):
@@ -241,13 +241,15 @@ def test_category_page_uses_numbered_pagination(client, app):
 
     first_page = client.get("/category/crypto?page=1")
     assert first_page.status_code == 200
-    assert "27개의 기사 중 1페이지를 보고 있습니다." in first_page.text
+    assert "27\uac1c\uc758 \uae30\uc0ac \uc911 1\ud398\uc774\uc9c0\ub97c \ubcf4\uace0 \uc788\uc2b5\ub2c8\ub2e4." in first_page.text
     assert 'href="/category/crypto?page=2"' in first_page.text
     assert "Crypto archive story 26" in first_page.text
+    assert 'class="feed-controls"' in first_page.text
+    assert 'class="news-desktop-lead"' in first_page.text
 
     second_page = client.get("/category/crypto?page=2")
     assert second_page.status_code == 200
-    assert "27개의 기사 중 2페이지를 보고 있습니다." in second_page.text
+    assert "27\uac1c\uc758 \uae30\uc0ac \uc911 2\ud398\uc774\uc9c0\ub97c \ubcf4\uace0 \uc788\uc2b5\ub2c8\ub2e4." in second_page.text
     assert "Crypto archive story 01" in second_page.text
 
 
@@ -287,14 +289,15 @@ def test_hub_routes_render_hub_and_section_navigation(client, app):
 
     hub_response = client.get("/hub/kr")
     assert hub_response.status_code == 200
-    assert "한국 페이지" in hub_response.text
+    assert 'class="hub-tabs"' in hub_response.text
     assert 'href="/hub/kr/kr-economy"' in hub_response.text
     assert "Korea economy headline" in hub_response.text
     assert "US politics headline" not in hub_response.text
+    assert 'class="news-desktop-lead"' in hub_response.text
 
     section_response = client.get("/hub/us/us-politics")
     assert section_response.status_code == 200
-    assert "미국 페이지" in section_response.text
+    assert 'class="section-tabs"' in section_response.text
     assert "US politics headline" in section_response.text
     assert "Korea economy headline" not in section_response.text
 
