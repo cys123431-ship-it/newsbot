@@ -45,6 +45,8 @@ def test_source_registry_exposes_large_kr_and_us_hubs():
     assert "verge-rss" in source_keys
     assert "semafor-feed" in source_keys
     assert "breitbart-feed" in source_keys
+    assert "pressian-politics-rss" not in source_keys
+    assert "pressian-economy-rss" not in source_keys
 
 
 def test_source_registry_attaches_hub_section_and_publisher_group():

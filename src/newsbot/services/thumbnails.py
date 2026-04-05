@@ -13,6 +13,7 @@ import httpx
 
 from newsbot.contracts import ArticleCandidate
 from newsbot.source_registry import SourceDefinition
+from newsbot.text_tools import decode_html_entities
 
 
 _PREFERRED_KEYS = (
@@ -30,9 +31,12 @@ _PREFERRED_KEYS = (
 )
 _PREFERRED_META_NAMES = (
     "og:image",
+    "og:image:url",
+    "og:image:secure_url",
     "twitter:image",
     "twitter:image:src",
-    "og:image:secure_url",
+    "image",
+    "image_src",
 )
 _IMG_ATTRIBUTE_KEYS = (
     "src",
@@ -101,7 +105,7 @@ def _first_srcset_url(value: str | None) -> str | None:
 
 
 def _normalize_thumbnail_url(url: str | None, *, base_url: str | None = None) -> str | None:
-    value = str(url or "").strip()
+    value = decode_html_entities(str(url or "")).strip()
     if not value:
         return None
     if base_url:
@@ -175,6 +179,10 @@ async def hydrate_candidate_thumbnails(
         return
 
     for candidate in candidates:
+        candidate.thumbnail_url = _normalize_thumbnail_url(
+            candidate.thumbnail_url,
+            base_url=candidate.url,
+        )
         if candidate.thumbnail_url:
             continue
         candidate.thumbnail_url = extract_thumbnail_from_payload(

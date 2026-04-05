@@ -42,9 +42,12 @@ from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.ingest import ADAPTERS
 from newsbot.services.ingest import _fetch_with_retries
 from newsbot.services.thumbnails import hydrate_candidate_thumbnails
+from newsbot.source_registry import BLOCKED_SOURCE_KEYS
 from newsbot.source_registry import SourceDefinition
 from newsbot.source_registry import get_source_definitions
 from newsbot.text_tools import build_title_hash
+from newsbot.text_tools import clean_headline
+from newsbot.text_tools import decode_html_entities
 from newsbot.text_tools import normalize_whitespace
 from newsbot.text_tools import similar_titles
 from newsbot.text_tools import strip_html
@@ -238,7 +241,7 @@ class StaticArticle:
             canonical_url=str(raw.get("canonical_url") or "").strip(),
             source_key=str(raw.get("source_key") or "").strip(),
             source_name=source_name,
-            thumbnail_url=str(raw.get("thumbnail_url") or "").strip() or None,
+            thumbnail_url=decode_html_entities(str(raw.get("thumbnail_url") or "")).strip() or None,
             primary_category=str(raw.get("primary_category") or "").strip(),
             published_at=_parse_optional_datetime(raw.get("published_at")),
             trust_level=int(raw.get("trust_level") or 0),
@@ -345,7 +348,11 @@ def list_static_sources(
     source_definitions: list[SourceDefinition] | None = None,
 ) -> list[SourceDefinition]:
     definitions = source_definitions or get_source_definitions()
-    return [definition for definition in definitions if definition.static_enabled]
+    return [
+        definition
+        for definition in definitions
+        if definition.static_enabled and definition.source_key not in BLOCKED_SOURCE_KEYS
+    ]
 
 
 async def collect_site_payload(
@@ -385,7 +392,14 @@ async def collect_site_payload(
         analysis_articles.extend(result.analysis_articles)
 
     deduped_articles, evicted_articles = dedupe_static_articles(
-        [*(archive_articles or []), *gathered_articles],
+        [
+            *[
+                article
+                for article in (archive_articles or [])
+                if article.source_key not in BLOCKED_SOURCE_KEYS
+            ],
+            *gathered_articles,
+        ],
         max_total=settings.static_max_total_articles,
     )
     published_counts = Counter(article.source_key for article in deduped_articles)
@@ -485,6 +499,9 @@ async def _collect_source(
     accepted_articles: list[StaticArticle] = []
     analysis_articles: list[AnalysisArticle] = []
     for candidate in candidates:
+        candidate.title = clean_headline(candidate.title)
+        if not candidate.title:
+            continue
         category = classify_candidate(candidate, source_definition)
         if category is None:
             continue
@@ -688,6 +705,8 @@ def _within_dedupe_window(left: StaticArticle, right: StaticArticle) -> bool:
 
 
 def _allow_static_candidate(candidate: ArticleCandidate) -> bool:
+    if candidate.source_key in BLOCKED_SOURCE_KEYS:
+        return False
     if not candidate.title or len(candidate.title.strip()) < 12:
         return False
     if not candidate.url.startswith(("http://", "https://")):
@@ -1926,6 +1945,8 @@ def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticA
         except Exception:
             continue
         if is_blocked_candidate_url(article.canonical_url):
+            continue
+        if article.source_key in BLOCKED_SOURCE_KEYS:
             continue
         if article.title and article.canonical_url and article.primary_category:
             archive_articles.append(article)

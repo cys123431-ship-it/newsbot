@@ -327,17 +327,20 @@ img {
 .filter-grid {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .filter-column {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .search-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
 }
 
 .search-row input,
@@ -351,6 +354,17 @@ img {
   padding: 0 14px;
   background: #fff;
   font: inherit;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.search-row > * {
+  min-width: 0;
+}
+
+#news-content-shell {
+  overflow: hidden;
 }
 
 .search-row select {

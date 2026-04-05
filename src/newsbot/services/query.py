@@ -21,6 +21,9 @@ from newsbot.models import Article
 from newsbot.models import Bookmark
 from newsbot.models import FetchRun
 from newsbot.models import Source
+from newsbot.source_registry import BLOCKED_SOURCE_KEYS
+from newsbot.text_tools import clean_headline
+from newsbot.text_tools import decode_html_entities
 from newsbot.text_tools import strip_html
 
 
@@ -40,6 +43,26 @@ def _article_order_by():
         desc(Article.published_at),
         desc(Article.id),
     )
+
+
+def _apply_blocked_source_filter(statement, model):
+    if not BLOCKED_SOURCE_KEYS:
+        return statement
+    return statement.where(model.source_key.notin_(tuple(sorted(BLOCKED_SOURCE_KEYS))))
+
+
+def _prepare_article_for_display(article: Article) -> Article:
+    cleaned_title = clean_headline(article.title)
+    if cleaned_title:
+        article.title = cleaned_title
+    cleaned_source_name = strip_html(article.source_name)
+    if cleaned_source_name:
+        article.source_name = cleaned_source_name
+    if article.short_summary:
+        article.short_summary = strip_html(article.short_summary)
+    if article.thumbnail_url:
+        article.thumbnail_url = decode_html_entities(article.thumbnail_url).strip() or None
+    return article
 
 
 def _encode_cursor(article: Article) -> str:
@@ -118,9 +141,8 @@ def _apply_article_filters(
     query_text: str | None = None,
     since: datetime | None = None,
 ):
-    statement = statement.where(
-        not_(Article.canonical_url.ilike("%pressian.com/%"))
-    )
+    statement = _apply_blocked_source_filter(statement, Article)
+    statement = statement.where(not_(Article.canonical_url.ilike("%pressian.com/%")))
     if category:
         statement = statement.where(Article.primary_category == category)
     if categories is not None:
@@ -135,19 +157,6 @@ def _apply_article_filters(
     if since:
         statement = statement.where(Article.published_at >= since)
     return statement
-
-
-def _sanitize_articles_for_display(items: list[Article]) -> list[Article]:
-    for article in items:
-        cleaned_title = strip_html(article.title)
-        if cleaned_title:
-            article.title = cleaned_title
-        cleaned_source_name = strip_html(article.source_name)
-        if cleaned_source_name:
-            article.source_name = cleaned_source_name
-        if article.short_summary:
-            article.short_summary = strip_html(article.short_summary)
-    return items
 
 
 def list_articles(
@@ -174,7 +183,11 @@ def list_articles(
     statement = statement.order_by(*_article_order_by()).limit(limit + 1)
     items = list(session.scalars(statement))
     visible_items = items[:limit]
-    _sanitize_articles_for_display(visible_items)
+    prepared_items: list[Article] = []
+    for article in visible_items:
+        session.expunge(article)
+        prepared_items.append(_prepare_article_for_display(article))
+    visible_items = prepared_items
     next_cursor = (
         _encode_cursor(visible_items[-1]) if len(items) > limit and visible_items else None
     )
@@ -218,26 +231,36 @@ def paginate_articles(
         .offset(offset)
         .limit(page_size)
     )
-    items = list(session.scalars(statement))
-    return _sanitize_articles_for_display(items), int(total_count), int(total_pages), current_page
+    items: list[Article] = []
+    for article in session.scalars(statement):
+        session.expunge(article)
+        items.append(_prepare_article_for_display(article))
+    return items, int(total_count), int(total_pages), current_page
 
 
 def list_bookmarked_articles(session: Session) -> list[Article]:
     statement = (
         select(Article)
         .join(Bookmark, Bookmark.article_id == Article.id)
+        .where(Article.source_key.notin_(tuple(sorted(BLOCKED_SOURCE_KEYS))))
+        .where(not_(Article.canonical_url.ilike("%pressian.com/%")))
         .order_by(desc(Bookmark.created_at))
     )
-    return list(session.scalars(statement))
+    items: list[Article] = []
+    for article in session.scalars(statement):
+        session.expunge(article)
+        items.append(_prepare_article_for_display(article))
+    return items
 
 
 def list_sources(session: Session) -> list[Source]:
-    return list(session.scalars(select(Source).order_by(Source.source_key)))
+    statement = _apply_blocked_source_filter(select(Source), Source).order_by(Source.source_key)
+    return list(session.scalars(statement))
 
 
 def build_refresh_notice(session: Session) -> dict[str, object]:
     latest_success = session.scalar(
-        select(FetchRun)
+        _apply_blocked_source_filter(select(FetchRun), FetchRun)
         .where(
             FetchRun.status == "success",
             FetchRun.finished_at.is_not(None),
@@ -246,7 +269,7 @@ def build_refresh_notice(session: Session) -> dict[str, object]:
     )
     if latest_success is None or latest_success.finished_at is None:
         latest_attempt = session.scalar(
-            select(FetchRun)
+            _apply_blocked_source_filter(select(FetchRun), FetchRun)
             .where(FetchRun.finished_at.is_not(None))
             .order_by(desc(FetchRun.finished_at))
         )
@@ -272,7 +295,7 @@ def build_refresh_notice(session: Session) -> dict[str, object]:
     refreshed_at = _as_utc(latest_success.finished_at)
     window_minutes = 15
     recent_inserted_count = session.scalar(
-        select(func.coalesce(func.sum(FetchRun.inserted_count), 0)).where(
+        _apply_blocked_source_filter(select(func.coalesce(func.sum(FetchRun.inserted_count), 0)), FetchRun).where(
             FetchRun.status == "success",
             FetchRun.finished_at.is_not(None),
             FetchRun.finished_at >= refreshed_at - timedelta(minutes=window_minutes),
@@ -309,7 +332,10 @@ def build_refresh_notice(session: Session) -> dict[str, object]:
 def build_trends(session: Session) -> list[tuple[str, int]]:
     since = datetime.now(timezone.utc) - timedelta(hours=24)
     rows = session.execute(
-        select(Article.primary_category, func.count(Article.id))
+        _apply_blocked_source_filter(
+            select(Article.primary_category, func.count(Article.id)),
+            Article,
+        )
         .where(Article.created_at >= since)
         .group_by(Article.primary_category)
         .order_by(func.count(Article.id).desc())
@@ -318,12 +344,16 @@ def build_trends(session: Session) -> list[tuple[str, int]]:
 
 
 def build_health_summary(session: Session) -> dict[str, int]:
-    total_sources = session.scalar(select(func.count(Source.id))) or 0
+    total_sources = session.scalar(
+        _apply_blocked_source_filter(select(func.count(Source.id)), Source)
+    ) or 0
     unhealthy_sources = session.scalar(
-        select(func.count(Source.id)).where(Source.consecutive_failures > 0)
+        _apply_blocked_source_filter(select(func.count(Source.id)), Source).where(
+            Source.consecutive_failures > 0
+        )
     ) or 0
     recent_fetch_runs = session.scalar(
-        select(func.count(FetchRun.id)).where(
+        _apply_blocked_source_filter(select(func.count(FetchRun.id)), FetchRun).where(
             FetchRun.started_at >= datetime.now(timezone.utc) - timedelta(hours=24)
         )
     ) or 0

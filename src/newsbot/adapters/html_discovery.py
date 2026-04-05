@@ -10,6 +10,7 @@ import httpx
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.source_registry import SourceDefinition
+from newsbot.text_tools import clean_headline
 from newsbot.text_tools import guess_language
 from newsbot.text_tools import limit_summary
 from newsbot.text_tools import normalize_whitespace
@@ -68,15 +69,18 @@ class HtmlDiscoveryAdapter:
             if resolved_url in seen_urls or len(title) < 12:
                 continue
             seen_urls.add(resolved_url)
+            cleaned_title = clean_headline(title)
+            if len(cleaned_title) < 12:
+                continue
             candidates.append(
                 ArticleCandidate(
                     source_key=source_definition.source_key,
                     source_name=source_definition.name,
-                    title=title,
+                    title=cleaned_title,
                     url=resolved_url,
-                    summary=limit_summary(title),
+                    summary=limit_summary(cleaned_title),
                     category=source_definition.category,
-                    language=guess_language(title),
+                    language=guess_language(cleaned_title),
                     trust_level=source_definition.trust_level,
                 )
             )

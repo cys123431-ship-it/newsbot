@@ -26,6 +26,7 @@ from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.dedupe import find_existing_article
 from newsbot.services.thumbnails import hydrate_candidate_thumbnails
 from newsbot.source_registry import find_source_definition
+from newsbot.text_tools import clean_headline
 
 
 ADAPTERS = {
@@ -221,6 +222,9 @@ async def _store_candidates(
     new_article_ids: list[int] = []
     with session_factory() as session:
         for candidate in candidates:
+            candidate.title = clean_headline(candidate.title)
+            if not candidate.title:
+                continue
             category = classify_candidate(candidate, source_definition)
             if category is None:
                 continue

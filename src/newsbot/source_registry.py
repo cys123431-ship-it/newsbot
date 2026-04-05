@@ -38,6 +38,12 @@ _ENV_TELEGRAM_CHANNEL_KEYS = (
 )
 _ENV_CHANNEL_SPLIT_PATTERN = re.compile(r"[\n,;]+")
 _TELEGRAM_CHANNEL_PATTERN = re.compile(r"^[A-Za-z0-9_]{5,64}$")
+BLOCKED_SOURCE_KEYS = frozenset(
+    {
+        "pressian-politics-rss",
+        "pressian-economy-rss",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1839,7 +1845,11 @@ def get_source_definitions() -> list[SourceDefinition]:
             continue
         definitions.append(_build_env_telegram_source(channel))
         existing_channels.add(channel_key)
-    return definitions
+    return [
+        definition
+        for definition in definitions
+        if definition.source_key not in BLOCKED_SOURCE_KEYS
+    ]
 
 
 SOURCE_DEFINITIONS = get_source_definitions()

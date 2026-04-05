@@ -20,6 +20,7 @@ from telethon.tl.types import MessageEntityUrl
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.source_registry import SourceDefinition
+from newsbot.text_tools import clean_headline
 from newsbot.text_tools import guess_language
 from newsbot.text_tools import limit_summary
 from newsbot.text_tools import normalize_whitespace
@@ -90,10 +91,10 @@ def extract_title_from_message(
     *,
     preview_title: str | None = None,
 ) -> str:
-    first_line = normalize_whitespace(message_text.splitlines()[0] if message_text else "")
+    first_line = clean_headline(message_text.splitlines()[0] if message_text else "")
     if first_line and (not url or first_line != url):
         return first_line
-    fallback_title = normalize_whitespace(preview_title or "")
+    fallback_title = clean_headline(preview_title or "")
     return fallback_title or "Telegram discovery item"
 
 

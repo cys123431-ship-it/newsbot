@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
@@ -12,7 +13,9 @@ from newsbot.contracts import ArticleCandidate
 from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _extract_analysis_keywords
+from newsbot.site_builder import collect_site_payload
 from newsbot.site_builder import build_static_site
+from newsbot.site_builder import StaticArticle
 from newsbot.source_registry import SourceDefinition
 
 
@@ -111,6 +114,49 @@ def _source_status(payload, source_key: str) -> dict[str, object]:
 
 def _read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(tmp_path):
+    archive_articles = [
+        StaticArticle.from_public_dict(
+            {
+                "title": '중단 거부 박상용에 민주당 &quot;법적 조치&quot;',
+                "canonical_url": "https://example.com/visible",
+                "source_key": "coindesk-rss",
+                "source_name": "CoinDesk",
+                "thumbnail_url": "https://img.example.com/thumb.jpg?x=1&amp;y=2",
+                "primary_category": "crypto",
+                "published_at": "2026-04-05T10:00:00+00:00",
+                "trust_level": 90,
+                "language": "ko",
+            }
+        ),
+        StaticArticle.from_public_dict(
+            {
+                "title": "프레시안 아카이브 항목",
+                "canonical_url": "https://example.com/pressian-hidden",
+                "source_key": "pressian-politics-rss",
+                "source_name": "Pressian Politics",
+                "primary_category": "kr-politics",
+                "published_at": "2026-04-05T10:01:00+00:00",
+                "trust_level": 80,
+                "language": "ko",
+            }
+        ),
+    ]
+
+    payload, _, _ = asyncio.run(
+        collect_site_payload(
+            _settings(tmp_path),
+            archive_articles=archive_articles,
+            source_definitions=[],
+            adapters={},
+        )
+    )
+
+    assert [article["source_key"] for article in payload["articles"]] == ["coindesk-rss"]
+    assert payload["articles"][0]["title"] == '중단 거부 박상용에 민주당 "법적 조치"'
+    assert payload["articles"][0]["thumbnail_url"] == "https://img.example.com/thumb.jpg?x=1&y=2"
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):
