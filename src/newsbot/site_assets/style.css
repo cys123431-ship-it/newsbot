@@ -1946,6 +1946,550 @@ a {
   color: var(--muted);
 }
 
+.analysis-shell {
+  gap: 1rem;
+}
+
+.analysis-toolbar-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 0.8rem;
+  padding: 0.9rem;
+}
+
+.analysis-toolbar-group,
+.analysis-toolbar-story {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(200, 188, 170, 0.72);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 236, 222, 0.72)),
+    rgba(255, 255, 255, 0.92);
+}
+
+.analysis-toolbar-copy {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.analysis-kpis {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.analysis-kpi {
+  gap: 0.28rem;
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  border-color: rgba(200, 188, 170, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 240, 228, 0.9)),
+    var(--panel);
+  box-shadow: 0 20px 36px rgba(37, 42, 48, 0.08);
+}
+
+.analysis-kpi-primary {
+  background:
+    linear-gradient(140deg, rgba(21, 54, 77, 0.96), rgba(15, 89, 132, 0.94)),
+    var(--accent);
+  border-color: rgba(21, 54, 77, 0.96);
+  color: #fff;
+}
+
+.analysis-kpi-primary .analysis-kpi-label,
+.analysis-kpi-primary .analysis-kpi-detail {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.analysis-kpi-label,
+.analysis-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+
+.analysis-kpi-value {
+  font-size: clamp(1.55rem, 2vw, 2.2rem);
+  font-weight: 800;
+  line-height: 0.98;
+}
+
+.analysis-kpi-detail {
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.analysis-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.95rem;
+}
+
+.analysis-dashboard-grid .analysis-panel-wide,
+.analysis-timeline-panel {
+  grid-column: span 8;
+}
+
+.analysis-snapshot-panel {
+  grid-column: span 4;
+}
+
+.analysis-breakdown-panel {
+  grid-column: span 6;
+}
+
+.analysis-panel,
+.analysis-table-panel {
+  padding: 1rem 1.05rem;
+  border-radius: 20px;
+  border-color: rgba(200, 188, 170, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 240, 228, 0.86)),
+    var(--panel);
+  box-shadow: 0 20px 40px rgba(37, 42, 48, 0.08);
+}
+
+.analysis-panel-head {
+  margin-bottom: 0.9rem;
+}
+
+.analysis-panel-head h2 {
+  font-size: clamp(1.08rem, 1.35vw, 1.28rem);
+  line-height: 1.15;
+}
+
+.analysis-chart-slot,
+.analysis-list-slot,
+.analysis-table-slot {
+  min-height: 220px;
+}
+
+.analysis-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.58rem;
+}
+
+.analysis-snapshot-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.82rem 0.88rem;
+  border-radius: 16px;
+  border: 1px solid rgba(21, 54, 77, 0.12);
+  background:
+    linear-gradient(140deg, rgba(21, 54, 77, 0.07), rgba(255, 255, 255, 0.94)),
+    #fff;
+}
+
+.analysis-snapshot-label,
+.analysis-snapshot-detail {
+  margin: 0;
+}
+
+.analysis-snapshot-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+.analysis-snapshot-value {
+  font-size: 1.1rem;
+  line-height: 1.15;
+}
+
+.analysis-snapshot-detail {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.analysis-timeline-shell {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.analysis-timeline-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.analysis-timeline-stat {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.8rem 0.88rem;
+  border-radius: 16px;
+  border: 1px solid rgba(21, 54, 77, 0.12);
+  background:
+    linear-gradient(140deg, rgba(21, 54, 77, 0.06), rgba(255, 255, 255, 0.94)),
+    #fff;
+}
+
+.analysis-timeline-stat span,
+.analysis-timeline-stat small {
+  color: var(--muted);
+}
+
+.analysis-timeline-stat span {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.analysis-timeline-stat strong {
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.analysis-timeline-stat small {
+  font-size: 0.82rem;
+}
+
+.timeline-bars {
+  grid-template-columns: repeat(auto-fit, minmax(32px, 1fr));
+  gap: 0.45rem;
+  min-height: 250px;
+}
+
+.timeline-bar-item {
+  gap: 0.42rem;
+}
+
+.timeline-bar-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted-strong);
+}
+
+.timeline-bar-track {
+  position: relative;
+  min-height: 180px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(217, 229, 238, 0.35), rgba(217, 229, 238, 0.88)),
+    rgba(255, 255, 255, 0.92);
+}
+
+.timeline-bar-average {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(164, 104, 34, 0.62);
+  z-index: 1;
+}
+
+.timeline-bar-fill {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(15, 89, 132, 0.8), rgba(21, 54, 77, 1));
+  box-shadow: 0 10px 18px rgba(21, 54, 77, 0.16);
+}
+
+.timeline-bar-fill.is-peak {
+  background: linear-gradient(180deg, rgba(231, 109, 57, 0.92), rgba(164, 61, 23, 1));
+  box-shadow: 0 14px 26px rgba(164, 61, 23, 0.2);
+}
+
+.timeline-bar-label {
+  line-height: 1.35;
+}
+
+.analysis-rank-list {
+  gap: 0.82rem;
+}
+
+.analysis-rank-row {
+  gap: 0.42rem;
+}
+
+.analysis-rank-copy {
+  align-items: flex-end;
+}
+
+.analysis-rank-copy-main {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.analysis-rank-copy-main small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.analysis-rank-track {
+  height: 0.72rem;
+  background: rgba(217, 229, 238, 0.72);
+}
+
+.analysis-rank-fill {
+  background: linear-gradient(90deg, rgba(15, 89, 132, 0.94), rgba(231, 109, 57, 0.82));
+}
+
+.analysis-focus-switcher {
+  max-width: none;
+  margin: 0;
+}
+
+.analysis-focus-tabs {
+  gap: 0.58rem;
+}
+
+.analysis-record-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.95rem;
+}
+
+.analysis-table th,
+.analysis-table td {
+  padding: 0.8rem 0.62rem;
+}
+
+.analysis-table th {
+  font-size: 0.74rem;
+}
+
+.analysis-more-analytics {
+  max-width: none;
+  margin: 0;
+  padding: 1rem 1.05rem;
+  border-radius: 20px;
+}
+
+.analysis-grid.analysis-more-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.95rem;
+}
+
+.analysis-guide-copy {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.analysis-guide-copy p {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.6;
+}
+
+.analysis-table-panel.is-spotlight,
+.analysis-more-analytics.is-spotlight {
+  border-color: rgba(15, 89, 132, 0.38);
+  box-shadow: 0 24px 48px rgba(15, 89, 132, 0.12);
+}
+
+.market-strip-panel {
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+}
+
+.market-strip-head h2 {
+  font-size: 1.08rem;
+}
+
+.market-strip-message,
+.market-strip-callout {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.market-strip-callout {
+  color: var(--muted-strong);
+}
+
+.market-benchmark-pill {
+  min-width: 108px;
+  padding: 0.48rem 0.62rem;
+  border-radius: 12px;
+}
+
+.market-detail-switcher {
+  max-width: none;
+  margin: 0;
+  padding: 0.8rem 0.92rem;
+  border-radius: 20px;
+}
+
+.market-detail-tabs {
+  gap: 0.56rem;
+}
+
+.market-detail-hint {
+  position: relative;
+  margin: 0.58rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: transparent;
+}
+
+.market-detail-hint::before {
+  content: "Heatmap을 기본으로 열고, Movers와 Screener로 자연스럽게 이어서 확인할 수 있습니다.";
+  color: var(--muted);
+}
+
+.market-heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.market-heatmap-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.34rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(21, 54, 77, 0.12);
+  background: rgba(15, 89, 132, 0.08);
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.market-heatmap-shell {
+  gap: 0.85rem;
+}
+
+.market-heatmap-grid {
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  grid-auto-rows: 28px;
+  gap: 0.24rem;
+  padding: 0.6rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(82, 114, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(12, 15, 25, 0.98), rgba(22, 26, 40, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(205, 214, 236, 0.08);
+}
+
+.market-heatmap-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  padding: 0.7rem 0.72rem;
+  border-radius: 14px;
+  border: 1px solid rgba(205, 214, 236, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  color: #fff;
+  overflow: hidden;
+}
+
+.market-heatmap-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 55%);
+  pointer-events: none;
+}
+
+.market-heatmap-copy,
+.market-heatmap-meta {
+  position: relative;
+  z-index: 1;
+}
+
+.market-heatmap-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.market-heatmap-copy strong {
+  font-size: 1.08rem;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+.market-heatmap-copy span,
+.market-heatmap-meta small {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.market-heatmap-copy span {
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.market-heatmap-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.market-heatmap-meta small {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.market-heatmap-meta b,
+.market-heatmap-cell.is-positive b,
+.market-heatmap-cell.is-negative b,
+.market-heatmap-cell.is-flat b {
+  color: #fff;
+}
+
+.market-heatmap-meta b {
+  font-size: 1.18rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.market-heatmap-cell.is-mega .market-heatmap-copy strong {
+  font-size: clamp(1.8rem, 2.9vw, 2.9rem);
+}
+
+.market-heatmap-cell.is-mega .market-heatmap-meta b {
+  font-size: clamp(1.7rem, 2.2vw, 2.2rem);
+}
+
+.market-heatmap-cell.is-large .market-heatmap-copy strong {
+  font-size: clamp(1.3rem, 1.8vw, 1.95rem);
+}
+
+.market-heatmap-cell.is-large .market-heatmap-meta b {
+  font-size: 1.45rem;
+}
+
+.market-heatmap-cell.is-medium .market-heatmap-copy strong {
+  font-size: 1.08rem;
+}
+
+.market-heatmap-cell.is-compact {
+  padding: 0.48rem 0.52rem;
+}
+
+.market-heatmap-cell.is-compact .market-heatmap-copy strong {
+  font-size: 0.82rem;
+}
+
+.market-heatmap-cell.is-compact .market-heatmap-copy span,
+.market-heatmap-cell.is-compact .market-heatmap-meta small {
+  font-size: 0.64rem;
+}
+
+.market-heatmap-cell.is-compact .market-heatmap-meta b {
+  font-size: 0.9rem;
+}
+
+.market-detail-heatmap .market-trending-grid {
+  gap: 0.55rem;
+}
+
 @keyframes refreshPulse {
   0% {
     box-shadow: 0 0 0 0 rgba(164, 104, 34, 0.24);
@@ -2088,5 +2632,76 @@ a {
 
   .market-heatmap-cell.size-1 {
     grid-column: span 2;
+  }
+}
+
+@media (max-width: 1080px) {
+  .analysis-toolbar-shell,
+  .analysis-dashboard-grid,
+  .analysis-record-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-dashboard-grid .analysis-panel-wide,
+  .analysis-timeline-panel,
+  .analysis-snapshot-panel,
+  .analysis-breakdown-panel {
+    grid-column: auto;
+  }
+
+  .analysis-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .market-heatmap-grid {
+    grid-template-columns: repeat(18, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .analysis-kpis,
+  .analysis-snapshot-grid,
+  .analysis-timeline-summary,
+  .analysis-grid.analysis-more-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-toolbar-shell {
+    padding: 0.8rem;
+  }
+
+  .market-heatmap-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: 24px;
+  }
+
+  .market-heatmap-cell {
+    padding: 0.58rem;
+  }
+
+  .market-heatmap-cell.is-mega,
+  .market-heatmap-cell.is-large {
+    grid-column: span 12 !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .analysis-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .market-heatmap-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-auto-rows: 22px;
+  }
+
+  .market-heatmap-cell.is-large,
+  .market-heatmap-cell.is-medium,
+  .market-heatmap-cell.is-mega {
+    grid-column: span 8 !important;
+  }
+
+  .market-heatmap-cell.is-compact {
+    grid-column: span 4 !important;
   }
 }

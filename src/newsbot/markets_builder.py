@@ -90,6 +90,9 @@ _CRYPTO_PRESETS = (
 _STOCK_BENCHMARKS = ("SPY", "QQQ", "DIA", "IWM")
 _CRYPTO_BENCHMARKS = ("BTC", "ETH", "SOL", "XRP")
 _MARKET_NEWS_CATEGORIES = {"us-markets", "crypto"}
+_BINANCE_SPOT_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
+_BINANCE_QUOTE_SUFFIX = "USDT"
+_BINANCE_LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 _KOSPI_SUFFIX_LENGTH = 228
 _KOSDAQ_SUFFIX_LENGTH = 222
 _KOSPI_FIELD_WIDTHS = [
@@ -516,6 +519,7 @@ def _build_crypto_dataset(
     market_rows_fetcher: Any = None,
     categories_fetcher: Any = None,
     trending_fetcher: Any = None,
+    binance_tickers_fetcher: Any = None,
 ) -> dict[str, Any]:
     provider = settings.markets_crypto_provider
     if provider != "coingecko":
@@ -531,9 +535,11 @@ def _build_crypto_dataset(
     market_fetcher = market_rows_fetcher or _fetch_coingecko_market_rows
     group_fetcher = categories_fetcher or _fetch_coingecko_categories
     trend_fetcher = trending_fetcher or _fetch_coingecko_trending
+    binance_fetcher = binance_tickers_fetcher or _fetch_binance_spot_tickers
     archived_group_performance = list((archive_data or {}).get("group_performance") or [])
     archived_heatmap = list((archive_data or {}).get("heatmap") or [])
     archived_trending = list((archive_data or {}).get("trending") or [])
+    archived_heatmap_basis = dict((archive_data or {}).get("heatmap_basis") or {})
 
     try:
         with httpx.Client(
@@ -542,9 +548,18 @@ def _build_crypto_dataset(
             headers=_market_request_headers(),
         ) as client:
             market_rows = market_fetcher(client, settings)
+            rows = _normalize_coingecko_rows(market_rows)
+            if not rows:
+                raise RuntimeError("CoinGecko markets returned no crypto rows.")
+
             notes: list[str] = []
-            group_performance = archived_group_performance
-            heatmap = archived_heatmap
+            group_performance = archived_group_performance or _build_group_performance(rows)
+            heatmap = archived_heatmap or _build_equity_heatmap(rows, basis="market_cap")
+            heatmap_basis = archived_heatmap_basis or _build_heatmap_basis(
+                size_label="market cap share",
+                color_label="24H price change",
+                source_label="CoinGecko market-cap fallback",
+            )
             trending = archived_trending
 
             try:
@@ -553,21 +568,25 @@ def _build_crypto_dataset(
                 notes.append(f"Category view unavailable: {exc}")
             else:
                 normalized_categories = _normalize_coingecko_categories(categories)
-                group_performance = normalized_categories[:12]
-                heatmap = _build_category_heatmap(normalized_categories[:24])
+                if normalized_categories:
+                    group_performance = normalized_categories[:12]
 
             try:
                 trending = trend_fetcher(client, settings)[:10]
             except Exception as exc:
                 notes.append(f"Trending view unavailable: {exc}")
 
-        rows = _normalize_coingecko_rows(market_rows)
-        if not rows:
-            raise RuntimeError("CoinGecko markets returned no crypto rows.")
+            try:
+                binance_tickers = binance_fetcher(client, settings)
+                heatmap, heatmap_basis = _build_binance_volume_heatmap(rows, binance_tickers)
+            except Exception as exc:
+                notes.append(f"Binance heatmap unavailable: {exc}")
+
         return _finalize_crypto_payload(
             rows,
             group_performance=group_performance,
             heatmap=heatmap,
+            heatmap_basis=heatmap_basis,
             trending=trending,
             generated_at=generated_at,
             provider=provider,
@@ -1455,6 +1474,21 @@ def _fetch_coingecko_trending(
     return results[:10]
 
 
+def _fetch_binance_spot_tickers(
+    client: httpx.Client,
+    settings: Settings,
+) -> list[dict[str, Any]]:
+    del settings
+    response = client.get(_BINANCE_SPOT_TICKER_URL)
+    response.raise_for_status()
+    payload = response.json()
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        return [payload]
+    raise RuntimeError("Binance 24hr ticker returned an unsupported payload.")
+
+
 def _normalize_coingecko_rows(raw_rows: list[dict[str, Any]]) -> list[MarketSnapshotRow]:
     rows: list[MarketSnapshotRow] = []
     for raw in raw_rows:
@@ -1527,7 +1561,12 @@ def _finalize_stocks_payload(
         "breadth": _build_breadth_payload(rows),
         "movers": _build_mover_payload(rows),
         "group_performance": _build_group_performance(rows),
-        "heatmap": _build_equity_heatmap(rows),
+        "heatmap": _build_equity_heatmap(rows, basis="market_cap"),
+        "heatmap_basis": _build_heatmap_basis(
+            size_label="market cap share",
+            color_label="daily price change",
+            source_label="US equity market map",
+        ),
     }
 
 
@@ -1571,7 +1610,12 @@ def _finalize_korea_payload(
         "breadth": breadth,
         "movers": _build_mover_payload(rows),
         "group_performance": _build_group_performance(rows),
-        "heatmap": _build_equity_heatmap(rows),
+        "heatmap": _build_equity_heatmap(rows, basis="market_cap"),
+        "heatmap_basis": _build_heatmap_basis(
+            size_label="market cap share",
+            color_label="daily price change",
+            source_label="Korea equity market map",
+        ),
     }
 
 
@@ -1580,6 +1624,7 @@ def _finalize_crypto_payload(
     *,
     group_performance: list[dict[str, Any]],
     heatmap: list[dict[str, Any]],
+    heatmap_basis: dict[str, Any] | None,
     trending: list[dict[str, Any]],
     generated_at: str,
     provider: str,
@@ -1606,7 +1651,8 @@ def _finalize_crypto_payload(
         "breadth": _build_breadth_payload(rows),
         "movers": _build_mover_payload(rows),
         "group_performance": list(group_performance)[:12],
-        "heatmap": list(heatmap)[:24],
+        "heatmap": list(heatmap)[:48],
+        "heatmap_basis": dict(heatmap_basis or {}),
         "trending": trending[:10],
     }
 
@@ -1673,6 +1719,7 @@ def _empty_market_payload(
         "movers": _build_mover_payload([]),
         "group_performance": [],
         "heatmap": [],
+        "heatmap_basis": {},
     }
     if asset_type == "crypto":
         payload["trending"] = []
@@ -1780,7 +1827,8 @@ def _build_markets_overview_payload(
             "top_losers": list((stocks_payload.get("movers") or {}).get("losers", []))[:6],
             "most_active": list((stocks_payload.get("movers") or {}).get("active", []))[:6],
             "group_performance": list(stocks_payload.get("group_performance") or [])[:8],
-            "heatmap": list(stocks_payload.get("heatmap") or [])[:24],
+            "heatmap": list(stocks_payload.get("heatmap") or [])[:32],
+            "heatmap_basis": dict(stocks_payload.get("heatmap_basis") or {}),
         },
         "korea": {
             "status": korea_payload.get("status", "warning"),
@@ -1792,7 +1840,8 @@ def _build_markets_overview_payload(
             "top_losers": list((korea_payload.get("movers") or {}).get("losers", []))[:6],
             "most_active": list((korea_payload.get("movers") or {}).get("active", []))[:6],
             "group_performance": list(korea_payload.get("group_performance") or [])[:8],
-            "heatmap": list(korea_payload.get("heatmap") or [])[:24],
+            "heatmap": list(korea_payload.get("heatmap") or [])[:32],
+            "heatmap_basis": dict(korea_payload.get("heatmap_basis") or {}),
         },
         "crypto": {
             "status": crypto_payload.get("status", "warning"),
@@ -1804,7 +1853,8 @@ def _build_markets_overview_payload(
             "top_losers": list((crypto_payload.get("movers") or {}).get("losers", []))[:6],
             "most_active": list((crypto_payload.get("movers") or {}).get("active", []))[:6],
             "group_performance": list(crypto_payload.get("group_performance") or [])[:8],
-            "heatmap": list(crypto_payload.get("heatmap") or [])[:24],
+            "heatmap": list(crypto_payload.get("heatmap") or [])[:32],
+            "heatmap_basis": dict(crypto_payload.get("heatmap_basis") or {}),
             "trending": list(crypto_payload.get("trending") or [])[:8],
         },
         "market_news": _build_market_news(news_payload),
@@ -1904,34 +1954,148 @@ def _build_group_performance(rows: list[MarketSnapshotRow]) -> list[dict[str, An
     return items
 
 
-def _build_equity_heatmap(rows: list[MarketSnapshotRow]) -> list[dict[str, Any]]:
+def _build_heatmap_basis(
+    *,
+    size_label: str,
+    color_label: str,
+    source_label: str,
+) -> dict[str, str]:
+    return {
+        "size_label": size_label,
+        "color_label": color_label,
+        "source_label": source_label,
+    }
+
+
+def _resolve_heatmap_tile_shape(
+    value: float,
+    max_value: float,
+) -> tuple[int, int, int]:
+    normalized = (value / max_value) if max_value else 0.0
+    if normalized >= 0.55:
+        return (10, 6, 5)
+    if normalized >= 0.32:
+        return (8, 5, 4)
+    if normalized >= 0.18:
+        return (6, 4, 3)
+    if normalized >= 0.08:
+        return (4, 3, 2)
+    return (3, 2, 1)
+
+
+def _build_equity_heatmap(
+    rows: list[MarketSnapshotRow],
+    *,
+    basis: str = "market_cap",
+) -> list[dict[str, Any]]:
     top_rows = sorted(
         rows,
         key=lambda row: (_safe_number(row.market_cap), abs(row.change_pct or 0.0)),
         reverse=True,
-    )[:36]
+    )[:48]
     if not top_rows:
         return []
     max_market_cap = max(_safe_number(row.market_cap) for row in top_rows) or 1.0
+    total_market_cap = sum(_safe_number(row.market_cap) for row in top_rows) or 1.0
     items: list[dict[str, Any]] = []
     for row in top_rows:
+        market_cap = _safe_number(row.market_cap)
+        tile_cols, tile_rows, size = _resolve_heatmap_tile_shape(
+            market_cap,
+            max_market_cap,
+        )
+        share_pct = (market_cap / total_market_cap) * 100 if total_market_cap else 0.0
         items.append(
             {
                 "label": row.symbol,
+                "name": row.name,
                 "subLabel": row.sector_or_category or row.industry or row.exchange,
                 "change_pct": row.change_pct or 0.0,
-                "value": _safe_number(row.market_cap),
-                "size": max(
-                    1,
-                    min(
-                        4,
-                        int(ceil((_safe_number(row.market_cap) / max_market_cap) * 4)),
-                    ),
-                ),
+                "value": market_cap,
+                "share_pct": share_pct,
+                "metric_display": f"{share_pct:.1f}% cap share",
+                "size": size,
+                "tile_cols": tile_cols,
+                "tile_rows": tile_rows,
                 "detail_url": row.detail_url,
             }
         )
     return items
+
+
+def _build_binance_volume_heatmap(
+    rows: list[MarketSnapshotRow],
+    ticker_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    by_symbol: dict[str, MarketSnapshotRow] = {}
+    for row in sorted(rows, key=lambda item: (_safe_number(item.market_cap), _safe_number(item.volume)), reverse=True):
+        symbol = row.symbol.upper()
+        by_symbol.setdefault(symbol, row)
+
+    matched: list[dict[str, Any]] = []
+    for raw in ticker_rows:
+        market_symbol = str(raw.get("symbol") or "").strip().upper()
+        if not market_symbol.endswith(_BINANCE_QUOTE_SUFFIX):
+            continue
+        base_symbol = market_symbol[: -len(_BINANCE_QUOTE_SUFFIX)]
+        if not base_symbol or base_symbol.endswith(_BINANCE_LEVERAGED_SUFFIXES):
+            continue
+        coin = by_symbol.get(base_symbol)
+        if coin is None:
+            continue
+        quote_volume = _as_float(raw.get("quoteVolume"))
+        if quote_volume is None or quote_volume <= 0:
+            continue
+        change_pct = _as_float(raw.get("priceChangePercent")) or 0.0
+        matched.append(
+            {
+                "symbol": base_symbol,
+                "name": coin.name,
+                "change_pct": change_pct,
+                "quote_volume": quote_volume,
+                "detail_url": (
+                    f"https://www.binance.com/en/trade/{base_symbol}_USDT?type=spot"
+                ),
+            }
+        )
+
+    matched.sort(
+        key=lambda item: (float(item["quote_volume"]), abs(float(item["change_pct"]))),
+        reverse=True,
+    )
+    if not matched:
+        raise RuntimeError("Binance returned no mapped USDT spot pairs for the tracked crypto rows.")
+
+    total_quote_volume = sum(float(item["quote_volume"]) for item in matched) or 1.0
+    max_quote_volume = max(float(item["quote_volume"]) for item in matched) or 1.0
+    items: list[dict[str, Any]] = []
+    for item in matched[:48]:
+        quote_volume = float(item["quote_volume"])
+        share_pct = (quote_volume / total_quote_volume) * 100 if total_quote_volume else 0.0
+        tile_cols, tile_rows, size = _resolve_heatmap_tile_shape(quote_volume, max_quote_volume)
+        items.append(
+            {
+                "label": item["symbol"],
+                "name": item["name"],
+                "subLabel": "Binance spot",
+                "change_pct": float(item["change_pct"]),
+                "value": quote_volume,
+                "share_pct": share_pct,
+                "metric_display": f"{share_pct:.2f}% volume share",
+                "size": size,
+                "tile_cols": tile_cols,
+                "tile_rows": tile_rows,
+                "detail_url": item["detail_url"],
+            }
+        )
+    return (
+        items,
+        _build_heatmap_basis(
+            size_label="Binance USDT spot volume share",
+            color_label="24H price change",
+            source_label="Binance spot market map",
+        ),
+    )
 
 
 def _normalize_coingecko_categories(categories: list[dict[str, Any]]) -> list[dict[str, Any]]:

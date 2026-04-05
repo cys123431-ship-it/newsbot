@@ -221,6 +221,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="analysis-focus-tabs"' in analysis_html
     assert 'id="analysis-repeated-panel"' in analysis_html
     assert 'id="analysis-samples-panel"' in analysis_html
+    assert 'id="analysis-snapshot"' in analysis_html
+    assert 'class="analysis-dashboard-grid"' in analysis_html
+    assert 'class="analysis-record-grid"' in analysis_html
     assert 'id="analysis-more-analytics"' in analysis_html
     assert "../assets/analysis.js" in analysis_html
 
@@ -232,6 +235,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
     assert 'data-detail-panel="' in markets_js
     assert "1 Heatmap" in markets_js
+    assert "renderHeatmapLegend" in markets_js
+    assert "metric_display" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2

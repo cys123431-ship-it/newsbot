@@ -24,7 +24,7 @@ const state = {
   cryptoPreset: "all",
   stocksSort: "market_cap",
   koreaSort: "market_cap",
-  cryptoSort: "market_cap",
+  cryptoSort: "volume",
   stocksDirection: "desc",
   koreaDirection: "desc",
   cryptoDirection: "desc",
@@ -35,9 +35,9 @@ const state = {
   stocksIndustry: "all",
   koreaIndustry: "all",
   stocksValuation: "all",
-  stocksDetail: "",
-  koreaDetail: "",
-  cryptoDetail: "",
+  stocksDetail: "heatmap",
+  koreaDetail: "heatmap",
+  cryptoDetail: "heatmap",
 };
 
 const payloads = {
@@ -121,6 +121,17 @@ function formatPercent(value) {
   return `${sign}${numeric.toFixed(2)}%`;
 }
 
+function formatSharePercent(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  const numeric = Number(value);
+  if (numeric >= 10) {
+    return `${numeric.toFixed(1)}%`;
+  }
+  return `${numeric.toFixed(2)}%`;
+}
+
 function formatDateTime(value) {
   if (!value) {
     return "-";
@@ -144,6 +155,31 @@ function signedClass(value) {
     return "is-negative";
   }
   return "is-flat";
+}
+
+function getSurfaceSnapshot(surface, dataset) {
+  const overview = getOverviewSnapshot(surface);
+  return {
+    ...overview,
+    ...dataset,
+    benchmarks: dataset?.benchmarks?.length ? dataset.benchmarks : (overview.benchmarks || []),
+    breadth: dataset?.breadth || overview.breadth || {},
+    heatmap: dataset?.heatmap?.length ? dataset.heatmap : (overview.heatmap || []),
+    heatmap_basis: dataset?.heatmap_basis || overview.heatmap_basis || null,
+    group_performance: dataset?.group_performance?.length
+      ? dataset.group_performance
+      : (overview.group_performance || []),
+    trending: dataset?.trending?.length ? dataset.trending : (overview.trending || []),
+    top_gainers: dataset?.movers?.gainers?.length
+      ? dataset.movers.gainers
+      : (overview.top_gainers || []),
+    top_losers: dataset?.movers?.losers?.length
+      ? dataset.movers.losers
+      : (overview.top_losers || []),
+    most_active: dataset?.movers?.active?.length
+      ? dataset.movers.active
+      : (overview.most_active || []),
+  };
 }
 
 async function loadJson(url) {
@@ -444,28 +480,150 @@ function renderGroupBars(title, items, emptyMessage) {
   `;
 }
 
+function renderHeatLeadership(title, items, emptyMessage) {
+  const leaders = (items || []).filter((item) => Number(item.share_pct || 0) > 0).slice(0, 8);
+  if (!leaders.length) {
+    return `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
+  }
+  const maxShare = Math.max(...leaders.map((item) => Number(item.share_pct || 0)), 1);
+  return `
+    <section class="market-section-block">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="analysis-rank-list">
+        ${leaders
+          .map(
+            (item) => `
+              <div class="analysis-rank-row">
+                <div class="analysis-rank-copy">
+                  <div class="analysis-rank-copy-main">
+                    <strong>${escapeHtml(item.label || "-")}</strong>
+                    <small>${escapeHtml(item.metric_display || item.subLabel || "-")}</small>
+                  </div>
+                  <span class="${signedClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span>
+                </div>
+                <div class="analysis-rank-track">
+                  <div
+                    class="analysis-rank-fill"
+                    style="width:${Math.max(12, Math.round((Number(item.share_pct || 0) / maxShare) * 100))}%"
+                  ></div>
+                </div>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function resolveHeatmapSpan(item) {
+  if (Number(item.tile_cols) > 0 && Number(item.tile_rows) > 0) {
+    return {
+      cols: Number(item.tile_cols),
+      rows: Number(item.tile_rows),
+    };
+  }
+  switch (Number(item.size || 1)) {
+    case 5:
+      return { cols: 10, rows: 6 };
+    case 4:
+      return { cols: 8, rows: 5 };
+    case 3:
+      return { cols: 6, rows: 4 };
+    case 2:
+      return { cols: 4, rows: 3 };
+    default:
+      return { cols: 3, rows: 2 };
+  }
+}
+
+function getHeatmapRole(item) {
+  const { cols, rows } = resolveHeatmapSpan(item);
+  const area = cols * rows;
+  if (area >= 40) {
+    return "is-mega";
+  }
+  if (area >= 24) {
+    return "is-large";
+  }
+  if (area >= 12) {
+    return "is-medium";
+  }
+  return "is-compact";
+}
+
+function getHeatmapTone(item) {
+  const change = Number(item.change_pct || 0);
+  const intensity = Math.max(0.18, Math.min(0.95, Math.abs(change) / 8));
+  if (change > 0) {
+    return {
+      background: `linear-gradient(135deg, rgba(255, 64, 86, ${0.72 + intensity * 0.18}), rgba(162, 28, 48, ${0.82 + intensity * 0.12}))`,
+      border: `rgba(255, 182, 193, ${0.35 + intensity * 0.25})`,
+    };
+  }
+  if (change < 0) {
+    return {
+      background: `linear-gradient(135deg, rgba(66, 117, 255, ${0.72 + intensity * 0.18}), rgba(28, 55, 132, ${0.82 + intensity * 0.12}))`,
+      border: `rgba(178, 204, 255, ${0.35 + intensity * 0.25})`,
+    };
+  }
+  return {
+    background: "linear-gradient(135deg, rgba(82, 88, 112, 0.82), rgba(38, 43, 61, 0.9))",
+    border: "rgba(205, 214, 236, 0.28)",
+  };
+}
+
+function renderHeatmapLegend(basis) {
+  if (!basis) {
+    return "";
+  }
+  return `
+    <div class="market-heatmap-legend">
+      ${basis.source_label ? `<span class="market-heatmap-note">${escapeHtml(basis.source_label)}</span>` : ""}
+      ${basis.size_label ? `<span class="market-heatmap-note">${escapeHtml(`Size ${basis.size_label}`)}</span>` : ""}
+      ${basis.color_label ? `<span class="market-heatmap-note">${escapeHtml(`Color ${basis.color_label}`)}</span>` : ""}
+    </div>
+  `;
+}
+
 function renderHeatmap(title, items, emptyMessage) {
   if (!items.length) {
     return `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
   }
   return `
-    <section class="market-section-block">
+    <section class="market-section-block market-heatmap-shell">
       <h3>${escapeHtml(title)}</h3>
       <div class="market-heatmap-grid">
         ${items
+          .slice(0, 48)
           .map(
-            (item) => `
+            (item) => {
+              const span = resolveHeatmapSpan(item);
+              const tone = getHeatmapTone(item);
+              const role = getHeatmapRole(item);
+              const metric = item.metric_display
+                || (Number(item.share_pct || 0) > 0
+                  ? `Share ${formatSharePercent(item.share_pct)}`
+                  : (item.subLabel || "-"));
+              return `
               <a
-                class="market-heatmap-cell ${signedClass(item.change_pct)} size-${escapeHtml(item.size || 1)}"
+                class="market-heatmap-cell ${signedClass(item.change_pct)} ${role}"
                 href="${escapeHtml(item.detail_url || "#")}"
                 target="_blank"
                 rel="noreferrer"
+                style="grid-column: span ${span.cols}; grid-row: span ${span.rows}; background:${tone.background}; border-color:${tone.border};"
               >
-                <strong>${escapeHtml(item.label || "-")}</strong>
-                <span>${escapeHtml(item.subLabel || "-")}</span>
-                <b>${escapeHtml(formatPercent(item.change_pct))}</b>
+                <div class="market-heatmap-copy">
+                  <strong>${escapeHtml(item.label || "-")}</strong>
+                  <span>${escapeHtml(item.name || item.subLabel || "-")}</span>
+                </div>
+                <div class="market-heatmap-meta">
+                  <small>${escapeHtml(metric)}</small>
+                  <b>${escapeHtml(formatPercent(item.change_pct))}</b>
+                </div>
               </a>
-            `,
+            `;
+            },
           )
           .join("")}
       </div>
@@ -648,7 +806,7 @@ function getDetailPanelState(surface) {
 function setDetailPanelState(surface, nextPanel) {
   const stateKeys = getSurfaceStateKeys(surface);
   const key = stateKeys.detail;
-  state[key] = state[key] === nextPanel ? "" : nextPanel;
+  state[key] = nextPanel || "heatmap";
 }
 
 function renderBenchmarkTickerRow(items, emptyMessage, currency = "USD") {
@@ -710,6 +868,7 @@ function renderSummaryStrip(surface, snapshot, dataset) {
     crypto: { kicker: "Crypto", benchmark: "No crypto benchmarks available." },
   };
   const labelSet = labels[surface] || labels.crypto;
+  const basis = snapshot.heatmap_basis;
 
   return `
     <section class="analysis-panel market-strip-panel">
@@ -721,6 +880,13 @@ function renderSummaryStrip(surface, snapshot, dataset) {
         <span class="market-chip ${escapeHtml(dataset.status || "warning")}">${escapeHtml(dataset.status || "-")}</span>
       </div>
       ${dataset.message ? `<p class="market-message market-strip-message">${escapeHtml(dataset.message)}</p>` : ""}
+      ${
+        basis?.source_label
+          ? `<p class="market-strip-callout">${escapeHtml(
+              `${basis.source_label} | ${basis.size_label || ""}${basis.color_label ? ` | ${basis.color_label}` : ""}`.replace(/\s+\|$/, ""),
+            )}</p>`
+          : ""
+      }
       <div class="market-strip-layout">
         ${renderBenchmarkTickerRow(snapshot.benchmarks || [], labelSet.benchmark, currency)}
         ${renderBreadth(snapshot.breadth || {}, surface === "crypto" ? "crypto" : "stock")}
@@ -772,6 +938,8 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
       moversTitle: "Crypto movers",
       screenerTitle: "Coin Screener",
       searchPlaceholder: "Search symbol or coin",
+      leadershipTitle: "Binance volume leaders",
+      leadershipEmpty: "No Binance share data available.",
     },
   };
   const labels = surfaceLabels[surface] || surfaceLabels.crypto;
@@ -781,6 +949,14 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
   }
 
   if (activePanel === "heatmap") {
+    const leadership = surface === "crypto"
+      ? renderHeatLeadership(
+        labels.leadershipTitle,
+        snapshot.heatmap || [],
+        labels.leadershipEmpty,
+      )
+      : renderGroupBars(labels.groupTitle, snapshot.group_performance || [], labels.groupEmpty);
+
     return `
       <section class="analysis-panel market-detail-heatmap">
         <div class="analysis-panel-head">
@@ -789,7 +965,8 @@ function renderSelectedDetailPanel(surface, snapshot, dataset, rows) {
             <h2>${labels.heatmapTitle}</h2>
           </div>
         </div>
-        ${renderGroupBars(labels.groupTitle, snapshot.group_performance || [], labels.groupEmpty)}
+        ${renderHeatmapLegend(snapshot.heatmap_basis)}
+        ${leadership}
         ${surface === "crypto" ? renderTrending(snapshot.trending || []) : ""}
         ${renderHeatmap(labels.heatmapTitle, snapshot.heatmap || [], labels.heatmapEmpty)}
       </section>
@@ -918,7 +1095,7 @@ function renderDatasetSurface(surface) {
   const rows = getFilteredRows(surface);
   const isStockLike = isStockSurface(surface);
   const stateKeys = getSurfaceStateKeys(surface);
-  const snapshot = getOverviewSnapshot(surface);
+  const snapshot = getSurfaceSnapshot(surface, dataset);
   const controls = `
     ${renderSummaryStrip(surface, snapshot, dataset)}
     ${renderDetailTabs(surface)}

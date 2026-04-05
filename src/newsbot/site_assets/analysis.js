@@ -7,6 +7,7 @@ const refs = {
   status: document.getElementById("analysis-status"),
   kpis: document.getElementById("analysis-kpis"),
   timeline: document.getElementById("analysis-timeline"),
+  snapshot: document.getElementById("analysis-snapshot"),
   focusTabs: document.getElementById("analysis-focus-tabs"),
   repeatedPanel: document.getElementById("analysis-repeated-panel"),
   samplesPanel: document.getElementById("analysis-samples-panel"),
@@ -21,13 +22,13 @@ const refs = {
 
 const state = {
   window: bootstrap.default_window || "7d",
-  focusPanel: null,
+  focusPanel: "repeated",
 };
 
 let payload = null;
 
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -37,6 +38,21 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("ko-KR").format(Number(value || 0));
+}
+
+function formatCompactNumber(value) {
+  return new Intl.NumberFormat("ko-KR", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Number(value || 0));
+}
+
+function formatDecimal(value) {
+  const numeric = Number(value || 0);
+  if (numeric >= 100) {
+    return formatNumber(Math.round(numeric));
+  }
+  return numeric.toFixed(1);
 }
 
 function formatDate(value) {
@@ -73,6 +89,16 @@ function getWindowPayload() {
   return payload.windows?.[state.window] || payload.windows?.[payload.default_window] || null;
 }
 
+function getTopItem(items, labelKey) {
+  if (!Array.isArray(items) || !items.length) {
+    return null;
+  }
+  return {
+    label: items[0]?.[labelKey] || items[0]?.label || "-",
+    count: Number(items[0]?.count || 0),
+  };
+}
+
 function renderWindowTabs() {
   if (!payload) {
     refs.windowTabs.innerHTML = "";
@@ -92,24 +118,48 @@ function renderWindowTabs() {
   }
 }
 
+function scrollToPanel(panelKey) {
+  const mapping = {
+    repeated: refs.repeatedPanel,
+    samples: refs.samplesPanel,
+    guide: refs.moreAnalytics,
+  };
+  const target = mapping[panelKey];
+  if (!target) {
+    return;
+  }
+  if (panelKey === "guide") {
+    refs.moreAnalytics.open = true;
+  }
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderFocusTabs() {
   const items = [
     { key: "repeated", label: "Repeated Titles" },
     { key: "samples", label: "Recent Samples" },
+    { key: "guide", label: "Reading Guide" },
   ];
   refs.focusTabs.innerHTML = "";
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `pill${state.focusPanel === item.key ? " is-active" : ""}`;
-    button.textContent = `${index + 1} ${item.label}`;
+    button.textContent = item.label;
     button.addEventListener("click", () => {
-      state.focusPanel = state.focusPanel === item.key ? null : item.key;
+      state.focusPanel = item.key;
       renderFocusTabs();
       renderFocusPanels();
+      scrollToPanel(item.key);
     });
     refs.focusTabs.appendChild(button);
   });
+}
+
+function renderFocusPanels() {
+  refs.repeatedPanel.classList.toggle("is-spotlight", state.focusPanel === "repeated");
+  refs.samplesPanel.classList.toggle("is-spotlight", state.focusPanel === "samples");
+  refs.moreAnalytics.classList.toggle("is-spotlight", state.focusPanel === "guide");
 }
 
 function renderStatus() {
@@ -118,11 +168,16 @@ function renderStatus() {
     refs.status.textContent = "Failed to load analysis data.";
     return;
   }
+
+  const topSource = getTopItem(windowPayload.top_sources, "name");
+  const topKeyword = getTopItem(windowPayload.top_keywords, "keyword");
+  const topSection = getTopItem(windowPayload.top_sections, "label");
   refs.status.textContent =
-    `Lifetime articles ${formatNumber(payload.lifetime_total_articles)}, ` +
-    `window articles ${formatNumber(windowPayload.article_count)}, ` +
-    `unknown-time lifetime ${formatNumber(payload.lifetime_unknown_time_count)}, ` +
-    `recent detail retention ${formatNumber(payload.retention_days)} days`;
+    `${windowPayload.label} 동안 기사 ${formatNumber(windowPayload.article_count)}건, ` +
+    `출처 ${formatNumber(windowPayload.active_source_count)}곳, ` +
+    `반복 제목 ${formatNumber(windowPayload.repeated_title_count)}건. ` +
+    `상위 출처 ${topSource?.label || "-"}, 상위 키워드 ${topKeyword?.label || "-"}, ` +
+    `핵심 섹션 ${topSection?.label || "-"}.`;
 }
 
 function renderKpis() {
@@ -132,36 +187,109 @@ function renderKpis() {
     return;
   }
 
+  const timelineItems = windowPayload.timeline || [];
+  const peakTimeline = timelineItems.reduce(
+    (best, item) => (Number(item.count || 0) > Number(best?.count || -1) ? item : best),
+    null,
+  );
+  const averagePerBucket = timelineItems.length
+    ? windowPayload.article_count / timelineItems.length
+    : windowPayload.article_count;
+
   const cards = [
     {
-      label: "Lifetime articles",
-      value: formatNumber(payload.lifetime_total_articles),
-      detail: "Cumulative analysis base",
-    },
-    {
-      label: `${windowPayload.label} article count`,
+      label: `${windowPayload.label} articles`,
       value: formatNumber(windowPayload.article_count),
-      detail: "Current window coverage",
+      detail: `Lifetime ${formatCompactNumber(payload.lifetime_total_articles)}`,
+      emphasis: true,
     },
     {
       label: "Active sources",
       value: formatNumber(windowPayload.active_source_count),
-      detail: "Distinct sources in window",
+      detail: "Distinct publishers in this window",
     },
     {
       label: "Repeated titles",
       value: formatNumber(windowPayload.repeated_title_count),
-      detail: "Same normalized headline hash",
+      detail: "Headline clusters worth checking",
+    },
+    {
+      label: "Peak interval",
+      value: formatNumber(peakTimeline?.count || 0),
+      detail: peakTimeline ? formatDate(peakTimeline.date) : "No peak detected",
+    },
+    {
+      label: "Average per bucket",
+      value: formatDecimal(averagePerBucket),
+      detail: `${formatNumber(timelineItems.length)} timeline buckets`,
     },
   ];
 
   refs.kpis.innerHTML = cards
     .map(
       (card) => `
-        <article class="analysis-kpi">
+        <article class="analysis-kpi${card.emphasis ? " analysis-kpi-primary" : ""}">
           <p class="analysis-kpi-label">${escapeHtml(card.label)}</p>
           <strong class="analysis-kpi-value">${escapeHtml(card.value)}</strong>
           <p class="analysis-kpi-detail">${escapeHtml(card.detail)}</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderSnapshotCards() {
+  const windowPayload = getWindowPayload();
+  if (!windowPayload) {
+    refs.snapshot.innerHTML = '<div class="analysis-empty compact-empty">No insight notes available.</div>';
+    return;
+  }
+
+  const leadSource = getTopItem(windowPayload.top_sources, "name");
+  const leadKeyword = getTopItem(windowPayload.top_keywords, "keyword");
+  const leadHub = getTopItem(windowPayload.top_hubs, "label");
+  const leadLanguage = getTopItem(windowPayload.language_counts, "language");
+
+  const cards = [
+    {
+      label: "Lead source",
+      value: leadSource?.label || "-",
+      detail: `${formatNumber(leadSource?.count || 0)} articles`,
+    },
+    {
+      label: "Lead keyword",
+      value: leadKeyword?.label || "-",
+      detail: `${formatNumber(leadKeyword?.count || 0)} mentions`,
+    },
+    {
+      label: "Lead hub",
+      value: leadHub?.label || "-",
+      detail: `${formatNumber(leadHub?.count || 0)} articles`,
+    },
+    {
+      label: "Lead language",
+      value: String(leadLanguage?.label || "-").toUpperCase(),
+      detail: `${formatNumber(leadLanguage?.count || 0)} articles`,
+    },
+    {
+      label: "Undated lifetime",
+      value: formatNumber(payload.lifetime_unknown_time_count),
+      detail: "Articles without a timestamp",
+    },
+    {
+      label: "Retention",
+      value: `${formatNumber(payload.retention_days)}d`,
+      detail: "Detailed history kept for review",
+    },
+  ];
+
+  refs.snapshot.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="analysis-snapshot-card">
+          <p class="analysis-snapshot-label">${escapeHtml(card.label)}</p>
+          <strong class="analysis-snapshot-value">${escapeHtml(card.value)}</strong>
+          <p class="analysis-snapshot-detail">${escapeHtml(card.detail)}</p>
         </article>
       `,
     )
@@ -177,48 +305,90 @@ function renderTimeline() {
     return;
   }
 
-  const maxCount = Math.max(...items.map((item) => item.count), 1);
+  const maxCount = Math.max(...items.map((item) => Number(item.count || 0)), 1);
+  const averageCount = items.reduce((sum, item) => sum + Number(item.count || 0), 0) / items.length;
+  const averageHeight = Math.max(8, Math.round((averageCount / maxCount) * 100));
+  const peakCount = Math.max(...items.map((item) => Number(item.count || 0)), 0);
+  const peakItem = items.find((item) => Number(item.count || 0) === peakCount) || items[0];
   const labelStep = Math.max(1, Math.ceil(items.length / 8));
+
   refs.timeline.innerHTML = `
-    <div class="timeline-bars">
-      ${items
-        .map((item, index) => {
-          const height = Math.max(8, Math.round((item.count / maxCount) * 100));
-          const label = index % labelStep === 0 || index === items.length - 1
-            ? formatDate(item.date)
-            : "";
-          return `
-            <div class="timeline-bar-item">
-              <span class="timeline-bar-count">${formatNumber(item.count)}</span>
-              <div class="timeline-bar-track">
-                <div class="timeline-bar-fill" style="height:${height}%"></div>
+    <div class="analysis-timeline-shell">
+      <div class="analysis-timeline-summary">
+        <div class="analysis-timeline-stat">
+          <span>Peak day</span>
+          <strong>${escapeHtml(formatDate(peakItem.date))}</strong>
+          <small>${escapeHtml(formatNumber(peakCount))} articles</small>
+        </div>
+        <div class="analysis-timeline-stat">
+          <span>Average</span>
+          <strong>${escapeHtml(formatDecimal(averageCount))}</strong>
+          <small>articles per bucket</small>
+        </div>
+        <div class="analysis-timeline-stat">
+          <span>Coverage</span>
+          <strong>${escapeHtml(formatNumber(items.length))}</strong>
+          <small>timeline points in this window</small>
+        </div>
+      </div>
+      <div class="timeline-bars">
+        ${items
+          .map((item, index) => {
+            const numericCount = Number(item.count || 0);
+            const height = Math.max(10, Math.round((numericCount / maxCount) * 100));
+            const label = index % labelStep === 0 || index === items.length - 1
+              ? formatDate(item.date)
+              : "";
+            const isPeak = numericCount === peakCount;
+            return `
+              <div class="timeline-bar-item">
+                <span class="timeline-bar-count">${escapeHtml(formatNumber(numericCount))}</span>
+                <div class="timeline-bar-track">
+                  <span class="timeline-bar-average" style="bottom:${averageHeight}%"></span>
+                  <div class="timeline-bar-fill${isPeak ? " is-peak" : ""}" style="height:${height}%"></div>
+                </div>
+                <span class="timeline-bar-label">${escapeHtml(label)}</span>
               </div>
-              <span class="timeline-bar-label">${escapeHtml(label)}</span>
-            </div>
-          `;
-        })
-        .join("")}
+            `;
+          })
+          .join("")}
+      </div>
     </div>
   `;
 }
 
-function renderRankList(container, items, valueKey, labelKey, emptyMessage) {
+function renderRankList(
+  container,
+  items,
+  valueKey,
+  labelKey,
+  emptyMessage,
+  options = {},
+) {
   if (!items.length) {
     container.innerHTML = `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
     return;
   }
+
   const maxValue = Math.max(...items.map((item) => Number(item[valueKey] || 0)), 1);
+  const formatValue = options.formatValue || ((value) => formatNumber(value));
+  const subtitleKey = options.subtitleKey || null;
+
   container.innerHTML = `
     <div class="analysis-rank-list">
       ${items
         .map((item) => {
           const value = Number(item[valueKey] || 0);
           const width = Math.max(12, Math.round((value / maxValue) * 100));
+          const subtitle = subtitleKey ? item[subtitleKey] : "";
           return `
             <div class="analysis-rank-row">
               <div class="analysis-rank-copy">
-                <strong>${escapeHtml(item[labelKey] || "-")}</strong>
-                <span>${escapeHtml(formatNumber(value))}</span>
+                <div class="analysis-rank-copy-main">
+                  <strong>${escapeHtml(item[labelKey] || "-")}</strong>
+                  ${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ""}
+                </div>
+                <span>${escapeHtml(formatValue(value))}</span>
               </div>
               <div class="analysis-rank-track">
                 <div class="analysis-rank-fill" style="width:${width}%"></div>
@@ -240,6 +410,9 @@ function renderSections() {
       '<div class="analysis-empty">No hub or section data available.</div>';
     return;
   }
+
+  const hubMax = Math.max(...hubs.map((entry) => Number(entry.count || 0)), 1);
+  const sectionMax = Math.max(...sections.map((entry) => Number(entry.count || 0)), 1);
   refs.sections.innerHTML = `
     <div class="analysis-split-list">
       <section>
@@ -247,21 +420,19 @@ function renderSections() {
         ${hubs.length ? "" : '<div class="analysis-empty compact-empty">No data</div>'}
         <div class="analysis-rank-list">
           ${hubs
-            .map((item) => {
-              const maxCount = Math.max(...hubs.map((entry) => entry.count), 1);
-              const width = Math.max(12, Math.round((item.count / maxCount) * 100));
-              return `
+            .map(
+              (item) => `
                 <div class="analysis-rank-row">
                   <div class="analysis-rank-copy">
                     <strong>${escapeHtml(item.label)}</strong>
                     <span>${escapeHtml(formatNumber(item.count))}</span>
                   </div>
                   <div class="analysis-rank-track">
-                    <div class="analysis-rank-fill" style="width:${width}%"></div>
+                    <div class="analysis-rank-fill" style="width:${Math.max(12, Math.round((Number(item.count || 0) / hubMax) * 100))}%"></div>
                   </div>
                 </div>
-              `;
-            })
+              `,
+            )
             .join("")}
         </div>
       </section>
@@ -270,21 +441,19 @@ function renderSections() {
         ${sections.length ? "" : '<div class="analysis-empty compact-empty">No data</div>'}
         <div class="analysis-rank-list">
           ${sections
-            .map((item) => {
-              const maxCount = Math.max(...sections.map((entry) => entry.count), 1);
-              const width = Math.max(12, Math.round((item.count / maxCount) * 100));
-              return `
+            .map(
+              (item) => `
                 <div class="analysis-rank-row">
                   <div class="analysis-rank-copy">
                     <strong>${escapeHtml(item.label)}</strong>
                     <span>${escapeHtml(formatNumber(item.count))}</span>
                   </div>
                   <div class="analysis-rank-track">
-                    <div class="analysis-rank-fill" style="width:${width}%"></div>
+                    <div class="analysis-rank-fill" style="width:${Math.max(12, Math.round((Number(item.count || 0) / sectionMax) * 100))}%"></div>
                   </div>
                 </div>
-              `;
-            })
+              `,
+            )
             .join("")}
         </div>
       </section>
@@ -372,16 +541,12 @@ function renderSamplesTable() {
   `;
 }
 
-function renderFocusPanels() {
-  refs.repeatedPanel.hidden = state.focusPanel !== "repeated";
-  refs.samplesPanel.hidden = state.focusPanel !== "samples";
-}
-
 function renderDashboard() {
   renderWindowTabs();
   renderFocusTabs();
   renderStatus();
   renderKpis();
+  renderSnapshotCards();
   renderTimeline();
   renderRankList(
     refs.keywords,
@@ -404,6 +569,9 @@ function renderDashboard() {
     "count",
     "language",
     "No language data available.",
+    {
+      formatValue: (value) => `${formatNumber(value)} articles`,
+    },
   );
   renderRepeatedTable();
   renderSamplesTable();
@@ -427,6 +595,7 @@ async function init() {
     const fallback = `<div class="analysis-empty">${message}</div>`;
     refs.focusTabs.innerHTML = "";
     refs.kpis.innerHTML = fallback;
+    refs.snapshot.innerHTML = fallback;
     refs.timeline.innerHTML = fallback;
     refs.keywords.innerHTML = fallback;
     refs.sources.innerHTML = fallback;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from newsbot.markets_builder import _build_crypto_dataset
+from newsbot.markets_builder import _build_heatmap_basis
 from newsbot.markets_builder import _build_korea_dataset
 from newsbot.config import Settings
 from newsbot.markets_builder import _build_stocks_dataset
@@ -146,6 +147,11 @@ def test_build_markets_bundle_computes_overview_and_news_rail():
             {"label": "Layer 1", "subLabel": "$500.0B", "change_pct": 2.1, "size": 3, "detail_url": "https://example.com/l1"},
             {"label": "Meme", "subLabel": "$80.0B", "change_pct": -1.0, "size": 1, "detail_url": "https://example.com/meme"},
         ],
+        heatmap_basis=_build_heatmap_basis(
+            size_label="volume share",
+            color_label="24H change",
+            source_label="Binance spot market map",
+        ),
         trending=[{"symbol": "BTC", "name": "Bitcoin", "market_cap_rank": 1, "detail_url": "https://example.com/btc"}],
         generated_at="2026-04-04T00:00:00+00:00",
         provider="coingecko",
@@ -358,6 +364,7 @@ def test_build_crypto_dataset_keeps_rows_when_aux_calls_fail():
         ],
         categories_fetcher=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("categories blocked")),
         trending_fetcher=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("trending blocked")),
+        binance_tickers_fetcher=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("binance blocked")),
     )
 
     assert payload["status"] == "ok"
@@ -367,6 +374,70 @@ def test_build_crypto_dataset_keeps_rows_when_aux_calls_fail():
     assert payload["trending"][0]["symbol"] == "ARCH"
     assert "categories blocked" in payload["message"]
     assert "trending blocked" in payload["message"]
+    assert "binance blocked" in payload["message"]
+
+
+def test_build_crypto_dataset_uses_binance_volume_share_heatmap():
+    settings = Settings(
+        bootstrap_on_startup=False,
+        enable_scheduler=False,
+        telegram_input_enabled=False,
+        static_output_dir="site-dist",
+        markets_enabled=True,
+        coingecko_api_key=None,
+    )
+
+    payload = _build_crypto_dataset(
+        settings,
+        generated_at="2026-04-04T00:00:00+00:00",
+        archive_data=None,
+        market_rows_fetcher=lambda *_args, **_kwargs: [
+            {
+                "id": "bitcoin",
+                "symbol": "btc",
+                "name": "Bitcoin",
+                "current_price": 68000,
+                "price_change_percentage_24h": 2.5,
+                "market_cap": 1_300_000_000_000,
+                "total_volume": 25_000_000_000,
+                "last_updated": "2026-04-04T00:00:00.000Z",
+                "high_24h": 69000,
+                "low_24h": 66000,
+            },
+            {
+                "id": "ethereum",
+                "symbol": "eth",
+                "name": "Ethereum",
+                "current_price": 3200,
+                "price_change_percentage_24h": -1.2,
+                "market_cap": 400_000_000_000,
+                "total_volume": 18_000_000_000,
+                "last_updated": "2026-04-04T00:00:00.000Z",
+                "high_24h": 3300,
+                "low_24h": 3100,
+            },
+        ],
+        categories_fetcher=lambda *_args, **_kwargs: [],
+        trending_fetcher=lambda *_args, **_kwargs: [],
+        binance_tickers_fetcher=lambda *_args, **_kwargs: [
+            {
+                "symbol": "BTCUSDT",
+                "quoteVolume": "9000000000",
+                "priceChangePercent": "4.25",
+            },
+            {
+                "symbol": "ETHUSDT",
+                "quoteVolume": "3000000000",
+                "priceChangePercent": "-2.10",
+            },
+        ],
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["heatmap_basis"]["source_label"] == "Binance spot market map"
+    assert payload["heatmap"][0]["label"] == "BTC"
+    assert payload["heatmap"][0]["share_pct"] > payload["heatmap"][1]["share_pct"]
+    assert payload["heatmap"][0]["metric_display"].endswith("volume share")
 
 
 def test_build_stocks_dataset_reuses_archive_when_fallback_fails():
