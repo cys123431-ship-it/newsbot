@@ -54,7 +54,9 @@ const SCANNER_FILTERS = [
 ];
 
 const SCANNER_STORAGE_KEY = "newsbot-scanner-refresh-cooldown";
+const SCANNER_LAST_LOADED_KEY = "newsbot-scanner-last-loaded-at";
 const SCANNER_COOLDOWN_MS = 45_000;
+const SEOUL_TIMEZONE = "Asia/Seoul";
 
 const state = {
   surface: MAIN_TABS.some((tab) => tab.key === marketsBootstrap.initial_surface)
@@ -69,6 +71,7 @@ const state = {
     timeframe: "5m",
     filter: "all",
     cooldownUntil: Number.parseInt(localStorage.getItem(SCANNER_STORAGE_KEY) || "0", 10) || 0,
+    lastLoadedAt: Number.parseInt(localStorage.getItem(SCANNER_LAST_LOADED_KEY) || "0", 10) || 0,
   },
 };
 
@@ -98,6 +101,22 @@ function formatCompact(value) {
 function formatPercent(value) {
   const numeric = toNumber(value);
   return `${numeric > 0 ? "+" : ""}${numeric.toFixed(2)}%`;
+}
+
+function formatSeoulDateTime(value) {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${new Intl.DateTimeFormat("ko-KR", {
+    timeZone: SEOUL_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date)} KST`;
 }
 
 function formatTickerPrice(value) {
@@ -444,6 +463,11 @@ function setScannerCooldown() {
   localStorage.setItem(SCANNER_STORAGE_KEY, String(state.scanner.cooldownUntil));
 }
 
+function setScannerLoadedAt(timestamp = Date.now()) {
+  state.scanner.lastLoadedAt = timestamp;
+  localStorage.setItem(SCANNER_LAST_LOADED_KEY, String(timestamp));
+}
+
 function updateScannerCooldownUI() {
   if (!refs.scannerRefreshButton || !refs.scannerCooldownText) return;
   const remaining = state.scanner.cooldownUntil - Date.now();
@@ -523,6 +547,41 @@ function renderScannerSummary() {
       ? `상태: [${formatCountLabel(snapshot)}] 데이터 스캔 완료 · ${snapshot.generated_at}`
       : "스냅샷을 불러오는 중입니다.";
   }
+  if (refs.scannerProgressBar) {
+    const universe = (manifest?.universe_presets || []).find((item) => item.key === state.scanner.universeKey);
+    const total = Number(universe?.limit || snapshot?.symbols_scanned || 1);
+    const progress = Math.min(((snapshot?.symbols_scanned || 0) / Math.max(total, 1)) * 100, 100);
+    refs.scannerProgressBar.style.width = `${progress}%`;
+  }
+}
+
+function renderScannerSummary() {
+  const manifest = state.scanner.manifest;
+  const snapshot = scannerSelectedSnapshot();
+  const dataTimestamp = snapshot?.generated_at || manifest?.generated_at || "";
+  const loadedTimestamp = state.scanner.lastLoadedAt;
+
+  if (refs.scannerSummaryMeta) {
+    refs.scannerSummaryMeta.innerHTML = manifest
+      ? `<span class="scanner-summary-pill">데이터 기준(한국시간) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
+         <span class="scanner-summary-pill">불러온 시각(한국시간) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
+         <span class="scanner-summary-pill">전체 결과 ${escapeHtml(String(manifest.total_results || 0))}</span>
+         <span class="scanner-summary-pill">대상 ${escapeHtml(String(manifest.symbols_scanned || 0))}개</span>`
+      : "";
+  }
+
+  if (refs.scannerActiveScan) {
+    refs.scannerActiveScan.innerHTML = snapshot
+      ? `<span class="scanner-active-pill">최근 배치 스캔 기준 · ${escapeHtml(snapshot.timeframe_label || state.scanner.timeframe)}</span>`
+      : "";
+  }
+
+  if (refs.scannerStatusLine) {
+    refs.scannerStatusLine.textContent = snapshot
+      ? `상태: [${formatCountLabel(snapshot)}] 데이터 기준 ${formatSeoulDateTime(dataTimestamp)} · 이 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔습니다.`
+      : "스냅샷을 불러오는 중입니다.";
+  }
+
   if (refs.scannerProgressBar) {
     const universe = (manifest?.universe_presets || []).find((item) => item.key === state.scanner.universeKey);
     const total = Number(universe?.limit || snapshot?.symbols_scanned || 1);
@@ -694,6 +753,7 @@ async function loadScannerSnapshot({ bust = false } = {}) {
     return;
   }
   state.scanner.snapshot = await loadJson(snapshotPath, { bust });
+  setScannerLoadedAt();
   renderScanner();
 }
 
