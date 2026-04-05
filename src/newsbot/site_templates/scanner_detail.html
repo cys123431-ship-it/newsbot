@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ page_title }}</title>
+    <meta name="description" content="{{ page_description }}" />
+    <link rel="stylesheet" href="{{ asset_prefix }}/style.css" />
+  </head>
+  <body class="public-app market-crypto-page scanner-detail-page">
+    <nav class="surface-switcher" aria-label="View switcher">
+      {% for item in nav_links %}
+      <a class="surface-link {% if item.key == 'crypto' %}is-active{% endif %}" href="{{ item.href }}">
+        {{ item.label }}
+      </a>
+      {% endfor %}
+    </nav>
+
+    <main class="scanner-detail-shell">
+      <section class="scanner-detail-hero">
+        <div class="scanner-detail-copy">
+          <p class="analysis-eyebrow">Pattern Detail</p>
+          <h1>{{ detail.symbol }} · {{ detail.pattern }}</h1>
+          <p>{{ detail.summary }}</p>
+        </div>
+        <div class="scanner-detail-actions">
+          <a class="scanner-link-button" href="{{ back_href }}">스캐너로 돌아가기</a>
+          <a class="scanner-link-button is-muted" href="{{ external_links.binance }}" target="_blank" rel="noopener noreferrer">Binance</a>
+          <a class="scanner-link-button is-muted" href="{{ external_links.tradingview }}" target="_blank" rel="noopener noreferrer">TradingView</a>
+        </div>
+      </section>
+
+      <section class="scanner-detail-grid">
+        <article class="scanner-detail-card scanner-detail-chart">
+          <div class="scanner-detail-card-head">
+            <span>{{ detail.status_label }}</span>
+            <strong>Score {{ detail.score }}</strong>
+          </div>
+          <img class="scanner-detail-image" src="{{ preview_src }}" alt="{{ detail.symbol }} pattern preview" />
+        </article>
+
+        <article class="scanner-detail-card">
+          <div class="scanner-detail-card-head">
+            <span>Pattern Meta</span>
+            <strong>{{ detail.side_label }}</strong>
+          </div>
+          <dl class="scanner-metric-list">
+            <div><dt>타임프레임</dt><dd>{{ detail.timeframe_label }}</dd></div>
+            <div><dt>현재가</dt><dd>{{ detail.last_price }}</dd></div>
+            <div><dt>24h 변동률</dt><dd>{{ detail.change_24h }}%</dd></div>
+            <div><dt>PRZ</dt><dd>{{ detail.prz.lower }} ~ {{ detail.prz.upper }}</dd></div>
+            <div><dt>TP1 / TP2</dt><dd>{{ detail.targets.tp1 }} / {{ detail.targets.tp2 }}</dd></div>
+            <div><dt>손절</dt><dd>{{ detail.stop.value }} ({{ detail.stop.label }})</dd></div>
+          </dl>
+        </article>
+
+        <article class="scanner-detail-card">
+          <div class="scanner-detail-card-head">
+            <span>XABCD</span>
+            <strong>좌표와 비율</strong>
+          </div>
+          <div class="scanner-point-grid">
+            {% for label, point in detail.points.items() %}
+            <div class="scanner-point-cell">
+              <span>{{ label }}</span>
+              <strong>{{ point.price }}</strong>
+              <small>{{ point.timestamp }}</small>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="scanner-ratio-grid">
+            {% for label, value in detail.ratios.items() %}
+            <div class="scanner-ratio-cell">
+              <span>{{ label|upper }}</span>
+              <strong>{{ value }}</strong>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="scanner-detail-card">
+          <div class="scanner-detail-card-head">
+            <span>Indicator Flags</span>
+            <strong>{{ snapshot.timeframe_label }} 스냅샷</strong>
+          </div>
+          <div class="scanner-flag-list">
+            {% for flag in detail.indicator_flags %}
+            <div class="scanner-flag-row">
+              <div>
+                <strong>{{ flag.label }}</strong>
+                <p>{{ flag.note }}</p>
+              </div>
+              <span class="scanner-flag-pill {{ 'is-pass' if flag.status == 'pass' else '' }}">{{ flag.value }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

@@ -18,6 +18,7 @@ from pathlib import Path
 import re
 import shutil
 from typing import Any
+from typing import TypedDict
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -54,13 +55,22 @@ from newsbot.text_tools import strip_html
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = PACKAGE_DIR.parent.parent
 SITE_TEMPLATE_DIR = PACKAGE_DIR / "site_templates"
 SITE_ASSET_DIR = PACKAGE_DIR / "site_assets"
+PUBLIC_DATA_DIR = REPO_ROOT / "public" / "data"
+PUBLIC_GENERATED_DIR = REPO_ROOT / "public" / "generated"
+PUBLIC_SCANNER_DATA_DIR = PUBLIC_DATA_DIR / "scanner"
+PUBLIC_SCANNER_GENERATED_DIR = PUBLIC_GENERATED_DIR / "scanner"
 REMOVED_ARTICLES_LOG_FILENAME = "removed-articles.txt"
 ANALYSIS_STATE_FILENAME = "analysis-state.json"
 ANALYSIS_DASHBOARD_FILENAME = "analysis-dashboard.json"
 ANALYSIS_DIRECTORY_NAME = "analysis"
 ANALYSIS_RETENTION_DAYS = 90
+MARKET_DATA_FILENAME = "market.json"
+SCANNER_MANIFEST_FILENAME = "manifest.json"
+SCANNER_DIRECTORY_NAME = "scanner"
+SCANNER_DETAIL_DIRECTORY_NAME = "patterns"
 STATIC_FEED_PAGE_SIZE = 12
 ANALYSIS_TOP_ITEM_LIMIT = 12
 ANALYSIS_REPEAT_LIMIT = 20
@@ -125,9 +135,232 @@ _FEATURED_PRIORITY_BY_SCOPE = {
 }
 
 
+class MarketPageSpec(TypedDict):
+    surface: str
+    surface_label: str
+    output_dir: str
+    asset_prefix: str
+    data_prefix: str
+    page_title: str
+    page_description: str
+    body_class: str
+    show_market_map: bool
+    nav_links: list[dict[str, str]]
+    surface_links: list[dict[str, str]]
+
+
+def _build_market_nav_links(
+    *,
+    news_href: str,
+    analysis_href: str,
+    us_href: str,
+    korea_href: str,
+    crypto_href: str,
+) -> list[dict[str, str]]:
+    return [
+        {"key": "news", "label": "News", "href": news_href},
+        {"key": "analysis", "label": "Analysis", "href": analysis_href},
+        {"key": "us", "label": "미국주식", "href": us_href},
+        {"key": "korea", "label": "한국주식", "href": korea_href},
+        {"key": "crypto", "label": "코인", "href": crypto_href},
+    ]
+
+
+def _build_market_surface_links(
+    *,
+    us_href: str,
+    korea_href: str,
+    crypto_href: str,
+) -> list[dict[str, str]]:
+    return [
+        {"key": "us", "label": "미국주식", "href": us_href},
+        {"key": "korea", "label": "한국주식", "href": korea_href},
+        {"key": "crypto", "label": "코인", "href": crypto_href},
+    ]
+
+
+def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
+    return (
+        {
+            "surface": "crypto",
+            "surface_label": "코인",
+            "output_dir": MARKETS_DIRECTORY_NAME,
+            "asset_prefix": "../assets",
+            "data_prefix": "../data",
+            "page_title": "newsbot markets | 코인",
+            "page_description": "newsbot crypto dashboard shell inspired by Coinglass",
+            "body_class": "market-crypto-page",
+            "show_market_map": False,
+            "nav_links": _build_market_nav_links(
+                news_href="../",
+                analysis_href="../analysis/",
+                us_href="us/",
+                korea_href="korea/",
+                crypto_href="crypto/",
+            ),
+            "surface_links": _build_market_surface_links(
+                us_href="us/",
+                korea_href="korea/",
+                crypto_href="crypto/",
+            ),
+        },
+        {
+            "surface": "us",
+            "surface_label": "미국주식",
+            "output_dir": f"{MARKETS_DIRECTORY_NAME}/us",
+            "asset_prefix": "../../assets",
+            "data_prefix": "../../data",
+            "page_title": "newsbot markets | 미국주식",
+            "page_description": "newsbot US stock market map",
+            "body_class": "market-map-page",
+            "show_market_map": True,
+            "nav_links": _build_market_nav_links(
+                news_href="../../",
+                analysis_href="../../analysis/",
+                us_href="./",
+                korea_href="../korea/",
+                crypto_href="../crypto/",
+            ),
+            "surface_links": _build_market_surface_links(
+                us_href="./",
+                korea_href="../korea/",
+                crypto_href="../crypto/",
+            ),
+        },
+        {
+            "surface": "korea",
+            "surface_label": "한국주식",
+            "output_dir": f"{MARKETS_DIRECTORY_NAME}/korea",
+            "asset_prefix": "../../assets",
+            "data_prefix": "../../data",
+            "page_title": "newsbot markets | 한국주식",
+            "page_description": "newsbot Korean stock market map",
+            "body_class": "market-map-page",
+            "show_market_map": True,
+            "nav_links": _build_market_nav_links(
+                news_href="../../",
+                analysis_href="../../analysis/",
+                us_href="../us/",
+                korea_href="./",
+                crypto_href="../crypto/",
+            ),
+            "surface_links": _build_market_surface_links(
+                us_href="../us/",
+                korea_href="./",
+                crypto_href="../crypto/",
+            ),
+        },
+        {
+            "surface": "crypto",
+            "surface_label": "코인",
+            "output_dir": f"{MARKETS_DIRECTORY_NAME}/crypto",
+            "asset_prefix": "../../assets",
+            "data_prefix": "../../data",
+            "page_title": "newsbot markets | 코인",
+            "page_description": "newsbot crypto dashboard shell inspired by Coinglass",
+            "body_class": "market-crypto-page",
+            "show_market_map": False,
+            "nav_links": _build_market_nav_links(
+                news_href="../../",
+                analysis_href="../../analysis/",
+                us_href="../us/",
+                korea_href="../korea/",
+                crypto_href="./",
+            ),
+            "surface_links": _build_market_surface_links(
+                us_href="../us/",
+                korea_href="../korea/",
+                crypto_href="./",
+            ),
+        },
+    )
+
+
 def _clean_display_text(value: Any, *, fallback: str = "") -> str:
     cleaned = strip_html(str(value or ""))
     return cleaned or fallback
+
+
+def _load_public_market_snapshot() -> dict[str, Any]:
+    source_path = PUBLIC_DATA_DIR / MARKET_DATA_FILENAME
+    if not source_path.exists():
+        return {
+            "generated_at": None,
+            "source": "static",
+            "tickers": [],
+            "overview": {},
+        }
+    try:
+        return json.loads(source_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            "generated_at": None,
+            "source": "static",
+            "tickers": [],
+            "overview": {},
+        }
+
+
+def _load_public_scanner_manifest() -> dict[str, Any]:
+    source_path = PUBLIC_SCANNER_DATA_DIR / SCANNER_MANIFEST_FILENAME
+    if not source_path.exists():
+        return {
+            "generated_at": None,
+            "market": "binance-usdt-perpetual",
+            "universe_presets": [],
+            "timeframes": [],
+            "symbols_scanned": 0,
+            "total_results": 0,
+            "status_counts": {},
+            "snapshots": [],
+        }
+    try:
+        payload = json.loads(source_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            "generated_at": None,
+            "market": "binance-usdt-perpetual",
+            "universe_presets": [],
+            "timeframes": [],
+            "symbols_scanned": 0,
+            "total_results": 0,
+            "status_counts": {},
+            "snapshots": [],
+        }
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_public_scanner_snapshots(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
+    for entry in manifest.get("snapshots", []):
+        if not isinstance(entry, dict):
+            continue
+        relative_path = str(entry.get("path") or "").strip()
+        if not relative_path:
+            continue
+        source_path = PUBLIC_SCANNER_DATA_DIR / relative_path
+        if not source_path.exists():
+            continue
+        try:
+            payload = json.loads(source_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            snapshots.append(payload)
+    return snapshots
+
+
+def _copy_directory_contents(source_dir: Path, destination_dir: Path) -> None:
+    if not source_dir.exists():
+        return
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    for source_path in source_dir.rglob("*"):
+        if not source_path.is_file():
+            continue
+        relative_path = source_path.relative_to(source_dir)
+        target_path = destination_dir / relative_path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
 
 
 def _get_featured_priority_map(scope: str) -> dict[str, int]:
@@ -1808,13 +2041,22 @@ def _write_static_site(
     analysis_dashboard: dict[str, Any],
     markets_bundle: dict[str, dict[str, Any]],
 ) -> None:
+    market_page_specs = _build_market_page_specs()
+    crypto_page_spec = _resolve_crypto_page_spec(market_page_specs)
+    scanner_manifest = _load_public_scanner_manifest()
+    scanner_snapshots = _load_public_scanner_snapshots(scanner_manifest)
+
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "assets").mkdir(parents=True, exist_ok=True)
     (output_dir / "data").mkdir(parents=True, exist_ok=True)
+    (output_dir / "data" / SCANNER_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / ANALYSIS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / MARKETS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
+    (output_dir / "generated" / SCANNER_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
+    for page_spec in market_page_specs:
+        (output_dir / page_spec["output_dir"]).mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(SITE_ASSET_DIR / "style.css", output_dir / "assets" / "style.css")
     shutil.copy2(SITE_ASSET_DIR / "app.js", output_dir / "assets" / "app.js")
@@ -1858,21 +2100,8 @@ def _write_static_site(
         bootstrap_json=analysis_bootstrap_json,
     )
     markets_template = environment.get_template("markets.html")
-    markets_bootstrap_json = json.dumps(
-        {
-            "overview_url": "../data/" + MARKETS_OVERVIEW_FILENAME,
-            "stocks_url": "../data/" + MARKETS_STOCKS_FILENAME,
-            "korea_url": "../data/" + MARKETS_KOREA_FILENAME,
-            "crypto_url": "../data/" + MARKETS_CRYPTO_FILENAME,
-            "status_url": "../data/" + MARKETS_STATUS_FILENAME,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).replace("</", "<\\/")
-    markets_html = markets_template.render(
-        generated_at=payload["generated_at"],
-        bootstrap_json=markets_bootstrap_json,
-    )
+    _copy_directory_contents(PUBLIC_SCANNER_DATA_DIR, output_dir / "data" / SCANNER_DIRECTORY_NAME)
+    _copy_directory_contents(PUBLIC_SCANNER_GENERATED_DIR, output_dir / "generated" / SCANNER_DIRECTORY_NAME)
 
     (output_dir / "index.html").write_text(html, encoding="utf-8")
     (output_dir / "404.html").write_text(html, encoding="utf-8")
@@ -1880,9 +2109,43 @@ def _write_static_site(
         analysis_html,
         encoding="utf-8",
     )
-    (output_dir / MARKETS_DIRECTORY_NAME / "index.html").write_text(
-        markets_html,
-        encoding="utf-8",
+    for page_spec in market_page_specs:
+        markets_bootstrap_json = json.dumps(
+            {
+                "initial_surface": page_spec["surface"],
+                "surface_links": page_spec["surface_links"],
+                "scanner_manifest_url": page_spec["data_prefix"] + f"/{SCANNER_DIRECTORY_NAME}/{SCANNER_MANIFEST_FILENAME}",
+                "overview_url": page_spec["data_prefix"] + "/" + MARKETS_OVERVIEW_FILENAME,
+                "stocks_url": page_spec["data_prefix"] + "/" + MARKETS_STOCKS_FILENAME,
+                "korea_url": page_spec["data_prefix"] + "/" + MARKETS_KOREA_FILENAME,
+                "crypto_url": page_spec["data_prefix"] + "/" + MARKETS_CRYPTO_FILENAME,
+                "status_url": page_spec["data_prefix"] + "/" + MARKETS_STATUS_FILENAME,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).replace("</", "<\\/")
+        markets_html = markets_template.render(
+            generated_at=payload["generated_at"],
+            page_title=page_spec["page_title"],
+            page_description=page_spec["page_description"],
+            asset_prefix=page_spec["asset_prefix"],
+            body_class=page_spec["body_class"],
+            surface=page_spec["surface"],
+            surface_label=page_spec["surface_label"],
+            show_market_map=page_spec["show_market_map"],
+            nav_links=page_spec["nav_links"],
+            bootstrap_json=markets_bootstrap_json,
+        )
+        (output_dir / page_spec["output_dir"] / "index.html").write_text(
+            markets_html,
+            encoding="utf-8",
+        )
+    _write_scanner_detail_pages(
+        output_dir,
+        environment=environment,
+        generated_at=payload["generated_at"],
+        crypto_page_spec=crypto_page_spec,
+        scanner_snapshots=scanner_snapshots,
     )
     (output_dir / "data" / "site-data.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
@@ -2122,6 +2385,66 @@ def _build_removed_article_log(
         lines.append(article.canonical_url)
 
     return "\n".join(lines).strip() + "\n"
+
+
+def _resolve_crypto_page_spec(page_specs: tuple[MarketPageSpec, ...]) -> MarketPageSpec:
+    for page_spec in page_specs:
+        if page_spec["surface"] == "crypto" and page_spec["output_dir"] == f"{MARKETS_DIRECTORY_NAME}/crypto":
+            return page_spec
+    return page_specs[0]
+
+
+def _normalize_scanner_detail_href(path: str) -> str:
+    normalized = path.strip().lstrip("./")
+    if normalized.startswith("patterns/"):
+        return f"../{normalized}"
+    return normalized
+
+
+def _write_scanner_detail_pages(
+    output_dir: Path,
+    *,
+    environment: Environment,
+    generated_at: str,
+    crypto_page_spec: MarketPageSpec,
+    scanner_snapshots: list[dict[str, Any]],
+) -> None:
+    if not scanner_snapshots:
+        return
+
+    detail_template = environment.get_template("scanner_detail.html")
+    detail_nav_links = [
+        {"key": "news", "label": "News", "href": "../../../../"},
+        {"key": "analysis", "label": "Analysis", "href": "../../../../analysis/"},
+        {"key": "us", "label": "미국주식", "href": "../../../us/"},
+        {"key": "korea", "label": "한국주식", "href": "../../../korea/"},
+        {"key": "crypto", "label": "코인", "href": "../../../crypto/"},
+    ]
+    for snapshot in scanner_snapshots:
+        timeframe = str(snapshot.get("timeframe") or "").strip()
+        for result in snapshot.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            relative_detail_path = str(result.get("detail_page") or "").strip().rstrip("/")
+            if not relative_detail_path:
+                continue
+            detail_output_dir = output_dir / MARKETS_DIRECTORY_NAME / relative_detail_path
+            detail_output_dir.mkdir(parents=True, exist_ok=True)
+            detail_html = detail_template.render(
+                generated_at=generated_at,
+                page_title=f"{result.get('symbol', 'Scanner')} | {result.get('pattern', 'Pattern')}",
+                page_description=str(result.get("summary") or "Static scanner detail view"),
+                asset_prefix="../../../../assets",
+                nav_links=detail_nav_links,
+                back_href="../../../crypto/",
+                detail=result,
+                timeframe=timeframe,
+                snapshot=snapshot,
+                scanner_manifest_href="../../../../data/scanner/manifest.json",
+                preview_src="../../../../" + str(result.get("preview_image") or ""),
+                external_links=result.get("external_links", {}),
+            )
+            (detail_output_dir / "index.html").write_text(detail_html, encoding="utf-8")
 
 
 def main() -> None:

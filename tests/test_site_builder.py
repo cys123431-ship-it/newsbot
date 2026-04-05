@@ -15,7 +15,6 @@ from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import collect_site_payload
 from newsbot.site_builder import build_static_site
-from newsbot.site_builder import StaticArticle
 from newsbot.source_registry import SourceDefinition
 
 
@@ -232,6 +231,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "index.html").exists()
     assert (output_dir / "analysis" / "index.html").exists()
     assert (output_dir / "markets" / "index.html").exists()
+    assert (output_dir / "markets" / "us" / "index.html").exists()
+    assert (output_dir / "markets" / "korea" / "index.html").exists()
+    assert (output_dir / "markets" / "crypto" / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
     assert (output_dir / "data" / "site-data.json").exists()
     assert (output_dir / "data" / "analysis-state.json").exists()
@@ -241,6 +243,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "data" / "markets-korea.json").exists()
     assert (output_dir / "data" / "markets-crypto.json").exists()
     assert (output_dir / "data" / "markets-status.json").exists()
+    assert (output_dir / "data" / "scanner" / "manifest.json").exists()
+    assert (output_dir / "generated" / "scanner").exists()
     assert (output_dir / "data" / "removed-articles.txt").exists()
     html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="copy-all-button"' in html
@@ -264,7 +268,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'class="headline-stack"' in html
     assert 'class="news-side-rail"' in html
     assert 'href="analysis/"' in html
-    assert 'href="markets/"' in html
+    assert 'href="markets/us/"' in html
+    assert 'href="markets/korea/"' in html
+    assert 'href="markets/crypto/"' in html
 
     analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
     assert 'id="analysis-window-tabs"' in analysis_html
@@ -275,18 +281,55 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="analysis-repeated"' in analysis_html
     assert 'id="analysis-samples"' in analysis_html
     assert "../assets/analysis.js" in analysis_html
+    assert 'href="../markets/us/"' in analysis_html
+    assert 'href="../markets/korea/"' in analysis_html
+    assert 'href="../markets/crypto/"' in analysis_html
 
-    markets_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
-    assert 'id="markets-main-tabs"' in markets_html
-    assert 'id="markets-subfilter-tabs"' in markets_html
-    assert 'id="markets-treemap-board"' in markets_html
-    assert '"korea_url":"' in markets_html
-    assert "echarts.min.js" in markets_html
-    assert "../assets/markets.js" in markets_html
+    markets_alias_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
+    assert 'id="scanner-shell"' in markets_alias_html
+    assert 'id="scanner-universe-select"' in markets_alias_html
+    assert 'id="scanner-timeframe-select"' in markets_alias_html
+    assert 'id="scanner-refresh-button"' in markets_alias_html
+    assert 'id="scanner-filter-tabs"' in markets_alias_html
+    assert 'id="scanner-results"' in markets_alias_html
+    assert '"initial_surface":"crypto"' in markets_alias_html
+    assert '"surface_links":' in markets_alias_html
+    assert '"scanner_manifest_url":"' in markets_alias_html
+    assert "../assets/markets.js" in markets_alias_html
+
+    us_markets_html = (output_dir / "markets" / "us" / "index.html").read_text(encoding="utf-8")
+    assert 'id="markets-main-tabs"' in us_markets_html
+    assert 'id="markets-subfilter-tabs"' in us_markets_html
+    assert 'id="markets-treemap-board"' in us_markets_html
+    assert '"initial_surface":"us"' in us_markets_html
+    assert '"korea_url":"' in us_markets_html
+    assert "echarts.min.js" in us_markets_html
+    assert "../../assets/markets.js" in us_markets_html
+
+    korea_markets_html = (output_dir / "markets" / "korea" / "index.html").read_text(encoding="utf-8")
+    assert 'id="markets-main-tabs"' in korea_markets_html
+    assert 'id="markets-subfilter-tabs"' in korea_markets_html
+    assert 'id="markets-treemap-board"' in korea_markets_html
+    assert '"initial_surface":"korea"' in korea_markets_html
+    assert "../../assets/markets.js" in korea_markets_html
+
+    crypto_markets_html = (output_dir / "markets" / "crypto" / "index.html").read_text(encoding="utf-8")
+    assert 'id="scanner-shell"' in crypto_markets_html
+    assert 'id="scanner-universe-select"' in crypto_markets_html
+    assert 'id="scanner-timeframe-select"' in crypto_markets_html
+    assert 'id="scanner-refresh-button"' in crypto_markets_html
+    assert 'id="scanner-filter-tabs"' in crypto_markets_html
+    assert 'id="scanner-results"' in crypto_markets_html
+    assert '"initial_surface":"crypto"' in crypto_markets_html
+    assert '"scanner_manifest_url":"' in crypto_markets_html
+    assert "../../assets/markets.js" in crypto_markets_html
+
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
     assert "buildTreemapOption" in markets_js
     assert "buildTreemapHierarchy" in markets_js
-    assert "inferCryptoCategory" in markets_js
+    assert "loadScannerManifest" in markets_js
+    assert "renderScanner" in markets_js
+    assert "renderScannerResults" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -307,6 +350,19 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert markets_status["providers"]["stocks"]["status"] == "warning"
     assert markets_status["providers"]["korea"]["status"] == "warning"
     assert markets_status["providers"]["crypto"]["status"] == "warning"
+
+    scanner_manifest = _read_json(output_dir / "data" / "scanner" / "manifest.json")
+    assert scanner_manifest["snapshots"]
+    first_snapshot_path = (
+        output_dir / "data" / "scanner" / scanner_manifest["snapshots"][0]["path"]
+    )
+    first_snapshot = _read_json(first_snapshot_path)
+    assert first_snapshot["results"]
+    first_result = first_snapshot["results"][0]
+    assert first_result["preview_image"]
+    assert first_result["detail_page"]
+    detail_html_path = output_dir / "markets" / first_result["detail_page"] / "index.html"
+    assert detail_html_path.exists()
 
 
 def test_allow_static_candidate_blocks_pressian_urls():

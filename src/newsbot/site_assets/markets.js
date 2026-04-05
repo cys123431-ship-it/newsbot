@@ -1,8 +1,6 @@
-const marketsBootstrap = JSON.parse(
-  document.getElementById("markets-bootstrap").textContent,
-);
+const marketsBootstrap = JSON.parse(document.getElementById("markets-bootstrap").textContent);
 
-const marketsRefs = {
+const refs = {
   mainTabs: document.getElementById("markets-main-tabs"),
   subTabs: document.getElementById("markets-subfilter-tabs"),
   benchmarkStrip: document.getElementById("markets-benchmark-strip"),
@@ -10,126 +8,73 @@ const marketsRefs = {
   board: document.getElementById("markets-treemap-board"),
   legend: document.getElementById("markets-legend"),
   statusLine: document.getElementById("markets-status-line"),
+  scannerShell: document.getElementById("scanner-shell"),
+  scannerUniverseSelect: document.getElementById("scanner-universe-select"),
+  scannerTimeframeSelect: document.getElementById("scanner-timeframe-select"),
+  scannerRefreshButton: document.getElementById("scanner-refresh-button"),
+  scannerCooldownText: document.getElementById("scanner-cooldown-text"),
+  scannerStatusLine: document.getElementById("scanner-status-line"),
+  scannerProgressBar: document.getElementById("scanner-progress-bar"),
+  scannerSummaryMeta: document.getElementById("scanner-summary-meta"),
+  scannerActiveScan: document.getElementById("scanner-active-scan"),
+  scannerFilterTabs: document.getElementById("scanner-filter-tabs"),
+  scannerResults: document.getElementById("scanner-results"),
 };
 
 const MAIN_TABS = [
-  { key: "korea", label: "한국 증시" },
-  { key: "us", label: "미국 증시" },
-  { key: "crypto", label: "암호화폐" },
+  { key: "us", label: "미국주식" },
+  { key: "korea", label: "한국주식" },
+  { key: "crypto", label: "코인" },
 ];
 
 const SUBFILTERS = {
-  korea: [
-    { key: "kospi", label: "KOSPI" },
-    { key: "kosdaq", label: "KOSDAQ" },
-  ],
+  korea: [{ key: "kospi", label: "KOSPI" }, { key: "kosdaq", label: "KOSDAQ" }],
   us: [
     { key: "sp500", label: "S&P 500" },
     { key: "nasdaq", label: "NASDAQ" },
     { key: "dow", label: "Dow Jones" },
     { key: "russell", label: "Russell 2000" },
   ],
-  crypto: [
-    { key: "all", label: "전체 코인" },
-    { key: "layer1", label: "Layer 1" },
-    { key: "defi", label: "DeFi" },
-    { key: "meme", label: "Meme" },
-    { key: "exchange", label: "거래소" },
-  ],
 };
 
-const US_INDEX_PROXY_SYMBOLS = {
-  sp500: "SPY",
-  nasdaq: "QQQ",
-  dow: "DIA",
-  russell: "IWM",
-};
-
+const US_INDEX_PROXY_SYMBOLS = { sp500: "SPY", nasdaq: "QQQ", dow: "DIA", russell: "IWM" };
 const US_INDEX_HEADLINES = {
-  sp500: "S&P 500 전체 시가총액 대비 비중",
-  nasdaq: "NASDAQ 전체 시가총액 대비 비중",
+  sp500: "S&P 500 시가총액 비중",
+  nasdaq: "NASDAQ 시가총액 비중",
   dow: "Dow 30 구성 종목 비중",
-  russell: "Russell 2000 대표 구성 종목 비중",
+  russell: "Russell 2000 구성 종목 비중",
 };
 
-const CRYPTO_CATEGORY_META = {
-  all: { label: "전체 코인" },
-  store: { label: "가치 저장" },
-  layer1: { label: "Layer 1" },
-  defi: { label: "DeFi" },
-  meme: { label: "Meme" },
-  exchange: { label: "거래소" },
-  payments: { label: "결제" },
-  scaling: { label: "스케일링" },
-  ai: { label: "AI" },
-  alt: { label: "기타" },
-};
+const SCANNER_FILTERS = [
+  { key: "all", label: "전체" },
+  { key: "forming", label: "실시간 진입" },
+  { key: "touch", label: "실시간 터치" },
+  { key: "tbar_complete", label: "T-Bar 완성" },
+  { key: "complete", label: "일반 완성" },
+];
 
-const CRYPTO_CATEGORY_LOOKUP = {
-  BTC: "store",
-  WBTC: "store",
-  ETH: "layer1",
-  SOL: "layer1",
-  ADA: "layer1",
-  AVAX: "layer1",
-  DOT: "layer1",
-  ATOM: "layer1",
-  TIA: "layer1",
-  SUI: "layer1",
-  APT: "layer1",
-  SEI: "layer1",
-  TON: "layer1",
-  NEAR: "layer1",
-  TRX: "layer1",
-  BNB: "exchange",
-  CRO: "exchange",
-  OKB: "exchange",
-  UNI: "defi",
-  AAVE: "defi",
-  MKR: "defi",
-  ONDO: "defi",
-  PENDLE: "defi",
-  JUP: "defi",
-  RAY: "defi",
-  DYDX: "defi",
-  CAKE: "defi",
-  DOGE: "meme",
-  SHIB: "meme",
-  PEPE: "meme",
-  BONK: "meme",
-  WIF: "meme",
-  FLOKI: "meme",
-  XRP: "payments",
-  XLM: "payments",
-  LTC: "payments",
-  BCH: "payments",
-  ARB: "scaling",
-  OP: "scaling",
-  IMX: "scaling",
-  MNT: "scaling",
-  FET: "ai",
-  RENDER: "ai",
-  TAO: "ai",
-};
+const SCANNER_STORAGE_KEY = "newsbot-scanner-refresh-cooldown";
+const SCANNER_COOLDOWN_MS = 45_000;
 
-const marketsState = {
-  surface: "korea",
-  filters: {
-    korea: "kospi",
-    us: "sp500",
-    crypto: "all",
-  },
+const state = {
+  surface: MAIN_TABS.some((tab) => tab.key === marketsBootstrap.initial_surface)
+    ? marketsBootstrap.initial_surface
+    : "korea",
+  filters: { korea: "kospi", us: "sp500" },
   chart: null,
+  scanner: {
+    manifest: null,
+    snapshot: null,
+    universeKey: "top100",
+    timeframe: "5m",
+    filter: "all",
+    cooldownUntil: Number.parseInt(localStorage.getItem(SCANNER_STORAGE_KEY) || "0", 10) || 0,
+  },
 };
 
-const marketsPayloads = {
-  status: null,
-  us: null,
-  korea: null,
-  crypto: null,
-};
+const payloads = { status: null, us: null, korea: null, crypto: null };
 
-function marketEscapeHtml(value) {
+function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -138,176 +83,55 @@ function marketEscapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function marketEscapeLabel(value) {
-  return String(value ?? "")
-    .replaceAll("{", "")
-    .replaceAll("}", "")
-    .replaceAll("|", " ");
-}
-
-function normalizeSymbol(value) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
-}
-
-function clamp(value, minimum, maximum) {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
 function toNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function formatCompactNumber(value, options = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric === 0) {
-    return "0";
-  }
+function formatCompact(value) {
   return new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
-    ...options,
-  }).format(numeric);
+  }).format(toNumber(value));
 }
 
-function marketFormatPercent(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "-";
-  }
-  const sign = numeric > 0 ? "+" : "";
-  return `${sign}${numeric.toFixed(2)}%`;
+function formatPercent(value) {
+  const numeric = toNumber(value);
+  return `${numeric > 0 ? "+" : ""}${numeric.toFixed(2)}%`;
 }
 
-function marketFormatPrice(value, surface) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "-";
+function formatTickerPrice(value) {
+  const numeric = toNumber(value);
+  if (numeric <= 0) return "-";
+  if (numeric >= 1000) {
+    return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(numeric)}`;
   }
+  if (numeric >= 1) {
+    return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(numeric)}`;
+  }
+  return `$${numeric.toFixed(5)}`;
+}
+
+function formatMarketPrice(value, surface) {
+  const numeric = toNumber(value);
+  if (numeric <= 0) return "-";
   if (surface === "korea") {
-    return `₩${new Intl.NumberFormat("ko-KR", {
-      maximumFractionDigits: 0,
-    }).format(numeric)}`;
+    return `₩${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(numeric)}`;
   }
-  if (surface === "crypto" && numeric < 1) {
-    return `$${numeric.toFixed(4)}`;
-  }
-  return `$${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: numeric >= 100 ? 0 : 2,
-  }).format(numeric)}`;
+  return formatTickerPrice(numeric);
 }
 
-function marketFormatCap(value, surface) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return "-";
-  }
-  const prefix = surface === "korea" ? "₩" : "$";
-  return `${prefix}${formatCompactNumber(numeric)}`;
-}
-
-function hexToRgb(hex) {
-  const normalized = String(hex).replace("#", "");
-  const safe = normalized.length === 3
-    ? normalized
-        .split("")
-        .map((char) => char + char)
-        .join("")
-    : normalized;
-  return {
-    r: Number.parseInt(safe.slice(0, 2), 16),
-    g: Number.parseInt(safe.slice(2, 4), 16),
-    b: Number.parseInt(safe.slice(4, 6), 16),
-  };
-}
-
-function rgbToHex(red, green, blue) {
-  return `#${[red, green, blue]
-    .map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-function mixHex(baseHex, targetHex, amount) {
-  const base = hexToRgb(baseHex);
-  const target = hexToRgb(targetHex);
-  const weight = clamp(amount, 0, 1);
-  return rgbToHex(
-    base.r + (target.r - base.r) * weight,
-    base.g + (target.g - base.g) * weight,
-    base.b + (target.b - base.b) * weight,
-  );
-}
-
-function resolveTreemapColor(changePct, surface) {
-  const neutral = "#323a45";
-  const flat = "#4b5563";
-  const numeric = Number(changePct);
-  if (!Number.isFinite(numeric) || Math.abs(numeric) < 0.03) {
-    return flat;
-  }
-  const intensity = clamp(Math.abs(numeric) / 8, 0, 1);
-  const weight = 0.25 + intensity * 0.75;
-  const positive = surface === "korea" ? "#ff4d67" : "#25c26e";
-  const negative = surface === "korea" ? "#3d82ff" : "#e14b4b";
-  return mixHex(neutral, numeric > 0 ? positive : negative, weight);
-}
-
-function computePointChange(last, changePct) {
-  const price = Number(last);
-  const percent = Number(changePct);
-  if (!Number.isFinite(price) || !Number.isFinite(percent)) {
-    return null;
-  }
-  const previous = price / (1 + percent / 100);
-  if (!Number.isFinite(previous)) {
-    return null;
-  }
-  return price - previous;
-}
-
-function pointChangeText(last, changePct, surface) {
-  const delta = computePointChange(last, changePct);
-  if (!Number.isFinite(delta)) {
-    return "";
-  }
-  const sign = delta > 0 ? "+" : "";
-  if (surface === "korea") {
-    return `${sign}${new Intl.NumberFormat("ko-KR", {
-      maximumFractionDigits: 0,
-    }).format(delta)}`;
-  }
-  return `${sign}${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 2,
-  }).format(delta)}`;
+function formatCap(value, surface) {
+  return `${surface === "korea" ? "₩" : "$"}${formatCompact(value)}`;
 }
 
 function activeSubfilters() {
-  return SUBFILTERS[marketsState.surface] || [];
+  return SUBFILTERS[state.surface] || [];
 }
 
-function currentPayload() {
-  if (marketsState.surface === "us") {
-    return marketsPayloads.us;
-  }
-  if (marketsState.surface === "korea") {
-    return marketsPayloads.korea;
-  }
-  return marketsPayloads.crypto;
-}
-
-function inferCryptoCategory(row) {
-  const symbol = normalizeSymbol(row.symbol);
-  const key = CRYPTO_CATEGORY_LOOKUP[symbol] || "alt";
-  return {
-    key,
-    label: CRYPTO_CATEGORY_META[key]?.label || CRYPTO_CATEGORY_META.alt.label,
-  };
-}
-
-function loadMarketsJson(url) {
-  return fetch(url, { cache: "no-store" }).then((response) => {
+function loadJson(url, { bust = false } = {}) {
+  const target = bust ? `${url}${url.includes("?") ? "&" : "?"}ts=${Date.now()}` : url;
+  return fetch(target, { cache: bust ? "no-store" : "default" }).then((response) => {
     if (!response.ok) {
       throw new Error(`Failed to load ${url}: ${response.status}`);
     }
@@ -315,275 +139,143 @@ function loadMarketsJson(url) {
   });
 }
 
-function renderMainTabs() {
-  marketsRefs.mainTabs.innerHTML = MAIN_TABS.map(
-    (tab) => `
-      <button
-        type="button"
-        class="market-tab-button ${tab.key === marketsState.surface ? "is-active" : ""}"
-        data-surface="${tab.key}"
-      >
-        ${marketEscapeHtml(tab.label)}
-      </button>
-    `,
-  ).join("");
+function currentPayload() {
+  return state.surface === "us" ? payloads.us : payloads.korea;
+}
 
-  marketsRefs.mainTabs.querySelectorAll("[data-surface]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextSurface = button.dataset.surface;
-      if (!nextSurface || nextSurface === marketsState.surface) {
-        return;
-      }
-      marketsState.surface = nextSurface;
-      renderMarkets();
-    });
-  });
+function renderMainTabs() {
+  if (!refs.mainTabs) return;
+  const routes = Array.isArray(marketsBootstrap.surface_links) ? marketsBootstrap.surface_links : [];
+  refs.mainTabs.innerHTML = MAIN_TABS.map((tab) => {
+    const href = routes.find((item) => item.key === tab.key)?.href || "#";
+    return `<a class="market-tab-button ${tab.key === state.surface ? "is-active" : ""}" href="${escapeHtml(href)}">${escapeHtml(tab.label)}</a>`;
+  }).join("");
 }
 
 function renderSubTabs() {
-  const current = marketsState.filters[marketsState.surface];
-  marketsRefs.subTabs.innerHTML = activeSubfilters().map(
-    (tab) => `
-      <button
-        type="button"
-        class="market-subtab-button ${tab.key === current ? "is-active" : ""}"
-        data-filter="${tab.key}"
-      >
-        ${marketEscapeHtml(tab.label)}
-      </button>
-    `,
-  ).join("");
-
-  marketsRefs.subTabs.querySelectorAll("[data-filter]").forEach((button) => {
+  if (!refs.subTabs) return;
+  const current = state.filters[state.surface];
+  refs.subTabs.innerHTML = activeSubfilters()
+    .map(
+      (tab) => `
+        <button type="button" class="market-subtab-button ${tab.key === current ? "is-active" : ""}" data-filter="${tab.key}">
+          ${escapeHtml(tab.label)}
+        </button>
+      `,
+    )
+    .join("");
+  refs.subTabs.querySelectorAll("[data-filter]").forEach((button) => {
     button.addEventListener("click", () => {
-      const nextFilter = button.dataset.filter;
-      if (!nextFilter || nextFilter === marketsState.filters[marketsState.surface]) {
-        return;
-      }
-      marketsState.filters[marketsState.surface] = nextFilter;
+      const next = button.dataset.filter;
+      if (!next || next === state.filters[state.surface]) return;
+      state.filters[state.surface] = next;
       renderMarkets();
     });
   });
 }
 
 function renderMarketsStatus() {
-  const status = marketsPayloads.status;
-  if (!status) {
-    marketsRefs.statusLine.textContent = "시장 상태 데이터를 불러오지 못했습니다.";
-    return;
-  }
-  const providers = status.providers || {};
-  const segments = [
+  if (!refs.statusLine) return;
+  const providers = payloads.status?.providers || {};
+  const parts = [
     `미국 ${providers.stocks?.status || "-"}`,
     `한국 ${providers.korea?.status || "-"}`,
-    `크립토 ${providers.crypto?.status || "-"}`,
+    `코인 ${providers.crypto?.status || "-"}`,
   ];
-  if (status.generated_at) {
-    segments.push(`업데이트 ${status.generated_at}`);
-  }
-  marketsRefs.statusLine.textContent = segments.join(" · ");
+  const stamp = payloads.status?.generated_at;
+  if (stamp) parts.push(`업데이트 ${stamp}`);
+  refs.statusLine.textContent = parts.join(" · ");
 }
 
 function resolveSurfaceModel() {
   const payload = currentPayload();
-  const filterKey = marketsState.filters[marketsState.surface];
+  const filterKey = state.filters[state.surface];
   const subfilter = activeSubfilters().find((item) => item.key === filterKey) || activeSubfilters()[0];
-  const rows = Array.isArray(payload?.rows) ? payload.rows.slice() : [];
-  const rowsWithCap = rows.filter((row) => toNumber(row.market_cap) > 0);
+  const rows = (Array.isArray(payload?.rows) ? payload.rows : []).filter((row) => toNumber(row.market_cap) > 0);
 
-  if (marketsState.surface === "korea") {
-    const exchangeLabel = filterKey === "kosdaq" ? "KOSDAQ" : "KOSPI";
-    const filteredRows = rowsWithCap
-      .filter((row) => String(row.exchange || "").toUpperCase().includes(exchangeLabel))
-      .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
-      .slice(0, 120);
-
+  if (state.surface === "korea") {
+    const exchange = filterKey === "kosdaq" ? "KOSDAQ" : "KOSPI";
     return {
       surface: "korea",
-      colorMode: "korea",
-      title: `한국 증시 · ${subfilter.label}`,
-      subtitle: `${subfilter.label} 안에서 시가총액 비중이 큰 종목일수록 더 큰 면적으로 배치됩니다.`,
+      title: `한국주식 · ${subfilter?.label || "KOSPI"}`,
+      subtitle: `${subfilter?.label || "KOSPI"} 종목 시가총액 비중`,
       groupLabel: "섹터",
-      rows: filteredRows,
+      rows: rows
+        .filter((row) => String(row.exchange || "").toUpperCase().includes(exchange))
+        .sort((a, b) => toNumber(b.market_cap) - toNumber(a.market_cap))
+        .slice(0, 120),
       benchmarks: (payload?.benchmarks || []).filter(
-        (row) => String(row.symbol || "").toUpperCase() === exchangeLabel,
+        (row) => String(row.symbol || "").toUpperCase() === exchange,
       ),
       asOf: payload?.as_of || payload?.generated_at || "",
     };
   }
 
-  if (marketsState.surface === "us") {
-    const memberships = new Set(
-      ((payload?.index_memberships || {})[filterKey] || []).map((symbol) => normalizeSymbol(symbol)),
-    );
-    const filteredRows = rowsWithCap
-      .filter((row) => memberships.has(normalizeSymbol(row.symbol)))
-      .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
-      .slice(0, 160);
-
-    return {
-      surface: "us",
-      colorMode: "global",
-      title: `미국 증시 · ${subfilter.label}`,
-      subtitle: US_INDEX_HEADLINES[filterKey] || `${subfilter.label} 구성 종목 비중`,
-      groupLabel: "섹터",
-      rows: filteredRows.length ? filteredRows : rowsWithCap.slice(0, 120),
-      benchmarks: (payload?.benchmarks || []).filter(
-        (row) => normalizeSymbol(row.symbol) === normalizeSymbol(US_INDEX_PROXY_SYMBOLS[filterKey]),
-      ),
-      asOf: payload?.as_of || payload?.generated_at || "",
-    };
-  }
-
-  const filteredRows = rowsWithCap
-    .filter((row) => {
-      if (filterKey === "all") {
-        return true;
-      }
-      return inferCryptoCategory(row).key === filterKey;
-    })
-    .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
-    .slice(0, 140);
-
-  const categoryLabel = filterKey === "all"
-    ? "바이낸스 거래 가능 코인 전체 시가총액 비중"
-    : `${subfilter.label} 카테고리 안에서의 시가총액 비중`;
-
+  const members = new Set(((payload?.index_memberships || {})[filterKey] || []).map((item) => String(item).toUpperCase()));
+  const filteredRows = rows
+    .filter((row) => members.has(String(row.symbol || "").toUpperCase()))
+    .sort((a, b) => toNumber(b.market_cap) - toNumber(a.market_cap))
+    .slice(0, 160);
   return {
-    surface: "crypto",
-    colorMode: "global",
-    title: `암호화폐 · ${subfilter.label}`,
-    subtitle: categoryLabel,
-    groupLabel: "카테고리",
-    rows: filteredRows,
-    benchmarks: filteredRows.slice(0, 4),
+    surface: "us",
+    title: `미국주식 · ${subfilter?.label || "S&P 500"}`,
+    subtitle: US_INDEX_HEADLINES[filterKey] || `${subfilter?.label || "S&P 500"} 구성 종목 비중`,
+    groupLabel: "섹터",
+    rows: filteredRows.length ? filteredRows : rows.slice(0, 120),
+    benchmarks: (payload?.benchmarks || []).filter(
+      (row) => String(row.symbol || "").toUpperCase() === US_INDEX_PROXY_SYMBOLS[filterKey],
+    ),
     asOf: payload?.as_of || payload?.generated_at || "",
   };
 }
 
-function summarizeRows(rows) {
-  const totalMarketCap = rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0);
-  const advancers = rows.filter((row) => toNumber(row.change_pct) > 0).length;
-  const decliners = rows.filter((row) => toNumber(row.change_pct) < 0).length;
-  return {
-    totalMarketCap,
-    advancers,
-    decliners,
-    unchanged: rows.length - advancers - decliners,
-  };
-}
-
-function buildLeafLabel(item, surface) {
-  const primary = surface === "korea"
-    ? item.fullName
-    : item.symbol || item.fullName;
-
-  if (item.weightPct >= 4.5) {
-    return `{name|${marketEscapeLabel(primary)}}\n{change|${marketEscapeLabel(marketFormatPercent(item.changePct))}}`;
+function resolveTreemapColor(changePct, surface) {
+  const value = toNumber(changePct);
+  if (surface === "korea") {
+    if (value > 0) return "rgba(235, 74, 101, 0.9)";
+    if (value < 0) return "rgba(38, 153, 255, 0.88)";
+    return "rgba(93, 108, 130, 0.82)";
   }
-  if (item.weightPct >= 1.15) {
-    return `{name|${marketEscapeLabel(primary)}}\n{change|${marketEscapeLabel(marketFormatPercent(item.changePct))}}`;
-  }
-  if (item.weightPct >= 0.5) {
-    return `{tiny|${marketEscapeLabel(item.symbol || primary)}}`;
-  }
-  return "";
+  if (value > 0) return "rgba(14, 203, 129, 0.88)";
+  if (value < 0) return "rgba(246, 70, 93, 0.88)";
+  return "rgba(93, 108, 130, 0.82)";
 }
 
 function buildTreemapHierarchy(model) {
-  const totalMarketCap = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0) || 1;
+  const total = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0) || 1;
   const grouped = new Map();
 
   model.rows.forEach((row) => {
-    const category = model.surface === "crypto"
-      ? inferCryptoCategory(row)
-      : {
-          key: String(row.sector_or_category || row.industry || "기타").trim() || "기타",
-          label: String(row.sector_or_category || row.industry || "기타").trim() || "기타",
-        };
-    const groupKey = category.key;
-    const groupLabel = category.label;
-    if (!grouped.has(groupKey)) {
-      grouped.set(groupKey, {
-        name: groupLabel,
-        value: 0,
-        itemStyle: {
-          color: "#111821",
-          borderColor: "#0b0f14",
-          borderWidth: 3,
-          gapWidth: 4,
-        },
-        upperLabel: {
-          show: true,
-        },
-        children: [],
-      });
+    const categoryLabel = String(row.sector_or_category || row.industry || "기타").trim() || "기타";
+    if (!grouped.has(categoryLabel)) {
+      grouped.set(categoryLabel, { name: categoryLabel, value: 0, children: [] });
     }
-    const marketCap = toNumber(row.market_cap);
-    const weightPct = (marketCap / totalMarketCap) * 100;
-    const leaf = {
-      name: model.surface === "korea"
-        ? String(row.name || row.symbol || "").trim()
-        : String(row.symbol || row.name || "").trim(),
-      value: marketCap,
-      symbol: String(row.symbol || "").trim(),
+    const group = grouped.get(categoryLabel);
+    const cap = toNumber(row.market_cap);
+    group.value += cap;
+    group.children.push({
+      name: String(row.symbol || row.name || "").trim(),
       fullName: String(row.name || row.symbol || "").trim(),
+      symbol: String(row.symbol || "").trim(),
+      value: cap,
       last: row.last,
       changePct: row.change_pct,
-      marketCap,
-      volume: row.volume,
-      sector: groupLabel,
+      marketCap: cap,
       detailUrl: row.detail_url,
-      weightPct,
+      weightPct: (cap / total) * 100,
       itemStyle: {
-        color: resolveTreemapColor(row.change_pct, model.colorMode),
-        borderColor: "rgba(10, 14, 19, 0.72)",
+        color: resolveTreemapColor(row.change_pct, model.surface),
+        borderColor: "rgba(10,14,19,.72)",
         borderWidth: 1,
       },
-    };
-    const group = grouped.get(groupKey);
-    group.value += marketCap;
-    group.children.push(leaf);
+    });
   });
-
-  const groups = Array.from(grouped.values())
-    .map((group) => ({
-      ...group,
-      children: group.children.sort((left, right) => right.value - left.value),
-    }))
-    .sort((left, right) => right.value - left.value);
 
   return {
     name: model.title,
-    value: totalMarketCap,
-    children: groups,
+    value: total,
+    children: Array.from(grouped.values()).sort((a, b) => b.value - a.value),
   };
-}
-
-function buildTooltipHtml(params, model) {
-  const data = params.data || {};
-  if (Array.isArray(data.children)) {
-    return `
-      <div class="market-tooltip">
-        <strong>${marketEscapeHtml(data.name)}</strong>
-        <div>구성 종목 ${marketEscapeHtml(data.children.length)}</div>
-        <div>시가총액 ${marketEscapeHtml(marketFormatCap(data.value, model.surface))}</div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="market-tooltip">
-      <strong>${marketEscapeHtml(data.fullName || data.symbol || data.name)}</strong>
-      <div>티커 ${marketEscapeHtml(data.symbol || "-")}</div>
-      <div>현재가 ${marketEscapeHtml(marketFormatPrice(data.last, model.surface))}</div>
-      <div>등락률 ${marketEscapeHtml(marketFormatPercent(data.changePct))}</div>
-      <div>시가총액 ${marketEscapeHtml(marketFormatCap(data.marketCap, model.surface))}</div>
-      <div>거래량 ${marketEscapeHtml(formatCompactNumber(data.volume || 0))}</div>
-      <div>${marketEscapeHtml(model.groupLabel)} ${marketEscapeHtml(data.sector || "-")}</div>
-      <div>비중 ${marketEscapeHtml(data.weightPct.toFixed(2))}%</div>
-    </div>
-  `;
 }
 
 function buildTreemapOption(model) {
@@ -591,15 +283,18 @@ function buildTreemapOption(model) {
   return {
     backgroundColor: "transparent",
     tooltip: {
-      backgroundColor: "rgba(11, 16, 23, 0.96)",
+      backgroundColor: "rgba(11,16,23,.96)",
       borderColor: "#273241",
       borderWidth: 1,
-      textStyle: {
-        color: "#f8fbff",
-        fontSize: 12,
-      },
+      textStyle: { color: "#f8fbff", fontSize: 12 },
       padding: 12,
-      formatter: (params) => buildTooltipHtml(params, model),
+      formatter: (params) => {
+        const data = params.data || {};
+        if (Array.isArray(data.children)) {
+          return `<div class="market-tooltip"><strong>${escapeHtml(data.name)}</strong><div>시가총액 ${escapeHtml(formatCap(data.value, model.surface))}</div></div>`;
+        }
+        return `<div class="market-tooltip"><strong>${escapeHtml(data.fullName || data.name)}</strong><div>현재가 ${escapeHtml(formatMarketPrice(data.last, model.surface))}</div><div>등락률 ${escapeHtml(formatPercent(data.changePct))}</div><div>시가총액 ${escapeHtml(formatCap(data.marketCap, model.surface))}</div></div>`;
+      },
     },
     series: [
       {
@@ -607,99 +302,21 @@ function buildTreemapOption(model) {
         roam: false,
         nodeClick: false,
         sort: "desc",
-        squareRatio: 1.18,
-        animationDurationUpdate: 280,
-        breadcrumb: {
-          show: false,
-        },
-        visibleMin: 1,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
+        breadcrumb: { show: false },
         label: {
           show: true,
-          position: "inside",
           formatter: (params) => {
-            if (Array.isArray(params.data?.children)) {
-              return "";
-            }
-            return buildLeafLabel(params.data, model.surface);
+            if (Array.isArray(params.data?.children)) return "";
+            const data = params.data || {};
+            if (toNumber(data.weightPct) < 0.5) return "";
+            return `${data.symbol || data.name}\n${formatPercent(data.changePct)}`;
           },
-          color: "#ffffff",
-          align: "center",
-          verticalAlign: "middle",
+          color: "#fff",
           overflow: "break",
-          rich: {
-            name: {
-              color: "#ffffff",
-              fontSize: 16,
-              fontWeight: 800,
-              lineHeight: 20,
-              align: "center",
-            },
-            change: {
-              color: "#ffffff",
-              fontSize: 14,
-              fontWeight: 700,
-              lineHeight: 18,
-              align: "center",
-            },
-            tiny: {
-              color: "#ffffff",
-              fontSize: 11,
-              fontWeight: 700,
-              lineHeight: 14,
-              align: "center",
-            },
-          },
         },
-        upperLabel: {
-          show: true,
-          color: "#a6b4c7",
-          fontSize: 11,
-          fontWeight: 700,
-          height: 24,
-        },
-        itemStyle: {
-          borderColor: "#10161d",
-          borderWidth: 2,
-          gapWidth: 2,
-        },
-        levels: [
-          {
-            itemStyle: {
-              borderColor: "#0f141b",
-              borderWidth: 0,
-              gapWidth: 4,
-            },
-            upperLabel: {
-              show: false,
-            },
-          },
-          {
-            colorSaturation: [0, 0],
-            itemStyle: {
-              borderColor: "#0b0f14",
-              borderWidth: 3,
-              gapWidth: 4,
-            },
-            upperLabel: {
-              show: true,
-              color: "#a6b4c7",
-              fontSize: 11,
-              fontWeight: 800,
-              height: 24,
-            },
-          },
-          {
-            itemStyle: {
-              borderColor: "rgba(10, 14, 19, 0.78)",
-              borderWidth: 1,
-              gapWidth: 1,
-            },
-          },
-        ],
+        upperLabel: { show: true, color: "#a6b4c7", fontSize: 11, fontWeight: 700, height: 24 },
+        itemStyle: { borderColor: "#10161d", borderWidth: 2, gapWidth: 2 },
+        levels: [{ upperLabel: { show: false } }, { upperLabel: { show: true } }, {}],
         data: root.children,
       },
     ],
@@ -707,120 +324,76 @@ function buildTreemapOption(model) {
 }
 
 function renderBenchmarkStrip(model) {
-  const cards = (model.benchmarks || []).map((item) => {
-    const pointChange = pointChangeText(item.last, item.change_pct, model.surface);
-    return `
-      <article class="market-benchmark-card">
-        <span class="market-benchmark-label">${marketEscapeHtml(item.name || item.symbol || "-")}</span>
-        <strong>${marketEscapeHtml(marketFormatPrice(item.last, model.surface))}</strong>
-        <div class="market-benchmark-move">
-          <span class="${toNumber(item.change_pct) > 0 ? "is-positive" : toNumber(item.change_pct) < 0 ? "is-negative" : "is-flat"}">
-            ${marketEscapeHtml(pointChange)} (${marketEscapeHtml(marketFormatPercent(item.change_pct))})
-          </span>
-        </div>
-      </article>
-    `;
-  });
-
-  marketsRefs.benchmarkStrip.innerHTML = cards.length
-    ? cards.join("")
-    : '<div class="analysis-empty">표시할 대표 지수가 없습니다.</div>';
+  if (!refs.benchmarkStrip) return;
+  refs.benchmarkStrip.innerHTML =
+    (model.benchmarks || [])
+      .map(
+        (item) => `
+          <article class="market-benchmark-card">
+            <span class="market-benchmark-label">${escapeHtml(item.name || item.symbol || "-")}</span>
+            <strong>${escapeHtml(formatMarketPrice(item.last, model.surface))}</strong>
+            <div class="market-benchmark-move">
+              <span class="${toNumber(item.change_pct) > 0 ? "is-positive" : toNumber(item.change_pct) < 0 ? "is-negative" : "is-flat"}">
+                ${escapeHtml(formatPercent(item.change_pct))}
+              </span>
+            </div>
+          </article>
+        `,
+      )
+      .join("") || '<div class="analysis-empty">표시할 벤치마크가 없습니다.</div>';
 }
 
 function renderSelectionSummary(model) {
-  const summary = summarizeRows(model.rows);
-  const groupCount = new Set(
-    model.rows.map((row) => {
-      if (model.surface === "crypto") {
-        return inferCryptoCategory(row).label;
-      }
-      return String(row.sector_or_category || row.industry || "기타").trim() || "기타";
-    }),
-  ).size;
-
-  marketsRefs.selectionSummary.innerHTML = [
-    {
-      label: "선택 시장",
-      value: model.title,
-      detail: model.asOf || "-",
-    },
-    {
-      label: "추적 종목",
-      value: `${model.rows.length}개`,
-      detail: `${model.groupLabel} ${groupCount}개`,
-    },
-    {
-      label: "전체 시총",
-      value: marketFormatCap(summary.totalMarketCap, model.surface),
-      detail: "선택된 종목 기준 합계",
-    },
-    {
-      label: "상승 / 하락",
-      value: `${summary.advancers} / ${summary.decliners}`,
-      detail: `보합 ${summary.unchanged}`,
-    },
-  ].map(
-    (card) => `
-      <article class="market-summary-card">
-        <span>${marketEscapeHtml(card.label)}</span>
-        <strong>${marketEscapeHtml(card.value)}</strong>
-        <small>${marketEscapeHtml(card.detail)}</small>
-      </article>
-    `,
-  ).join("");
+  if (!refs.selectionSummary) return;
+  const totalCap = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0);
+  const advancers = model.rows.filter((row) => toNumber(row.change_pct) > 0).length;
+  const decliners = model.rows.filter((row) => toNumber(row.change_pct) < 0).length;
+  const cards = [
+    { label: "선택 시장", value: model.title, detail: model.asOf || "-" },
+    { label: "추적 종목", value: `${model.rows.length}개`, detail: `${model.groupLabel} 기준` },
+    { label: "전체 시총", value: formatCap(totalCap, model.surface), detail: "선택 종목 합계" },
+    { label: "상승 / 하락", value: `${advancers} / ${decliners}`, detail: `보합 ${model.rows.length - advancers - decliners}` },
+  ];
+  refs.selectionSummary.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="market-summary-card">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+          <small>${escapeHtml(card.detail)}</small>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 function renderLegend(model) {
-  const directionText = model.surface === "korea"
-    ? "상승은 붉은색, 하락은 푸른색, 보합은 회색"
-    : "상승은 초록색, 하락은 붉은색, 보합은 회색";
-
-  marketsRefs.legend.innerHTML = `
-    <div class="market-legend-item">
-      <span class="market-legend-swatch size"></span>
-      <strong>크기</strong>
-      <small>선택한 시장 안에서의 시가총액 비중</small>
-    </div>
-    <div class="market-legend-item">
-      <span class="market-legend-swatch tone"></span>
-      <strong>색상</strong>
-      <small>${marketEscapeHtml(directionText)}</small>
-    </div>
-    <div class="market-legend-item">
-      <span class="market-legend-swatch group"></span>
-      <strong>${marketEscapeHtml(model.groupLabel)} 묶음</strong>
-      <small>굵은 테두리 상단 라벨로 그룹을 구분합니다.</small>
-    </div>
+  if (!refs.legend) return;
+  const toneText = model.surface === "korea" ? "상승은 붉은색, 하락은 푸른색" : "상승은 초록색, 하락은 붉은색";
+  refs.legend.innerHTML = `
+    <div class="market-legend-item"><span class="market-legend-swatch size"></span><strong>크기</strong><small>시가총액 비중</small></div>
+    <div class="market-legend-item"><span class="market-legend-swatch tone"></span><strong>색상</strong><small>${escapeHtml(toneText)}</small></div>
+    <div class="market-legend-item"><span class="market-legend-swatch group"></span><strong>${escapeHtml(model.groupLabel)} 묶음</strong><small>상단 영역으로 그룹 구분</small></div>
   `;
 }
 
 function ensureChart() {
-  if (!window.echarts) {
-    marketsRefs.board.innerHTML = '<div class="analysis-empty">ECharts를 불러오지 못했습니다.</div>';
-    return null;
-  }
-  if (!marketsState.chart) {
-    marketsState.chart = window.echarts.init(marketsRefs.board, null, {
-      renderer: "canvas",
-    });
-    window.addEventListener("resize", () => {
-      marketsState.chart?.resize();
-    });
-    marketsState.chart.on("click", (params) => {
-      const detailUrl = params?.data?.detailUrl;
-      if (detailUrl) {
-        window.open(detailUrl, "_blank", "noopener,noreferrer");
+  if (!refs.board || !window.echarts) return null;
+  if (!state.chart) {
+    state.chart = window.echarts.init(refs.board, null, { renderer: "canvas" });
+    window.addEventListener("resize", () => state.chart?.resize());
+    state.chart.on("click", (params) => {
+      if (params?.data?.detailUrl) {
+        window.open(params.data.detailUrl, "_blank", "noopener,noreferrer");
       }
     });
   }
-  return marketsState.chart;
+  return state.chart;
 }
 
 function renderTreemapSurface(model) {
   const chart = ensureChart();
-  if (!chart) {
-    return;
-  }
+  if (!chart) return;
   if (!model.rows.length) {
     chart.clear();
     chart.setOption(
@@ -846,10 +419,329 @@ function renderTreemapSurface(model) {
   chart.resize();
 }
 
+function formatCountLabel(snapshot) {
+  if (!snapshot) return "-";
+  return `${snapshot.symbols_scanned || 0}/${snapshot.symbols_scanned || 0}`;
+}
+
+function scannerSelectedSnapshot() {
+  return state.scanner.snapshot;
+}
+
+function resolveScannerSnapshotPath() {
+  const manifest = state.scanner.manifest;
+  if (!manifest) return null;
+  const entry = (manifest.snapshots || []).find(
+    (item) => item.universe_key === state.scanner.universeKey && item.timeframe === state.scanner.timeframe,
+  );
+  if (!entry) return null;
+  const baseUrl = marketsBootstrap.scanner_manifest_url || "";
+  return baseUrl.replace(/manifest\.json(?:\?.*)?$/, entry.path);
+}
+
+function setScannerCooldown() {
+  state.scanner.cooldownUntil = Date.now() + SCANNER_COOLDOWN_MS;
+  localStorage.setItem(SCANNER_STORAGE_KEY, String(state.scanner.cooldownUntil));
+}
+
+function updateScannerCooldownUI() {
+  if (!refs.scannerRefreshButton || !refs.scannerCooldownText) return;
+  const remaining = state.scanner.cooldownUntil - Date.now();
+  if (remaining <= 0) {
+    refs.scannerRefreshButton.disabled = false;
+    refs.scannerCooldownText.textContent = "최근 정적 스냅샷을 다시 불러올 수 있습니다.";
+    return;
+  }
+  refs.scannerRefreshButton.disabled = true;
+  refs.scannerCooldownText.textContent = `다음 새로고침까지 ${Math.ceil(remaining / 1000)}초`;
+}
+
+function renderScannerSkeleton() {
+  if (!refs.scannerResults) return;
+  refs.scannerResults.innerHTML = Array.from({ length: 4 }, () => `
+    <article class="scanner-card is-loading">
+      <div class="scanner-skeleton scanner-skeleton-title"></div>
+      <div class="scanner-skeleton scanner-skeleton-chip-row"></div>
+      <div class="scanner-skeleton scanner-skeleton-preview"></div>
+      <div class="scanner-skeleton scanner-skeleton-grid"></div>
+    </article>
+  `).join("");
+}
+
+function populateScannerControls() {
+  const manifest = state.scanner.manifest;
+  if (!manifest || !refs.scannerUniverseSelect || !refs.scannerTimeframeSelect) return;
+
+  refs.scannerUniverseSelect.innerHTML = (manifest.universe_presets || [])
+    .map(
+      (item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.scanner.universeKey ? "selected" : ""}>${escapeHtml(item.label)}</option>`,
+    )
+    .join("");
+  refs.scannerTimeframeSelect.innerHTML = (manifest.timeframes || [])
+    .map(
+      (item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.scanner.timeframe ? "selected" : ""}>${escapeHtml(item.label)}</option>`,
+    )
+    .join("");
+}
+
+function resolveScannerDetailHref(detailPage) {
+  if (!detailPage) return "#";
+  const normalized = String(detailPage).replace(/^\.?\//, "");
+  if (window.location.pathname.includes("/markets/crypto/")) {
+    return `../${normalized}`;
+  }
+  return normalized;
+}
+
+function resolveScannerPreviewSrc(previewImage) {
+  if (!previewImage) return "";
+  if (String(previewImage).startsWith("http")) return previewImage;
+  const normalized = String(previewImage).replace(/^\.?\//, "");
+  if (window.location.pathname.includes("/markets/crypto/")) {
+    return `../../${normalized}`;
+  }
+  return `../${normalized}`;
+}
+
+function renderScannerSummary() {
+  const manifest = state.scanner.manifest;
+  const snapshot = scannerSelectedSnapshot();
+  if (refs.scannerSummaryMeta) {
+    refs.scannerSummaryMeta.innerHTML = manifest
+      ? `<span class="scanner-summary-pill">마지막 갱신 ${escapeHtml(manifest.generated_at || "-")}</span>
+         <span class="scanner-summary-pill">전체 결과 ${escapeHtml(String(manifest.total_results || 0))}</span>
+         <span class="scanner-summary-pill">대상 ${escapeHtml(String(manifest.symbols_scanned || 0))}개</span>`
+      : "";
+  }
+  if (refs.scannerActiveScan) {
+    refs.scannerActiveScan.innerHTML = snapshot
+      ? `<span class="scanner-active-pill">최근 배치 스캔 기준 · ${escapeHtml(snapshot.timeframe_label || state.scanner.timeframe)}</span>`
+      : "";
+  }
+  if (refs.scannerStatusLine) {
+    refs.scannerStatusLine.textContent = snapshot
+      ? `상태: [${formatCountLabel(snapshot)}] 데이터 스캔 완료 · ${snapshot.generated_at}`
+      : "스냅샷을 불러오는 중입니다.";
+  }
+  if (refs.scannerProgressBar) {
+    const universe = (manifest?.universe_presets || []).find((item) => item.key === state.scanner.universeKey);
+    const total = Number(universe?.limit || snapshot?.symbols_scanned || 1);
+    const progress = Math.min(((snapshot?.symbols_scanned || 0) / Math.max(total, 1)) * 100, 100);
+    refs.scannerProgressBar.style.width = `${progress}%`;
+  }
+}
+
+function filteredScannerResults() {
+  const snapshot = scannerSelectedSnapshot();
+  const results = Array.isArray(snapshot?.results) ? snapshot.results : [];
+  if (state.scanner.filter === "all") return results;
+  return results.filter((item) => item.status === state.scanner.filter);
+}
+
+function renderScannerFilters() {
+  const snapshot = scannerSelectedSnapshot();
+  if (!refs.scannerFilterTabs) return;
+  const counts = snapshot?.status_counts || {};
+  const total = Array.isArray(snapshot?.results) ? snapshot.results.length : 0;
+  refs.scannerFilterTabs.innerHTML = SCANNER_FILTERS.map((filter) => {
+    const count = filter.key === "all" ? total : Number(counts[filter.key] || 0);
+    return `
+      <button type="button" class="scanner-filter-button ${filter.key === state.scanner.filter ? "is-active" : ""}" data-scanner-filter="${filter.key}">
+        <span>${escapeHtml(filter.label)}</span>
+        <strong>${escapeHtml(String(count))}</strong>
+      </button>
+    `;
+  }).join("");
+  refs.scannerFilterTabs.querySelectorAll("[data-scanner-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.scannerFilter;
+      if (!next) return;
+      state.scanner.filter = next;
+      renderScannerFilters();
+      renderScannerResults();
+    });
+  });
+}
+
+function renderScannerResults() {
+  if (!refs.scannerResults) return;
+  const results = filteredScannerResults();
+  if (!results.length) {
+    refs.scannerResults.innerHTML = '<div class="analysis-empty">이 조건에서 표시할 패턴이 없습니다.</div>';
+    return;
+  }
+  refs.scannerResults.innerHTML = results
+    .map((result) => {
+      const pointCells = ["X", "A", "B", "C", "D"]
+        .map((label) => {
+          const point = result.points?.[label] || {};
+          return `
+            <div class="scanner-point-card">
+              <span>${label}</span>
+              <strong>${escapeHtml(String(point.price ?? "-"))}</strong>
+              <small>${escapeHtml(String(point.timestamp || "").replace("T", " ").slice(5, 16))}</small>
+            </div>
+          `;
+        })
+        .join("");
+      const ratioCells = Object.entries(result.ratios || {})
+        .map(
+          ([label, value]) => `
+            <div class="scanner-ratio-card">
+              <span>${escapeHtml(label.toUpperCase())}</span>
+              <strong>${escapeHtml(String(value))}</strong>
+            </div>
+          `,
+        )
+        .join("");
+      const flagMarkup = (result.indicator_flags || [])
+        .slice(0, 4)
+        .map(
+          (flag) => `
+            <span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">
+              ${escapeHtml(flag.label)} · ${escapeHtml(flag.value)}
+            </span>
+          `,
+        )
+        .join("");
+      return `
+        <article class="scanner-card">
+          <div class="scanner-card-head">
+            <div>
+              <h3>${escapeHtml(result.symbol)}</h3>
+              <p>${escapeHtml(result.summary || "")}</p>
+            </div>
+            <div class="scanner-card-badges">
+              <span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span>
+              <span class="scanner-badge is-score">신뢰도 ${escapeHtml(String(result.score))}</span>
+            </div>
+          </div>
+
+          <div class="scanner-card-preview-wrap">
+            <img class="scanner-card-preview" src="${escapeHtml(resolveScannerPreviewSrc(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" />
+          </div>
+
+          <div class="scanner-card-section">
+            <div class="scanner-card-section-head">
+              <span>좌표</span>
+              <strong>${escapeHtml(result.pattern)}</strong>
+            </div>
+            <div class="scanner-point-grid">${pointCells}</div>
+          </div>
+
+          <div class="scanner-card-section">
+            <div class="scanner-card-section-head">
+              <span>비율</span>
+              <strong>${escapeHtml(result.status_label)}</strong>
+            </div>
+            <div class="scanner-ratio-grid">${ratioCells}</div>
+          </div>
+
+          <div class="scanner-prz-box">
+            <div>
+              <span>PRZ</span>
+              <strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong>
+            </div>
+            <div>
+              <span>TP1 / TP2</span>
+              <strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong>
+            </div>
+            <div>
+              <span>SL</span>
+              <strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong>
+            </div>
+          </div>
+
+          <div class="scanner-card-flags">${flagMarkup}</div>
+
+          <div class="scanner-card-footer">
+            <span>${escapeHtml(result.timeframe_label || "-")} · 24h ${escapeHtml(formatPercent(result.change_24h))}</span>
+            <a class="scanner-link-button" href="${escapeHtml(resolveScannerDetailHref(result.detail_page))}">상세 보기</a>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderScanner() {
+  populateScannerControls();
+  updateScannerCooldownUI();
+  renderScannerSummary();
+  renderScannerFilters();
+  renderScannerResults();
+}
+
+async function loadScannerManifest({ bust = false } = {}) {
+  if (!marketsBootstrap.scanner_manifest_url) return;
+  state.scanner.manifest = await loadJson(marketsBootstrap.scanner_manifest_url, { bust });
+  const manifest = state.scanner.manifest;
+  const firstUniverse = manifest?.universe_presets?.[0]?.key;
+  const firstTimeframe = manifest?.timeframes?.[0]?.key;
+  if (firstUniverse && !manifest.universe_presets.some((item) => item.key === state.scanner.universeKey)) {
+    state.scanner.universeKey = firstUniverse;
+  }
+  if (firstTimeframe && !manifest.timeframes.some((item) => item.key === state.scanner.timeframe)) {
+    state.scanner.timeframe = firstTimeframe;
+  }
+}
+
+async function loadScannerSnapshot({ bust = false } = {}) {
+  const snapshotPath = resolveScannerSnapshotPath();
+  if (!snapshotPath) {
+    state.scanner.snapshot = null;
+    renderScanner();
+    return;
+  }
+  state.scanner.snapshot = await loadJson(snapshotPath, { bust });
+  renderScanner();
+}
+
+function bindScannerEvents() {
+  if (refs.scannerUniverseSelect) {
+    refs.scannerUniverseSelect.addEventListener("change", async (event) => {
+      state.scanner.universeKey = event.target.value;
+      renderScannerSkeleton();
+      await loadScannerSnapshot();
+    });
+  }
+  if (refs.scannerTimeframeSelect) {
+    refs.scannerTimeframeSelect.addEventListener("change", async (event) => {
+      state.scanner.timeframe = event.target.value;
+      renderScannerSkeleton();
+      await loadScannerSnapshot();
+    });
+  }
+  if (refs.scannerRefreshButton) {
+    refs.scannerRefreshButton.addEventListener("click", async () => {
+      if (Date.now() < state.scanner.cooldownUntil) {
+        updateScannerCooldownUI();
+        return;
+      }
+      setScannerCooldown();
+      updateScannerCooldownUI();
+      renderScannerSkeleton();
+      try {
+        await loadScannerManifest({ bust: true });
+        await loadScannerSnapshot({ bust: true });
+      } catch (error) {
+        if (refs.scannerStatusLine) {
+          refs.scannerStatusLine.textContent = error?.message || "스캐너 데이터를 불러오지 못했습니다.";
+        }
+      }
+    });
+  }
+  window.setInterval(updateScannerCooldownUI, 1000);
+}
+
 function renderMarkets() {
   renderMainTabs();
-  renderSubTabs();
+  if (state.surface === "crypto") {
+    renderScanner();
+    return;
+  }
   renderMarketsStatus();
+  renderSubTabs();
   const model = resolveSurfaceModel();
   renderBenchmarkStrip(model);
   renderSelectionSummary(model);
@@ -857,26 +749,43 @@ function renderMarkets() {
   renderTreemapSurface(model);
 }
 
+async function initEquityMarkets() {
+  const [statusPayload, stocksPayload, koreaPayload] = await Promise.all([
+    loadJson(marketsBootstrap.status_url),
+    loadJson(marketsBootstrap.stocks_url),
+    loadJson(marketsBootstrap.korea_url),
+  ]);
+  payloads.status = statusPayload;
+  payloads.us = stocksPayload;
+  payloads.korea = koreaPayload;
+}
+
+async function initScannerMarkets() {
+  renderScannerSkeleton();
+  bindScannerEvents();
+  await loadScannerManifest();
+  await loadScannerSnapshot();
+}
+
 async function initMarkets() {
+  renderMarkets();
   try {
-    const [statusPayload, stocksPayload, koreaPayload, cryptoPayload] = await Promise.all([
-      loadMarketsJson(marketsBootstrap.status_url),
-      loadMarketsJson(marketsBootstrap.stocks_url),
-      loadMarketsJson(marketsBootstrap.korea_url),
-      loadMarketsJson(marketsBootstrap.crypto_url),
-    ]);
-    marketsPayloads.status = statusPayload;
-    marketsPayloads.us = stocksPayload;
-    marketsPayloads.korea = koreaPayload;
-    marketsPayloads.crypto = cryptoPayload;
-    renderMarkets();
+    if (state.surface === "crypto") {
+      await initScannerMarkets();
+    } else {
+      await initEquityMarkets();
+      renderMarkets();
+    }
   } catch (error) {
-    marketsRefs.statusLine.textContent = "시장 데이터를 불러오지 못했습니다.";
-    marketsRefs.board.innerHTML = `
-      <div class="analysis-empty">
-        ${(error && error.message) ? marketEscapeHtml(error.message) : "Unknown error"}
-      </div>
-    `;
+    if (refs.statusLine) {
+      refs.statusLine.textContent = "시장 데이터를 불러오지 못했습니다.";
+    }
+    if (refs.scannerStatusLine) {
+      refs.scannerStatusLine.textContent = error?.message || "스캐너 데이터를 불러오지 못했습니다.";
+    }
+    if (refs.board) {
+      refs.board.innerHTML = `<div class="analysis-empty">${escapeHtml(error?.message || "Unknown error")}</div>`;
+    }
   }
 }
 

@@ -3,31 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>newsbot markets</title>
-    <meta
-      name="description"
-      content="시가총액 비중과 당일 등락률을 한눈에 읽는 계층형 시장 현황판"
-    />
-    <link rel="stylesheet" href="../assets/style.css" />
+    <title>{{ page_title }}</title>
+    <meta name="description" content="{{ page_description }}" />
+    <link rel="stylesheet" href="{{ asset_prefix }}/style.css" />
   </head>
-  <body class="public-app market-map-page">
+  <body class="public-app {{ body_class }}">
     <nav class="surface-switcher" aria-label="View switcher">
-      <a class="surface-link" href="../">News</a>
-      <a class="surface-link" href="../analysis/">Analysis</a>
-      <a class="surface-link is-active" href="./">Markets</a>
+      {% for item in nav_links %}
+      <a class="surface-link {% if item.key == surface %}is-active{% endif %}" href="{{ item.href }}">
+        {{ item.label }}
+      </a>
+      {% endfor %}
     </nav>
 
+    {% if show_market_map %}
     <header class="markets-header">
       <div class="analysis-header-copy">
         <p class="analysis-eyebrow">newsbot markets</p>
-        <h1>시장 현황판</h1>
-        <p>
-          시가총액 비중으로 크기를, 당일 등락률로 색을 표현하는
-          계층형 트리맵입니다.
-        </p>
+        <h1>{{ surface_label }} 마켓맵</h1>
+        <p>시가총액 비중과 등락률을 한 번에 훑어보는 대형 트리맵입니다.</p>
       </div>
       <div class="analysis-header-meta">
-        <span class="summary-pill">한국 · 미국 · 크립토</span>
+        <span class="summary-pill">{{ surface_label }}</span>
         <span class="summary-pill">Squarified treemap</span>
         <span class="summary-pill">업데이트 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
       </div>
@@ -39,11 +36,8 @@
         <div class="market-map-toolbar">
           <div class="market-map-copy">
             <p class="analysis-kicker">Market map</p>
-            <h2>탭과 지수를 선택해 전체 시장 비중을 바로 비교하세요</h2>
-            <p>
-              굵은 구획은 섹터 또는 카테고리 묶음이며, 각 타일은 선택한 시장에서의
-              시가총액 비중을 기준으로 배치됩니다.
-            </p>
+            <h2>국가와 지수를 고르면 주요 종목 비중을 바로 비교할 수 있습니다.</h2>
+            <p>미국과 한국 주식은 기존 트리맵 구조를 유지하고, 코인은 별도 스캐너 대시보드로 분리했습니다.</p>
           </div>
           <div id="markets-main-tabs" class="market-main-tabs" aria-label="시장 메인 탭"></div>
           <div id="markets-subfilter-tabs" class="market-subfilter-tabs" aria-label="시장 하위 필터"></div>
@@ -59,11 +53,53 @@
         <div id="markets-legend" class="market-map-legend"></div>
       </section>
 
-      <noscript class="noscript-note">JavaScript가 있어야 시장 현황판을 렌더링할 수 있습니다.</noscript>
+      <noscript class="noscript-note">JavaScript가 있어야 시장 대시보드를 렌더링할 수 있습니다.</noscript>
     </main>
+    {% else %}
+    <main class="markets-shell crypto-shell-page">
+      <section id="scanner-shell" class="scanner-shell-frame" aria-label="코인 패턴 스캐너">
+        <header class="scanner-shell-header">
+          <div class="scanner-brand-block">
+            <p class="analysis-eyebrow">Scanner</p>
+            <h1>하모닉 패턴 스캐너</h1>
+            <p>무료 정적 배포 모드로 운영되는 코인 패턴 분석 대시보드입니다. 최신 배치 스냅샷을 다시 불러와 확인할 수 있습니다.</p>
+          </div>
+          <div id="scanner-control-panel" class="scanner-control-panel">
+            <label class="scanner-field">
+              <span>스캔 범위</span>
+              <select id="scanner-universe-select" class="scanner-select"></select>
+            </label>
+            <label class="scanner-field">
+              <span>타임프레임</span>
+              <select id="scanner-timeframe-select" class="scanner-select"></select>
+            </label>
+            <button id="scanner-refresh-button" class="scanner-action-button" type="button">최신 스캔 다시 불러오기</button>
+            <p id="scanner-cooldown-text" class="scanner-cooldown-text">잠시 후 다시 시도할 수 있습니다.</p>
+            <div id="scanner-status-line" class="scanner-status-line">스캐너 manifest를 불러오는 중입니다.</div>
+            <div class="scanner-progress-track" aria-hidden="true">
+              <span id="scanner-progress-bar" class="scanner-progress-bar"></span>
+            </div>
+          </div>
+        </header>
 
+        <section class="scanner-results-panel">
+          <div class="scanner-results-topline">
+            <div id="scanner-summary-meta" class="scanner-summary-meta"></div>
+            <div id="scanner-active-scan" class="scanner-active-scan"></div>
+          </div>
+          <div id="scanner-filter-tabs" class="scanner-filter-tabs" aria-label="패턴 상태 필터"></div>
+          <div id="scanner-results" class="scanner-results-grid"></div>
+        </section>
+      </section>
+
+      <noscript class="noscript-note">JavaScript가 있어야 코인 패턴 스캐너를 렌더링할 수 있습니다.</noscript>
+    </main>
+    {% endif %}
+
+    {% if show_market_map %}
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    {% endif %}
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
-    <script src="../assets/markets.js"></script>
+    <script src="{{ asset_prefix }}/markets.js"></script>
   </body>
 </html>
