@@ -52,50 +52,110 @@
     </header>
 
     <main class="shell">
-      <section id="news-hub-chooser" class="news-entry-chooser"></section>
+      <section id="news-hub-chooser" class="news-entry-chooser">
+        <section class="news-entry-panel">
+          <div class="news-entry-copy">
+            <p class="news-entry-kicker">Entry point</p>
+            <h2>어디 뉴스부터 볼까요?</h2>
+            <p>세 개 허브 중 하나를 먼저 고르면, 바로 그 범위에 맞는 섹션과 헤드라인으로 내려갑니다.</p>
+          </div>
+          <div class="news-entry-grid">
+            {% for hub in hubs %}
+            <button type="button" class="news-entry-button" data-entry-hub="{{ hub.key }}">
+              <span class="news-entry-label">뉴스 허브</span>
+              <strong>{{ hub.label }}</strong>
+              <p class="news-entry-description">
+                {% if hub.description %}
+                {{ hub.description }}
+                {% elif hub.key == "kr" %}
+                국내 주요 현안과 속보 흐름을 먼저 훑습니다.
+                {% elif hub.key == "us" %}
+                미국 경제와 기술, 시장 이슈를 빠르게 모아 봅니다.
+                {% else %}
+                글로벌 거시 흐름과 국제 헤드라인을 한 번에 확인합니다.
+                {% endif %}
+              </p>
+              <div class="news-entry-meta">
+                <span class="news-entry-count">기사 {{ hub.count }}건</span>
+                <span class="news-entry-refresh">마지막 갱신 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+              </div>
+            </button>
+            {% endfor %}
+          </div>
+        </section>
+      </section>
 
       <div id="news-content-shell" class="news-content-shell">
-      <section class="toolbar">
-        <div id="hub-filters" class="pill-row hub-row">
-          <button type="button" class="pill is-active" data-hub="all">전체 허브</button>
-          {% for hub in hubs %}
-          <button type="button" class="pill" data-hub="{{ hub.key }}">
-            {{ hub.label }}
-            <span>{{ hub.count }}</span>
-          </button>
-          {% endfor %}
+      <section class="toolbar toolbar-news">
+        <div class="toolbar-group toolbar-group-scope">
+          <div class="toolbar-group-head">
+            <p class="toolbar-group-label">범위 선택</p>
+            <p class="toolbar-group-description">허브와 섹션을 먼저 좁히면 읽을 흐름이 훨씬 선명해집니다.</p>
+          </div>
+          <div id="hub-filters" class="pill-row hub-row">
+            <button type="button" class="pill is-active" data-hub="all">전체 허브</button>
+            {% for hub in hubs %}
+            <button type="button" class="pill" data-hub="{{ hub.key }}">
+              {{ hub.label }}
+              <span>{{ hub.count }}</span>
+            </button>
+            {% endfor %}
+          </div>
+
+          <div id="category-filters" class="pill-row section-row">
+            <button type="button" class="pill is-active" data-category="all">전체 섹션</button>
+            {% for category in categories %}
+            <button type="button" class="pill" data-category="{{ category.key }}">
+              {{ category.label }}
+              <span>{{ category.count }}</span>
+            </button>
+            {% endfor %}
+          </div>
         </div>
 
-        <div id="category-filters" class="pill-row section-row">
-          <button type="button" class="pill is-active" data-category="all">전체 섹션</button>
-          {% for category in categories %}
-          <button type="button" class="pill" data-category="{{ category.key }}">
-            {{ category.label }}
-            <span>{{ category.count }}</span>
-          </button>
-          {% endfor %}
+        <div class="toolbar-meta-grid">
+          <div class="toolbar-group toolbar-group-recency">
+            <div class="toolbar-group-head">
+              <p class="toolbar-group-label">시간</p>
+              <p class="toolbar-group-description">최근 기사 흐름만 따로 좁혀서 볼 수 있습니다.</p>
+            </div>
+            <div id="recency-filters" class="pill-row recency-row">
+              <button type="button" class="pill is-active" data-recency="all">전체 기간</button>
+            </div>
+          </div>
+
+          <div class="toolbar-group toolbar-group-search">
+            <div class="toolbar-group-head">
+              <p class="toolbar-group-label">검색과 소스</p>
+              <p class="toolbar-group-description">제목 키워드와 발행처를 같이 좁혀 보세요.</p>
+            </div>
+            <div class="search-row">
+              <label class="sr-only" for="search-input">제목 검색</label>
+              <input id="search-input" type="search" placeholder="제목 검색" />
+              <label class="sr-only" for="source-select">소스 선택</label>
+              <select id="source-select">
+                <option value="all">모든 소스</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div id="recency-filters" class="pill-row recency-row">
-          <button type="button" class="pill is-active" data-recency="all">전체 기간</button>
+        <div class="toolbar-group toolbar-group-utility">
+          <div class="toolbar-group-head">
+            <p class="toolbar-group-label">유틸리티</p>
+            <p class="toolbar-group-description">현재 화면을 복사하거나 문서로 바로 저장할 수 있습니다.</p>
+          </div>
+          <div class="utility-row">
+            <button id="reset-button" type="button" class="reset-button">초기화</button>
+            <button id="copy-all-button" type="button" class="copy-button">현재 화면 전체 복사</button>
+            <button id="export-word-button" type="button" class="export-button">현재 목록 Word 저장</button>
+            <button id="export-excel-button" type="button" class="export-button">현재 목록 Excel 저장</button>
+          </div>
+
+          <p id="status-line" class="status-line">전체 뉴스 {{ article_count }}건</p>
         </div>
 
-        <div class="search-row">
-          <label class="sr-only" for="search-input">제목 검색</label>
-          <input id="search-input" type="search" placeholder="제목 검색" />
-          <label class="sr-only" for="source-select">소스 선택</label>
-          <select id="source-select">
-            <option value="all">모든 소스</option>
-          </select>
-          <button id="reset-button" type="button" class="reset-button">초기화</button>
-          <button id="copy-all-button" type="button" class="copy-button">현재 화면 전체 복사</button>
-          <button id="export-word-button" type="button" class="export-button">현재 목록 Word 저장</button>
-          <button id="export-excel-button" type="button" class="export-button">현재 목록 Excel 저장</button>
-        </div>
-
-        <p id="status-line" class="status-line">전체 뉴스 {{ article_count }}건</p>
-
-        <details class="health-panel">
+        <details class="health-panel toolbar-secondary">
           <summary>수집 상태 보기</summary>
           <div class="health-list">
             {% for status in source_statuses %}
@@ -129,12 +189,32 @@
           <div class="news-list">
             {% for article in section.articles %}
             <article class="news-row">
-              <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                {{ article.title }}
-              </a>
-              <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                {{ article.canonical_url }}
-              </a>
+              <div class="news-card-main">
+                <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                  {{ article.title }}
+                </a>
+                <p class="news-meta-line">
+                  <span>{{ article.source_name }}</span>
+                  <span>{{ article.section_label if article.section_label else section.label }}</span>
+                  {% if article.published_at %}
+                  <time class="news-timestamp" datetime="{{ article.published_at }}">{{ article.published_at }}</time>
+                  {% else %}
+                  <span class="news-timestamp">시간 미상</span>
+                  {% endif %}
+                </p>
+              </div>
+              <div class="news-card-footer">
+                <div class="news-supporting">
+                  <span class="news-recency-badge">최근 기사</span>
+                  <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                    {{ article.link_label if article.link_label else article.canonical_url }}
+                  </a>
+                </div>
+                <div class="row-actions">
+                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ article.canonical_url }}">Word</button>
+                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ article.canonical_url }}">Excel</button>
+                </div>
+              </div>
             </article>
             {% endfor %}
           </div>

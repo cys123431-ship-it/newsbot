@@ -43,9 +43,14 @@ const RECENCY_OPTIONS = [
 ];
 const ENTRY_HUB_ORDER = ["kr", "us", "global"];
 const ENTRY_HUB_LABELS = {
-  kr: "한국뉴스",
-  us: "미국뉴스",
-  global: "글로벌뉴스",
+  kr: "한국 뉴스",
+  us: "미국 뉴스",
+  global: "글로벌 뉴스",
+};
+const ENTRY_HUB_DESCRIPTIONS = {
+  kr: "국내 주요 현안과 속보 흐름을 먼저 훑습니다.",
+  us: "미국 경제와 기술, 시장 이슈를 빠르게 모아 봅니다.",
+  global: "글로벌 거시 흐름과 국제 헤드라인을 한 번에 확인합니다.",
 };
 
 const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
@@ -159,6 +164,64 @@ function formatRefreshTimestamp(timestamp) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(parsed);
+}
+
+function formatPublishedAt(timestamp) {
+  const parsed = parsePublishedAt(timestamp);
+  if (!parsed) {
+    return "시간 미상";
+  }
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function getHubEntryDescription(hub) {
+  if (!hub) {
+    return "허브를 선택하면 곧바로 해당 범위의 섹션과 헤드라인으로 이동합니다.";
+  }
+  return hub.description || ENTRY_HUB_DESCRIPTIONS[hub.key] || getHubDescription(hub.key);
+}
+
+function getHubEntryRefreshHint() {
+  return `마지막 갱신 ${formatRefreshTimestamp(payload.generated_at)}`;
+}
+
+function getArticleLinkLabel(article) {
+  return article.link_label || article.canonical_url;
+}
+
+function renderArticleCard(article) {
+  const sectionLabel =
+    article.section_label || categoryLabels[article.primary_category] || article.primary_category;
+  const timestampLabel = formatPublishedAt(article.published_at);
+  const timestampHtml = article.published_at
+    ? `<time class="news-timestamp" datetime="${escapeHtml(article.published_at)}">${escapeHtml(timestampLabel)}</time>`
+    : '<span class="news-timestamp">시간 미상</span>';
+
+  return `
+    <article class="news-row">
+      <div class="news-card-main">
+        <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
+        <p class="news-meta-line">
+          <span>${escapeHtml(article.source_name)}</span>
+          <span>${escapeHtml(sectionLabel)}</span>
+          ${timestampHtml}
+        </p>
+      </div>
+      <div class="news-card-footer">
+        <div class="news-supporting">
+          <span class="news-recency-badge">${escapeHtml(getRecencyLabel(getArticleRecencyKey(article)))}</span>
+          <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(getArticleLinkLabel(article))}</a>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="${escapeHtml(article.canonical_url)}">Word</button>
+          <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function renderRefreshSpotlight() {
@@ -335,19 +398,24 @@ function renderHubChooser() {
     .filter(Boolean);
 
   refs.hubChooser.innerHTML = `
-    <section class="toolbar news-entry-toolbar">
+    <section class="news-entry-panel">
       <div class="news-entry-copy">
-        <p class="analysis-kicker">News entry</p>
-        <h2>먼저 뉴스 범위를 고르세요.</h2>
-        <p>한국뉴스, 미국뉴스, 글로벌뉴스 중 하나를 고르면 세부 섹션과 기사 목록이 열립니다.</p>
+        <p class="news-entry-kicker">Entry point</p>
+        <h2>어디 뉴스부터 볼까요?</h2>
+        <p>세 개 허브 중 하나를 먼저 고르면, 바로 그 범위에 맞는 섹션과 헤드라인으로 내려갑니다.</p>
       </div>
       <div class="news-entry-grid">
         ${chooserHubs
           .map(
             (hub) => `
               <button type="button" class="news-entry-button" data-entry-hub="${escapeHtml(hub.key)}">
+                <span class="news-entry-label">뉴스 허브</span>
                 <strong>${escapeHtml(ENTRY_HUB_LABELS[hub.key] || hub.label)}</strong>
-                <span>${escapeHtml(String(hub.count || 0))}건</span>
+                <p class="news-entry-description">${escapeHtml(getHubEntryDescription(hub))}</p>
+                <div class="news-entry-meta">
+                  <span class="news-entry-count">기사 ${escapeHtml(String(hub.count || 0))}건</span>
+                  <span class="news-entry-refresh">${escapeHtml(getHubEntryRefreshHint())}</span>
+                </div>
               </button>
             `,
           )
@@ -658,24 +726,7 @@ function renderSections(articles) {
           </div>
           <div class="news-list">
             ${group.articles
-              .map(
-                (article) => `
-                  <article class="news-row">
-                    <div class="news-topline">
-                      <div class="news-copy">
-                        <p class="news-meta-line">${escapeHtml(article.source_name)} · ${escapeHtml(article.section_label || categoryLabels[article.primary_category] || article.primary_category)}</p>
-                        <span class="news-recency-badge">${escapeHtml(getRecencyLabel(getArticleRecencyKey(article)))}</span>
-                        <a class="news-title" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.title)}</a>
-                      </div>
-                      <div class="row-actions">
-                        <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="${escapeHtml(article.canonical_url)}">Word</button>
-                        <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="${escapeHtml(article.canonical_url)}">Excel</button>
-                      </div>
-                    </div>
-                    <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(article.canonical_url)}</a>
-                  </article>
-                `,
-              )
+              .map((article) => renderArticleCard(article))
               .join("")}
           </div>
         </section>

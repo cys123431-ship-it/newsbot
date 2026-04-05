@@ -206,6 +206,13 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="hub-filters"' in html
     assert 'id="recency-filters"' in html
     assert 'id="hub-title"' in html
+    assert 'class="news-entry-panel"' in html
+    assert 'class="news-entry-description"' in html
+    assert 'class="toolbar-group toolbar-group-scope"' in html
+    assert 'class="toolbar-group toolbar-group-utility"' in html
+    assert 'class="utility-row"' in html
+    assert 'class="news-card-footer"' in html
+    assert 'class="news-timestamp"' in html
     assert 'href="analysis/"' in html
     assert 'href="markets/"' in html
 
@@ -226,7 +233,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'data-detail-panel="' in markets_js
     assert "1 Heatmap" in markets_js
 
-    file_payload = json.loads((output_dir / "data" / "site-data.json").read_text())
+    file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
     assert file_payload["removed_articles_log_path"] == "data/removed-articles.txt"
     assert file_payload["warning_source_count"] == 0
