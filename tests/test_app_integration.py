@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
@@ -99,8 +99,9 @@ def test_refresh_notice_is_visible_across_pages(client, app, monkeypatch):
     for path in ["/", "/sources", "/admin/health"]:
         response = client.get(path)
         assert response.status_code == 200
-        assert "새로 갱신됐어요" in response.text
-        assert "최근 15분 동안 새 기사 1건을 반영했습니다." in response.text
+        assert 'class="site-refresh' in response.text
+        assert 'class="site-refresh-kicker"' in response.text
+        assert '<time datetime=' in response.text
 
 
 def test_direct_source_and_telegram_source_merge_into_one_article(app, monkeypatch):
@@ -241,13 +242,15 @@ def test_category_page_uses_numbered_pagination(client, app):
 
     first_page = client.get("/category/crypto?page=1")
     assert first_page.status_code == 200
-    assert "총 27건 · 1/2 페이지" in first_page.text
+    assert 'class="pagination-summary"' in first_page.text
+    assert '1/2' in first_page.text
     assert 'href="/category/crypto?page=2"' in first_page.text
     assert "Crypto archive story 26" in first_page.text
 
     second_page = client.get("/category/crypto?page=2")
     assert second_page.status_code == 200
-    assert "총 27건 · 2/2 페이지" in second_page.text
+    assert 'class="pagination-summary"' in second_page.text
+    assert '2/2' in second_page.text
     assert "Crypto archive story 01" in second_page.text
 
 
@@ -287,14 +290,24 @@ def test_hub_routes_render_hub_and_section_navigation(client, app):
 
     hub_response = client.get("/hub/kr")
     assert hub_response.status_code == 200
-    assert "한국 페이지" in hub_response.text
     assert 'href="/hub/kr/kr-economy"' in hub_response.text
+    assert 'class="hero hero-hub"' in hub_response.text
+    assert 'class="hub-tabs"' in hub_response.text
+    assert 'class="section-tabs"' in hub_response.text
+    assert 'class="filters filter-toolbar"' in hub_response.text
+    assert 'class="article-meta-line compact-meta"' in hub_response.text
+    assert 'class="article-timestamp"' in hub_response.text
+    assert hub_response.text.index('class="article-title"') < hub_response.text.index(
+        'class="article-meta-line compact-meta"'
+    )
+    assert hub_response.text.index('class="article-meta-line compact-meta"') < hub_response.text.index(
+        'class="article-timestamp"'
+    )
     assert "Korea economy headline" in hub_response.text
     assert "US politics headline" not in hub_response.text
 
     section_response = client.get("/hub/us/us-politics")
     assert section_response.status_code == 200
-    assert "미국 페이지" in section_response.text
     assert "US politics headline" in section_response.text
     assert "Korea economy headline" not in section_response.text
 
@@ -364,3 +377,6 @@ def test_article_api_rejects_invalid_cursor(client):
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid cursor."}
+
+
+

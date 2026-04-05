@@ -207,12 +207,19 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="recency-filters"' in html
     assert 'id="hub-title"' in html
     assert 'class="news-entry-panel"' in html
+    assert 'class="news-entry-header"' in html
     assert 'class="news-entry-description"' in html
+    assert 'class="news-entry-cta"' in html
     assert 'class="toolbar-group toolbar-group-scope"' in html
     assert 'class="toolbar-group toolbar-group-utility"' in html
     assert 'class="utility-row"' in html
     assert 'class="news-card-footer"' in html
+    assert 'class="news-time-line"' in html
     assert 'class="news-timestamp"' in html
+    assert 'class="news-link-label"' in html
+    assert html.index('class="news-title"') < html.index('class="news-meta-line"')
+    assert html.index('class="news-meta-line"') < html.index('class="news-time-line"')
+    assert html.index('class="news-time-line"') < html.index('class="news-link"')
     assert 'href="analysis/"' in html
     assert 'href="markets/"' in html
 

@@ -7,8 +7,14 @@
     <p>{{ page_description }}</p>
   </div>
   <div class="hero-meta">
-    <span>총 {{ total_count }}건</span>
-    <span>{{ current_page }}/{{ total_pages }} 페이지</span>
+    <div class="hero-stat">
+      <span class="hero-stat-label">기사 수</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-label">페이지</span>
+      <strong>{{ current_page }}/{{ total_pages }}</strong>
+    </div>
   </div>
 </section>
 
@@ -29,35 +35,48 @@
   {% endif %}
 </section>
 
-<form class="filters" method="get">
-  <input type="text" name="q" value="{{ active_query }}" placeholder="제목 검색" />
-  <select name="source">
-    <option value="">모든 소스</option>
-    {% for source in sources %}
-    <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
-      {{ source.name }}
-    </option>
-    {% endfor %}
-  </select>
-  <button type="submit">검색</button>
+<form class="filters filter-toolbar" method="get">
+  <div class="filter-group filter-group-search">
+    <label class="filter-label" for="news-query">검색</label>
+    <input id="news-query" type="text" name="q" value="{{ active_query }}" placeholder="제목 검색" />
+  </div>
+  <div class="filter-group filter-group-source">
+    <label class="filter-label" for="news-source">출처</label>
+    <select id="news-source" name="source">
+      <option value="">모든 소스</option>
+      {% for source in sources %}
+      <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
+        {{ source.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group filter-group-submit">
+    <span class="filter-label">실행</span>
+    <button type="submit">검색 적용</button>
+  </div>
 </form>
 
-<p class="pagination-summary">총 {{ total_count }}건 · {{ current_page }}/{{ total_pages }} 페이지</p>
+<p class="pagination-summary">총 {{ total_count }}건 중 {{ current_page }}/{{ total_pages }} 페이지</p>
 
 <section class="article-list">
   {% for article in articles %}
   <article class="article-row">
-    <div class="meta compact-meta">
-      <span class="badge">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
-      <span>{{ article.source_name }}</span>
-      <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
-    </div>
     <h3 class="article-title">
       <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
     </h3>
-    <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-      {{ article.canonical_url }}
-    </a>
+    <p class="article-meta-line compact-meta">
+      <span class="badge">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+      <span>{{ article.source_name }}</span>
+    </p>
+    <div class="article-footer">
+      <time class="article-timestamp">
+        {{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}
+      </time>
+      <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+        {{ article.canonical_url }}
+      </a>
+    </div>
   </article>
   {% else %}
   <p class="empty">표시할 뉴스가 없습니다.</p>
