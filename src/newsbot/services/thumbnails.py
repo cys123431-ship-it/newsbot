@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-import re
+from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin
 from urllib.parse import urlsplit
@@ -15,14 +15,6 @@ from newsbot.contracts import ArticleCandidate
 from newsbot.source_registry import SourceDefinition
 
 
-_META_TAG_PATTERN = re.compile(
-    r"<meta\b[^>]+(?:property|name)\s*=\s*[\"']([^\"']+)[\"'][^>]+content\s*=\s*[\"']([^\"']+)[\"'][^>]*>",
-    re.IGNORECASE,
-)
-_IMG_TAG_PATTERN = re.compile(
-    r"<img\b[^>]+src\s*=\s*[\"']([^\"']+)[\"'][^>]*>",
-    re.IGNORECASE,
-)
 _PREFERRED_KEYS = (
     "thumbnail_url",
     "thumbnail",
@@ -42,6 +34,70 @@ _PREFERRED_META_NAMES = (
     "twitter:image:src",
     "og:image:secure_url",
 )
+_IMG_ATTRIBUTE_KEYS = (
+    "src",
+    "data-src",
+    "data-original",
+    "data-lazy-src",
+    "data-image",
+    "data-thumb",
+)
+_LINK_REL_CANDIDATES = {"image_src", "preload", "preconnect"}
+
+
+class _ThumbnailHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.candidates: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_map = {
+            str(key).strip().lower(): str(value or "").strip()
+            for key, value in attrs
+            if key
+        }
+        if tag == "meta":
+            name = (
+                attrs_map.get("property")
+                or attrs_map.get("name")
+                or attrs_map.get("itemprop")
+            ).strip().lower()
+            if name in _PREFERRED_META_NAMES or name == "image":
+                self._push_candidate(attrs_map.get("content"))
+            return
+
+        if tag == "link":
+            rel_values = {
+                part.strip().lower()
+                for part in attrs_map.get("rel", "").split()
+                if part.strip()
+            }
+            if rel_values & _LINK_REL_CANDIDATES:
+                if "preload" not in rel_values or attrs_map.get("as", "").strip().lower() == "image":
+                    self._push_candidate(attrs_map.get("href"))
+            return
+
+        if tag != "img":
+            return
+
+        for key in _IMG_ATTRIBUTE_KEYS:
+            self._push_candidate(attrs_map.get(key))
+        self._push_candidate(_first_srcset_url(attrs_map.get("srcset")))
+
+    def _push_candidate(self, value: str | None) -> None:
+        candidate = str(value or "").strip()
+        if candidate:
+            self.candidates.append(candidate)
+
+
+def _first_srcset_url(value: str | None) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    first_item = text.split(",", 1)[0].strip()
+    if not first_item:
+        return None
+    return first_item.split()[0].strip() or None
 
 
 def _normalize_thumbnail_url(url: str | None, *, base_url: str | None = None) -> str | None:
@@ -96,15 +152,15 @@ def extract_thumbnail_from_payload(
 
 
 def extract_thumbnail_from_html(html: str, *, base_url: str) -> str | None:
-    for name, value in _META_TAG_PATTERN.findall(html):
-        if name.strip().lower() in _PREFERRED_META_NAMES:
-            extracted = _normalize_thumbnail_url(value, base_url=base_url)
-            if extracted:
-                return extracted
-
-    img_match = _IMG_TAG_PATTERN.search(html)
-    if img_match:
-        return _normalize_thumbnail_url(img_match.group(1), base_url=base_url)
+    parser = _ThumbnailHTMLParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        return None
+    for value in parser.candidates:
+        extracted = _normalize_thumbnail_url(value, base_url=base_url)
+        if extracted:
+            return extracted
     return None
 
 

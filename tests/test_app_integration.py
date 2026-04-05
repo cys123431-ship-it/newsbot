@@ -253,6 +253,48 @@ def test_category_page_uses_numbered_pagination(client, app):
     assert "Crypto archive story 01" in second_page.text
 
 
+def test_homepage_hides_pressian_articles_and_unescapes_titles(client, app):
+    session_factory = app.state.session_factory
+
+    with session_factory() as session:
+        session.add_all(
+            [
+                Article(
+                    title='경제 속보 &quot;금리 동결&quot;&hellip;',
+                    canonical_url="https://example.com/economy/story",
+                    source_key="example-rss",
+                    source_name="Example News",
+                    published_at=datetime(2026, 4, 5, 2, 0, tzinfo=timezone.utc),
+                    primary_category="kr-economy",
+                    language="ko",
+                    trust_level=85,
+                    title_hash="economy-story",
+                    normalized_title="경제 속보 금리 동결",
+                ),
+                Article(
+                    title="정치 기사",
+                    canonical_url="https://www.pressian.com/pages/articles/2026040512455461732",
+                    source_key="pressian-rss",
+                    source_name="Pressian",
+                    published_at=datetime(2026, 4, 5, 1, 0, tzinfo=timezone.utc),
+                    primary_category="kr-politics",
+                    language="ko",
+                    trust_level=80,
+                    title_hash="pressian-story",
+                    normalized_title="정치 기사",
+                ),
+            ]
+        )
+        session.commit()
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Example News" in response.text
+    assert "Pressian" not in response.text
+    assert "&quot;" not in response.text
+    assert "&hellip;" not in response.text
+
+
 def test_hub_routes_render_hub_and_section_navigation(client, app):
     session_factory = app.state.session_factory
 

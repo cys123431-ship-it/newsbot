@@ -108,6 +108,12 @@ _PERIOD_OPTIONS = (
     {"key": "7d", "label": "7일"},
     {"key": "30d", "label": "30일"},
 )
+_FEATURED_PRIORITY_BY_HUB = {
+    "all": ("kr-economy", "us-economy", "us-markets", "crypto", "tech-it", "kr-politics", "us-politics"),
+    "kr": ("kr-economy", "kr-society", "kr-local", "kr-culture", "kr-sports", "kr-politics"),
+    "us": ("us-economy", "us-markets", "us-world", "us-technology", "us-politics"),
+    "global": ("crypto", "tech-it", "military"),
+}
 
 
 def _coerce_category_metadata() -> dict[str, CategoryView]:
@@ -232,6 +238,28 @@ def _resolve_since(period: str | None) -> datetime | None:
     return None
 
 
+def _prioritize_articles_for_display(articles: list, *, hub: str, section: str | None) -> list:
+    if not articles:
+        return articles
+
+    priority_map = {
+        category_key: index
+        for index, category_key in enumerate(_FEATURED_PRIORITY_BY_HUB.get(hub, ()))
+    }
+
+    def article_rank(article) -> tuple[int, float, int]:
+        category_key = str(getattr(article, "primary_category", "") or "")
+        published_at = getattr(article, "published_at", None)
+        sort_timestamp = published_at.timestamp() if published_at else 0.0
+        if section:
+            priority = 0 if category_key == section else 1
+        else:
+            priority = priority_map.get(category_key, 999)
+        return (priority, -sort_timestamp, -int(getattr(article, "trust_level", 0) or 0))
+
+    return sorted(articles, key=article_rank)
+
+
 def _render_article_page(
     request: Request,
     session: Session,
@@ -263,6 +291,11 @@ def _render_article_page(
         since=_resolve_since(period),
         page=page,
         page_size=request.app.state.settings.article_page_size,
+    )
+    articles = _prioritize_articles_for_display(
+        articles,
+        hub=active_hub,
+        section=active_section,
     )
 
     all_sources = list_sources(session)

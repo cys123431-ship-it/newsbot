@@ -9,6 +9,7 @@ import pytest
 
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
+from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import build_static_site
@@ -222,7 +223,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
     assert 'id="analysis-window-tabs"' in analysis_html
     assert 'id="analysis-kpi-strip"' in analysis_html
-    assert 'id="analysis-mini-kpis"' in analysis_html
+    assert 'id="analysis-trend-primary"' in analysis_html
     assert 'id="analysis-distribution-panels"' in analysis_html
     assert 'id="analysis-trend-panels"' in analysis_html
     assert 'id="analysis-repeated"' in analysis_html
@@ -230,14 +231,16 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert "../assets/analysis.js" in analysis_html
 
     markets_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
-    assert 'id="markets-surface-tabs"' in markets_html
-    assert 'id="markets-korea-surface"' in markets_html
+    assert 'id="markets-main-tabs"' in markets_html
+    assert 'id="markets-subfilter-tabs"' in markets_html
+    assert 'id="markets-treemap-board"' in markets_html
     assert '"korea_url":"' in markets_html
+    assert "echarts.min.js" in markets_html
     assert "../assets/markets.js" in markets_html
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
-    assert "heatmaps?.[marketsState.stockIndex]" in markets_js
-    assert "Binance market-cap heatmap" in markets_js
-    assert "buildHeatmap" in markets_js
+    assert "buildTreemapOption" in markets_js
+    assert "buildTreemapHierarchy" in markets_js
+    assert "inferCryptoCategory" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -258,6 +261,35 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert markets_status["providers"]["stocks"]["status"] == "warning"
     assert markets_status["providers"]["korea"]["status"] == "warning"
     assert markets_status["providers"]["crypto"]["status"] == "warning"
+
+
+def test_allow_static_candidate_blocks_pressian_urls():
+    candidate = ArticleCandidate(
+        source_key="naver-kr-politics",
+        source_name="NAVER News Search",
+        title="Government policy update after cabinet meeting",
+        url="https://www.pressian.com/pages/articles/2026040512455461732",
+    )
+
+    assert _allow_static_candidate(candidate) is False
+
+
+def test_static_article_from_public_dict_unescapes_html_entities():
+    article = StaticArticle.from_public_dict(
+        {
+            "title": '장동혁 &quot;이진숙&quot; 보궐선거 공천 시사&hellip;',
+            "canonical_url": "https://example.com/story",
+            "source_key": "example",
+            "source_name": "Example News",
+            "primary_category": "kr-politics",
+            "published_at": "2026-04-05T11:31:00+00:00",
+            "trust_level": 80,
+            "language": "ko",
+        }
+    )
+
+    assert "&quot;" not in article.title
+    assert "&hellip;" not in article.title
 
 
 def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):

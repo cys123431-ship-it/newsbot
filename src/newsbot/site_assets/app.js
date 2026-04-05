@@ -28,6 +28,13 @@ const RECENCY_OPTIONS = [
   { key: "unknown", label: "시간 미상" },
 ];
 
+const FEATURED_PRIORITY_BY_SCOPE = {
+  all: ["kr-economy", "us-economy", "us-markets", "crypto", "tech-it", "kr-politics", "us-politics"],
+  kr: ["kr-economy", "kr-society", "kr-local", "kr-culture", "kr-sports", "kr-politics"],
+  us: ["us-economy", "us-markets", "us-world", "us-technology", "us-politics"],
+  global: ["crypto", "tech-it", "military"],
+};
+
 const PAGE_SIZE = Math.max(
   1,
   Number.parseInt(payload.feed_page_size || payload.page_size || "12", 10) || 12,
@@ -185,6 +192,30 @@ function getArticlesForCurrentScope() {
   });
 }
 
+function prioritizeArticlesForDisplay(articles) {
+  const priorityMap = new Map(
+    (FEATURED_PRIORITY_BY_SCOPE[state.hub] || []).map((categoryKey, index) => [categoryKey, index]),
+  );
+  return [...articles].sort((left, right) => {
+    const leftPriority =
+      state.section !== "all"
+        ? (left.primary_category === state.section ? 0 : 1)
+        : (priorityMap.get(left.primary_category) ?? 999);
+    const rightPriority =
+      state.section !== "all"
+        ? (right.primary_category === state.section ? 0 : 1)
+        : (priorityMap.get(right.primary_category) ?? 999);
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
+    const timestampDelta = Number(right.sort_timestamp || 0) - Number(left.sort_timestamp || 0);
+    if (timestampDelta !== 0) {
+      return timestampDelta;
+    }
+    return Number(right.trust_level || 0) - Number(left.trust_level || 0);
+  });
+}
+
 function renderRefreshStrip() {
   const generatedAt = parsePublishedAt(payload.generated_at);
   const ageMinutes = generatedAt
@@ -293,10 +324,14 @@ function renderSourceOptions() {
 }
 
 function buildStoryThumb(article) {
-  if (article.thumbnail_url) {
-    return `<img src="${escapeHtml(article.thumbnail_url)}" alt="" loading="lazy" />`;
-  }
-  return `<span class="story-fallback">${escapeHtml(getSectionLabel(article))}</span>`;
+  return `
+    <span class="story-fallback">${escapeHtml(getSectionLabel(article))}</span>
+    ${
+      article.thumbnail_url
+        ? `<img src="${escapeHtml(article.thumbnail_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />`
+        : ""
+    }
+  `;
 }
 
 function renderFeaturedStory(article) {
@@ -377,6 +412,20 @@ function renderSideRail(filteredArticles) {
   const visibleCategories = getVisibleCategories().slice(0, 8);
   const sourceCount = new Set(filteredArticles.map((article) => article.source_key)).size;
   const sectionCount = new Set(filteredArticles.map((article) => article.primary_category)).size;
+  const recentArticles = filteredArticles.slice(0, 5);
+  const topSources = Array.from(
+    filteredArticles.reduce((accumulator, article) => {
+      const current = accumulator.get(article.source_name) || {
+        name: article.source_name,
+        count: 0,
+      };
+      current.count += 1;
+      accumulator.set(article.source_name, current);
+      return accumulator;
+    }, new Map()).values(),
+  )
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+    .slice(0, 5);
 
   return `
     <aside class="news-side-rail">
@@ -406,6 +455,36 @@ function renderSideRail(filteredArticles) {
         <div class="side-chip-list">
           ${visibleCategories
             .map((category) => `<span class="side-chip">${escapeHtml(category.label)}</span>`)
+            .join("")}
+        </div>
+      </section>
+      <section class="side-card">
+        <p class="rail-kicker">Right now</p>
+        <div class="side-story-list">
+          ${recentArticles
+            .map(
+              (article) => `
+                <a class="side-story-item" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+                  <strong>${escapeHtml(article.title)}</strong>
+                  <span>${escapeHtml(getSectionLabel(article))} · ${escapeHtml(formatDateTime(article.published_at))}</span>
+                </a>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+      <section class="side-card">
+        <p class="rail-kicker">Leading sources</p>
+        <div class="side-source-list">
+          ${topSources
+            .map(
+              (source) => `
+                <div class="side-source-row">
+                  <strong>${escapeHtml(source.name)}</strong>
+                  <span>${source.count}</span>
+                </div>
+              `,
+            )
             .join("")}
         </div>
       </section>
@@ -495,8 +574,9 @@ function renderPagination(pagination) {
 
 function renderFeed() {
   const filteredArticles = getArticlesForCurrentScope();
-  const pagination = getPaginationMeta(filteredArticles.length);
-  const pageArticles = filteredArticles.slice(pagination.start, pagination.end);
+  const prioritizedArticles = prioritizeArticlesForDisplay(filteredArticles);
+  const pagination = getPaginationMeta(prioritizedArticles.length);
+  const pageArticles = prioritizedArticles.slice(pagination.start, pagination.end);
   const featured = pageArticles[0] || null;
   const rest = pageArticles.slice(1);
   const headlineArticles = rest.slice(0, 4);
@@ -531,7 +611,7 @@ function renderFeed() {
       <div class="news-list">
         ${streamArticles.map((article) => renderStoryRow(article)).join("")}
       </div>
-      ${renderSideRail(filteredArticles)}
+      ${renderSideRail(prioritizedArticles)}
     </div>
   `;
   renderPagination(pagination);

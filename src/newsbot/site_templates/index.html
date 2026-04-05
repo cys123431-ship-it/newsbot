@@ -108,6 +108,8 @@
       <section id="news-sections" class="feed-stage">
         {% set headline_articles = initial_feed["items"][:4] %}
         {% set stream_articles = initial_feed["items"][4:] %}
+        {% set rail_articles = initial_feed["items"][:5] %}
+        {% set rail_sources = source_statuses[:5] %}
 
         {% if initial_feed.featured or headline_articles %}
         <div class="news-desktop-lead">
@@ -119,12 +121,11 @@
               target="_blank"
               rel="noreferrer"
             >
-              {% if initial_feed.featured.thumbnail_url %}
-              <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" />
-              {% else %}
               <span class="story-fallback">
                 {{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}
               </span>
+              {% if initial_feed.featured.thumbnail_url %}
+              <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
               {% endif %}
             </a>
             <div class="featured-story-copy">
@@ -156,10 +157,9 @@
             {% for article in headline_articles %}
             <article class="headline-stack-item">
               <a class="headline-stack-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                {% if article.thumbnail_url %}
-                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
-                {% else %}
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+                {% if article.thumbnail_url %}
+                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
                 {% endif %}
               </a>
               <div class="headline-stack-copy">
@@ -184,10 +184,9 @@
             {% for article in stream_articles %}
             <article class="news-row">
               <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                {% if article.thumbnail_url %}
-                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
-                {% else %}
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+                {% if article.thumbnail_url %}
+                <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
                 {% endif %}
               </a>
               <div class="story-copy">
@@ -237,6 +236,30 @@
               <div class="side-chip-list">
                 {% for category in categories[:8] %}
                 <span class="side-chip">{{ category.label }}</span>
+                {% endfor %}
+              </div>
+            </section>
+
+            <section class="side-card">
+              <p class="rail-kicker">Right now</p>
+              <div class="side-story-list">
+                {% for article in rail_articles %}
+                <a class="side-story-item" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                  <strong>{{ article.title }}</strong>
+                  <span>{{ article.section_label if article.section_label else article.hub_label }} · {{ article.published_at if article.published_at else "?쒓컙 誘몄긽" }}</span>
+                </a>
+                {% endfor %}
+              </div>
+            </section>
+
+            <section class="side-card">
+              <p class="rail-kicker">Leading sources</p>
+              <div class="side-source-list">
+                {% for status in rail_sources %}
+                <div class="side-source-row">
+                  <strong>{{ status.source_name }}</strong>
+                  <span>{{ status.published_count }}</span>
+                </div>
                 {% endfor %}
               </div>
             </section>

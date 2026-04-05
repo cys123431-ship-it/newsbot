@@ -37,6 +37,7 @@ from newsbot.markets_builder import MARKETS_OVERVIEW_FILENAME
 from newsbot.markets_builder import MARKETS_STATUS_FILENAME
 from newsbot.markets_builder import MARKETS_STOCKS_FILENAME
 from newsbot.services.classifier import classify_candidate
+from newsbot.services.classifier import is_blocked_candidate_url
 from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.ingest import ADAPTERS
 from newsbot.services.ingest import _fetch_with_retries
@@ -113,6 +114,63 @@ _ANALYSIS_STOPWORDS = {
     "live",
     "breaking",
 }
+_FEATURED_PRIORITY_BY_SCOPE = {
+    "all": ("kr-economy", "us-economy", "us-markets", "crypto", "tech-it", "kr-politics", "us-politics"),
+    "kr": ("kr-economy", "kr-society", "kr-local", "kr-culture", "kr-sports", "kr-politics"),
+    "us": ("us-economy", "us-markets", "us-world", "us-technology", "us-politics"),
+    "global": ("crypto", "tech-it", "military"),
+}
+
+
+def _clean_display_text(value: Any, *, fallback: str = "") -> str:
+    cleaned = strip_html(str(value or ""))
+    return cleaned or fallback
+
+
+def _get_featured_priority_map(scope: str) -> dict[str, int]:
+    ordered_categories = _FEATURED_PRIORITY_BY_SCOPE.get(scope, ())
+    return {category_key: index for index, category_key in enumerate(ordered_categories)}
+
+
+def _display_priority_tuple(
+    article: StaticArticle | dict[str, Any],
+    *,
+    scope: str = "all",
+    section: str = "all",
+) -> tuple[int, int, int, str]:
+    category_key = (
+        article.primary_category
+        if isinstance(article, StaticArticle)
+        else str(article.get("primary_category") or "")
+    )
+    sort_timestamp = (
+        article.sort_timestamp
+        if isinstance(article, StaticArticle)
+        else int(article.get("sort_timestamp") or 0)
+    )
+    trust_level = (
+        article.trust_level
+        if isinstance(article, StaticArticle)
+        else int(article.get("trust_level") or 0)
+    )
+    title = article.title if isinstance(article, StaticArticle) else str(article.get("title") or "")
+    if section and section != "all":
+        priority_rank = 0 if category_key == section else 1
+    else:
+        priority_rank = _get_featured_priority_map(scope).get(category_key, 999)
+    return (priority_rank, -sort_timestamp, -trust_level, title.lower())
+
+
+def _prioritize_feed_articles(
+    articles: list[StaticArticle | dict[str, Any]],
+    *,
+    scope: str = "all",
+    section: str = "all",
+) -> list[StaticArticle | dict[str, Any]]:
+    return sorted(
+        articles,
+        key=lambda article: _display_priority_tuple(article, scope=scope, section=section),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,12 +225,12 @@ class StaticArticle:
 
     @classmethod
     def from_public_dict(cls, raw: dict[str, Any]) -> StaticArticle:
-        title = str(raw.get("title") or "").strip()
-        source_name = str(raw.get("source_name") or "").strip() or "Unknown"
+        title = _clean_display_text(raw.get("title"))
+        source_name = _clean_display_text(raw.get("source_name"), fallback="Unknown")
         source_names = tuple(
-            str(name).strip()
+            _clean_display_text(name)
             for name in raw.get("source_names", [])
-            if str(name).strip()
+            if _clean_display_text(name)
         ) or (source_name,)
         normalized_title = " ".join(title.split()).lower()
         return cls(
@@ -254,11 +312,11 @@ class AnalysisArticle:
     def from_public_dict(cls, raw: dict[str, Any]) -> AnalysisArticle:
         source_key = str(raw.get("source_key") or "").strip()
         canonical_url = str(raw.get("canonical_url") or "").strip()
-        title = str(raw.get("title") or "").strip()
+        title = _clean_display_text(raw.get("title"))
         return cls(
             stable_key=str(raw.get("stable_key") or _build_analysis_stable_key(source_key, canonical_url)),
             source_key=source_key,
-            source_name=str(raw.get("source_name") or "").strip() or source_key,
+            source_name=_clean_display_text(raw.get("source_name"), fallback=source_key),
             category=str(raw.get("category") or "").strip(),
             hub=str(raw.get("hub") or "global").strip() or "global",
             hub_label=str(raw.get("hub_label") or "").strip(),
@@ -435,10 +493,13 @@ async def _collect_source(
         canonical_url, normalized_title, title_hash = canonicalize_candidate(candidate)
         accepted_articles.append(
             StaticArticle(
-                title=candidate.title,
+                title=_clean_display_text(candidate.title),
                 canonical_url=canonical_url,
                 source_key=source_definition.source_key,
-                source_name=source_definition.name,
+                source_name=_clean_display_text(
+                    source_definition.name,
+                    fallback=source_definition.source_key,
+                ),
                 thumbnail_url=candidate.thumbnail_url,
                 primary_category=category,
                 published_at=candidate.published_at,
@@ -446,7 +507,12 @@ async def _collect_source(
                 language=candidate.language or "unknown",
                 normalized_title=normalized_title,
                 title_hash=title_hash,
-                source_names=(source_definition.name,),
+                source_names=(
+                    _clean_display_text(
+                        source_definition.name,
+                        fallback=source_definition.source_key,
+                    ),
+                ),
             )
         )
         analysis_articles.append(
@@ -543,20 +609,21 @@ def _build_analysis_article(
     title_hash: str,
 ) -> AnalysisArticle:
     category_meta = _get_category_payload_entry(category)
+    cleaned_title = _clean_display_text(candidate.title)
     return AnalysisArticle(
         stable_key=_build_analysis_stable_key(candidate.source_key, canonical_url),
         source_key=candidate.source_key,
-        source_name=candidate.source_name,
+        source_name=_clean_display_text(candidate.source_name, fallback=candidate.source_key),
         category=category,
         hub=category_meta["hub"],
         hub_label=category_meta["hub_label"],
         section_label=category_meta["label"],
         language=candidate.language or "unknown",
-        title=candidate.title,
+        title=cleaned_title,
         canonical_url=canonical_url,
         published_at=candidate.published_at,
         title_hash=title_hash,
-        keywords=_extract_analysis_keywords(candidate.title, candidate.tags),
+        keywords=_extract_analysis_keywords(cleaned_title, candidate.tags),
     )
 
 
@@ -624,6 +691,8 @@ def _allow_static_candidate(candidate: ArticleCandidate) -> bool:
     if not candidate.title or len(candidate.title.strip()) < 12:
         return False
     if not candidate.url.startswith(("http://", "https://")):
+        return False
+    if is_blocked_candidate_url(candidate.url):
         return False
     blocked_hosts = {"news.naver.com", "n.news.naver.com"}
     if (
@@ -772,6 +841,8 @@ def _load_recent_analysis_articles(raw: Any) -> list[AnalysisArticle]:
         try:
             article = AnalysisArticle.from_public_dict(raw_article)
         except Exception:
+            continue
+        if is_blocked_candidate_url(article.canonical_url):
             continue
         if article.stable_key and article.title and article.canonical_url and article.category:
             recent_articles.append(article)
@@ -1144,11 +1215,13 @@ def _augment_analysis_window_payload(
     sparkline = sparkline or [int(payload.get("article_count") or 0)]
 
     daily_hub_counts: dict[str, Counter[str]] = {}
+    daily_section_counts: dict[str, Counter[str]] = {}
     for article in articles:
         if article.published_at is None:
             continue
         day_key = article.published_at.astimezone(timezone.utc).date().isoformat()
         daily_hub_counts.setdefault(day_key, Counter())[article.hub] += 1
+        daily_section_counts.setdefault(day_key, Counter())[article.category] += 1
 
     top_hubs = list(payload.get("top_hubs") or [])[:2]
     timeline_by_key = {str(item.get("date")): item for item in timeline}
@@ -1169,32 +1242,65 @@ def _augment_analysis_window_payload(
             {
                 "key": hub_key,
                 "label": str(hub.get("label") or hub_key),
+                "count": int(hub.get("count") or 0),
                 "series": series,
             }
         )
 
+    top_sections = list(payload.get("top_sections") or [])[:3]
+    section_series: list[dict[str, Any]] = []
+    for section in top_sections:
+        section_key = str(section.get("key") or "")
+        if not section_key:
+            continue
+        series = []
+        for day_key in timeline_by_key:
+            series.append(
+                {
+                    "date": day_key,
+                    "count": int(daily_section_counts.get(day_key, Counter()).get(section_key, 0)),
+                }
+            )
+        section_series.append(
+            {
+                "key": section_key,
+                "label": str(section.get("label") or section_key),
+                "count": int(section.get("count") or 0),
+                "series": series,
+            }
+        )
+
+    timeline_counts = [int(item.get("count") or 0) for item in timeline]
+    average_count = round(sum(timeline_counts) / len(timeline_counts), 1) if timeline_counts else 0
+    peak_point = max(
+        timeline,
+        key=lambda item: int(item.get("count") or 0),
+        default={"date": "-", "count": 0},
+    )
+    latest_point = timeline[-1] if timeline else {"date": "-", "count": 0}
+
     payload["kpi_series"] = [
         {
             "key": "articles",
-            "label": "Articles",
+            "label": "기사 수",
             "value": int(payload.get("article_count") or 0),
             "series": sparkline,
         },
         {
             "key": "sources",
-            "label": "Sources",
+            "label": "활성 소스",
             "value": int(payload.get("active_source_count") or 0),
             "series": sparkline,
         },
         {
             "key": "repeats",
-            "label": "Repeats",
+            "label": "반복 기사",
             "value": int(payload.get("repeated_title_count") or 0),
             "series": sparkline,
         },
         {
             "key": "unknown",
-            "label": "Unknown time",
+            "label": "시간 미상",
             "value": int(payload.get("unknown_time_count") or 0),
             "series": sparkline,
         },
@@ -1202,25 +1308,65 @@ def _augment_analysis_window_payload(
     payload["distribution_panels"] = [
         {
             "key": "sources",
-            "label": "Source distribution",
+            "label": "소스 분포",
             "items": list(payload.get("top_sources") or [])[:8],
         },
         {
             "key": "sections",
-            "label": "Section distribution",
+            "label": "섹션 비중",
             "items": list(payload.get("top_sections") or [])[:8],
+            "chart": "donut",
+        },
+        {
+            "key": "keywords",
+            "label": "반복 키워드",
+            "items": [
+                {
+                    "key": item.get("keyword"),
+                    "label": item.get("keyword"),
+                    "count": int(item.get("count") or 0),
+                }
+                for item in list(payload.get("top_keywords") or [])[:8]
+            ],
         },
     ]
     payload["trend_panels"] = [
         {
             "key": "volume",
-            "label": "Article volume",
+            "label": "일자별 기사량 추이",
             "series": timeline,
+            "summary_items": [
+                {"label": "최근 집계", "value": int(latest_point.get("count") or 0)},
+                {"label": "일 평균", "value": average_count},
+                {
+                    "label": "최대 일자",
+                    "value": f"{peak_point.get('date')} / {int(peak_point.get('count') or 0)}",
+                },
+            ],
         },
         {
             "key": "hubs",
-            "label": "Hub trend",
+            "label": "허브 비중 추이",
             "series_groups": hub_series,
+            "summary_items": [
+                {
+                    "label": str(group.get("label") or group.get("key") or ""),
+                    "value": int(group.get("count") or 0),
+                }
+                for group in hub_series
+            ],
+        },
+        {
+            "key": "sections",
+            "label": "주요 섹션 추이",
+            "series_groups": section_series,
+            "summary_items": [
+                {
+                    "label": str(group.get("label") or group.get("key") or ""),
+                    "value": int(group.get("count") or 0),
+                }
+                for group in section_series
+            ],
         },
     ]
     return payload
@@ -1572,7 +1718,7 @@ def _build_page_tokens(total_pages: int, current_page: int) -> list[int | None]:
 
 def _build_initial_feed(payload: dict[str, Any]) -> dict[str, Any]:
     page_articles = _paginate_articles(
-        payload["articles"],
+        _prioritize_feed_articles(payload["articles"], scope="all", section="all"),
         page=1,
         page_size=int(payload.get("feed_page_size") or payload.get("page_size") or 25),
     )
@@ -1778,6 +1924,8 @@ def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticA
         try:
             article = StaticArticle.from_public_dict(raw_article)
         except Exception:
+            continue
+        if is_blocked_candidate_url(article.canonical_url):
             continue
         if article.title and article.canonical_url and article.primary_category:
             archive_articles.append(article)

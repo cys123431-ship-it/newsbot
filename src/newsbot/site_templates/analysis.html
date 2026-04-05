@@ -21,7 +21,7 @@
       <div class="analysis-header-copy">
         <p class="analysis-eyebrow">newsbot analytics</p>
         <h1>Analysis dashboard</h1>
-        <p>기사량, 출처 집중도, 반복 제목, 최근 샘플을 운영 대시보드 방식으로 바로 읽을 수 있게 재구성했습니다.</p>
+        <p>Feed volume, source mix, repeated headlines, and topic movement in one compact dashboard.</p>
       </div>
       <div class="analysis-header-meta">
         <span class="summary-pill">Retention {{ retention_days }} days</span>
@@ -34,25 +34,20 @@
       <section class="analysis-filter-bar">
         <div class="analysis-filter-copy">
           <p class="rail-kicker">Window</p>
-          <h2>기간별 흐름을 바꿔보세요</h2>
+          <h2>Change the time window</h2>
         </div>
         <div id="analysis-window-tabs" class="analysis-window-tabs"></div>
       </section>
 
       <section id="analysis-kpi-strip" class="analysis-kpi-strip"></section>
 
-      <section class="analysis-secondary-grid">
-        <section class="analysis-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Main KPI</p>
-              <h2>보조 지표</h2>
-            </div>
-          </div>
-          <div id="analysis-mini-kpis" class="analysis-mini-kpis"></div>
-        </section>
-
-        <section id="analysis-distribution-panels" class="analysis-distribution-panels"></section>
+      <section class="analysis-overview-grid">
+        <div class="analysis-overview-column">
+          <section id="analysis-trend-primary" class="analysis-trend-stack"></section>
+        </div>
+        <div class="analysis-overview-column">
+          <section id="analysis-distribution-panels" class="analysis-distribution-panels"></section>
+        </div>
       </section>
 
       <section id="analysis-trend-panels" class="analysis-trend-grid"></section>
@@ -62,7 +57,7 @@
           <div class="analysis-panel-head">
             <div>
               <p class="analysis-kicker">Repeated titles</p>
-              <h2>반복 헤드라인 묶음</h2>
+              <h2>Repeated headline groups</h2>
             </div>
           </div>
           <div id="analysis-repeated" class="analysis-table-slot"></div>
@@ -72,14 +67,14 @@
           <div class="analysis-panel-head">
             <div>
               <p class="analysis-kicker">Recent samples</p>
-              <h2>최근 수집 기사 샘플</h2>
+              <h2>Latest collected headlines</h2>
             </div>
           </div>
           <div id="analysis-samples" class="analysis-table-slot"></div>
         </section>
       </section>
 
-      <noscript class="noscript-note">이 분석 페이지는 JavaScript가 켜져 있어야 대시보드가 렌더링됩니다.</noscript>
+      <noscript class="noscript-note">JavaScript is required to render the analysis dashboard.</noscript>
     </main>
 
     <script id="analysis-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>

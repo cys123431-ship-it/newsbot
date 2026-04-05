@@ -14,6 +14,7 @@ from newsbot.source_registry import SourceDefinition
 from newsbot.text_tools import guess_language
 from newsbot.text_tools import limit_summary
 from newsbot.text_tools import normalize_whitespace
+from newsbot.text_tools import strip_html
 
 
 def _from_struct_time(value: struct_time | None) -> datetime | None:
@@ -60,7 +61,7 @@ class RssAdapter:
         ]
         candidates: list[ArticleCandidate] = []
         for entry in parsed.entries:
-            title = normalize_whitespace(getattr(entry, "title", ""))
+            title = strip_html(getattr(entry, "title", ""))
             link = normalize_whitespace(getattr(entry, "link", ""))
             summary = getattr(entry, "summary", getattr(entry, "description", ""))
             haystack = f"{title} {summary}".lower()

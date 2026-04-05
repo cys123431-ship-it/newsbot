@@ -51,8 +51,6 @@ _KR_PUBLISHER_HOSTS = {
     "www.chosun.com",
     "chosun.com",
     "www.edaily.co.kr",
-    "www.pressian.com",
-    "pressian.com",
     "www.asiae.co.kr",
     "asiae.co.kr",
     "www.etoday.co.kr",
@@ -60,6 +58,10 @@ _KR_PUBLISHER_HOSTS = {
     "kmib.co.kr",
     "www.seoul.co.kr",
     "seoul.co.kr",
+}
+_BLOCKED_PUBLISHER_HOSTS = {
+    "www.pressian.com",
+    "pressian.com",
 }
 
 _GLOBAL_CATEGORY_KEYWORDS = {
@@ -320,6 +322,8 @@ _US_CATEGORY_KEYWORDS = {
 def classify_candidate(
     candidate: ArticleCandidate, source_definition: SourceDefinition
 ) -> str | None:
+    if is_blocked_candidate_url(candidate.url):
+        return None
     if source_definition.category is not None:
         return source_definition.category
 
@@ -330,6 +334,11 @@ def classify_candidate(
         return _classify_by_keyword_map(candidate, _US_CATEGORY_KEYWORDS)
 
     return _classify_by_keyword_map(candidate, _GLOBAL_CATEGORY_KEYWORDS)
+
+
+def is_blocked_candidate_url(url: str | None) -> bool:
+    host = urlsplit(str(url or "")).netloc.lower()
+    return host in _BLOCKED_PUBLISHER_HOSTS
 
 
 def _build_haystack(candidate: ArticleCandidate) -> str:

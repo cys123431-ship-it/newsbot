@@ -6,11 +6,11 @@
     <title>newsbot markets</title>
     <meta
       name="description"
-      content="newsbot markets dashboard with index-weighted stock maps and Binance-style crypto heatmaps"
+      content="시가총액 비중과 당일 등락률을 한눈에 읽는 계층형 시장 현황판"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
-  <body class="public-app">
+  <body class="public-app market-map-page">
     <nav class="surface-switcher" aria-label="View switcher">
       <a class="surface-link" href="../">News</a>
       <a class="surface-link" href="../analysis/">Analysis</a>
@@ -20,34 +20,49 @@
     <header class="markets-header">
       <div class="analysis-header-copy">
         <p class="analysis-eyebrow">newsbot markets</p>
-        <h1>Market maps</h1>
-        <p>미국 주식은 지수별 시총 비중으로, 코인은 Binance 거래쌍과 시총 매칭 기준으로 마켓맵을 다시 구성했습니다.</p>
+        <h1>시장 현황판</h1>
+        <p>
+          시가총액 비중으로 크기를, 당일 등락률로 색을 표현하는
+          계층형 트리맵입니다.
+        </p>
       </div>
       <div class="analysis-header-meta">
-        <span class="summary-pill">Overview / US / Korea / Crypto</span>
-        <span class="summary-pill">Weighted heatmaps</span>
-        <span class="summary-pill">Updated <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+        <span class="summary-pill">한국 · 미국 · 크립토</span>
+        <span class="summary-pill">Squarified treemap</span>
+        <span class="summary-pill">업데이트 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
       </div>
-      <div id="markets-status-line" class="markets-status-line">Loading market dashboard.</div>
+      <div id="markets-status-line" class="markets-status-line">시장 데이터를 불러오는 중입니다.</div>
     </header>
 
     <main class="markets-shell">
-      <section class="analysis-filter-bar">
-        <div class="analysis-filter-copy">
-          <p class="rail-kicker">Surface</p>
-          <h2>시장별 보드를 전환하세요</h2>
+      <section class="market-map-panel">
+        <div class="market-map-toolbar">
+          <div class="market-map-copy">
+            <p class="analysis-kicker">Market map</p>
+            <h2>탭과 지수를 선택해 전체 시장 비중을 바로 비교하세요</h2>
+            <p>
+              굵은 구획은 섹터 또는 카테고리 묶음이며, 각 타일은 선택한 시장에서의
+              시가총액 비중을 기준으로 배치됩니다.
+            </p>
+          </div>
+          <div id="markets-main-tabs" class="market-main-tabs" aria-label="시장 메인 탭"></div>
+          <div id="markets-subfilter-tabs" class="market-subfilter-tabs" aria-label="시장 하위 필터"></div>
         </div>
-        <div id="markets-surface-tabs" class="analysis-window-tabs"></div>
+
+        <div id="markets-benchmark-strip" class="market-benchmark-strip"></div>
+        <div id="markets-selection-summary" class="market-selection-summary"></div>
+
+        <section class="market-map-stage" aria-label="시장 트리맵">
+          <div id="markets-treemap-board" class="market-treemap-board"></div>
+        </section>
+
+        <div id="markets-legend" class="market-map-legend"></div>
       </section>
 
-      <section id="markets-overview-surface" class="markets-surface"></section>
-      <section id="markets-stocks-surface" class="markets-surface" hidden></section>
-      <section id="markets-korea-surface" class="markets-surface" hidden></section>
-      <section id="markets-crypto-surface" class="markets-surface" hidden></section>
-
-      <noscript class="noscript-note">이 페이지는 JavaScript가 켜져 있어야 마켓맵이 렌더링됩니다.</noscript>
+      <noscript class="noscript-note">JavaScript가 있어야 시장 현황판을 렌더링할 수 있습니다.</noscript>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
     <script src="../assets/markets.js"></script>
   </body>
