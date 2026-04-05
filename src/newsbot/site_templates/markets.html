@@ -37,7 +37,7 @@
           <div class="market-map-copy">
             <p class="analysis-kicker">Market map</p>
             <h2>국가와 지수를 고르면 주요 종목 비중을 바로 비교할 수 있습니다.</h2>
-            <p>미국과 한국 주식은 기존 트리맵 구조를 유지하고, 코인은 별도 스캐너 대시보드로 분리했습니다.</p>
+            <p>미국과 한국 주식은 기존 트리맵 구조를 유지하고, 코인은 별도 정적 분석 섹션으로 분리했습니다.</p>
           </div>
           <div id="markets-main-tabs" class="market-main-tabs" aria-label="시장 메인 탭"></div>
           <div id="markets-subfilter-tabs" class="market-subfilter-tabs" aria-label="시장 하위 필터"></div>
@@ -57,42 +57,52 @@
     </main>
     {% else %}
     <main class="markets-shell crypto-shell-page">
-      <section id="scanner-shell" class="scanner-shell-frame" aria-label="코인 패턴 스캐너">
-        <header class="scanner-shell-header">
-          <div class="scanner-brand-block">
-            <p class="analysis-eyebrow">Scanner</p>
-            <h1>하모닉 패턴 스캐너</h1>
-            <p>무료 정적 배포 모드로 운영되는 코인 패턴 분석 대시보드입니다. 최신 배치 스냅샷을 다시 불러와 확인할 수 있습니다.</p>
+      <section id="crypto-app" class="crypto-app-shell" aria-label="코인 분석 허브">
+        <header class="crypto-page-hero">
+          <div class="crypto-page-copy">
+            <p class="analysis-eyebrow">Crypto Analysis</p>
+            <h1>{{ crypto_page_label or "오버뷰" }}</h1>
+            <p>패턴, 파생 지표, 추세, 모멘텀, 변동성을 한 묶음으로 보는 정적 분석 제품입니다. 스캔 버튼은 최신 배치 스냅샷을 다시 불러옵니다.</p>
           </div>
-          <div id="scanner-control-panel" class="scanner-control-panel">
-            <label class="scanner-field">
-              <span>스캔 범위</span>
-              <select id="scanner-universe-select" class="scanner-select"></select>
-            </label>
-            <label class="scanner-field">
-              <span>타임프레임</span>
-              <select id="scanner-timeframe-select" class="scanner-select"></select>
-            </label>
-            <button id="scanner-refresh-button" class="scanner-action-button" type="button">최신 스캔 다시 불러오기</button>
-            <p id="scanner-cooldown-text" class="scanner-cooldown-text">잠시 후 다시 시도할 수 있습니다.</p>
-            <div id="scanner-status-line" class="scanner-status-line">스캐너 manifest를 불러오는 중입니다.</div>
-            <div class="scanner-progress-track" aria-hidden="true">
-              <span id="scanner-progress-bar" class="scanner-progress-bar"></span>
-            </div>
+          <div class="crypto-hero-pills">
+            <span class="summary-pill">Binance USDT Perpetual</span>
+            <span class="summary-pill">상위 100개 스캔</span>
+            <span class="summary-pill">한국시간 표기</span>
           </div>
         </header>
 
-        <section class="scanner-results-panel">
-          <div class="scanner-results-topline">
-            <div id="scanner-summary-meta" class="scanner-summary-meta"></div>
-            <div id="scanner-active-scan" class="scanner-active-scan"></div>
+        <section class="crypto-toolbar-card">
+          <div class="crypto-toolbar-grid">
+            <label class="scanner-field">
+              <span>스캔 범위</span>
+              <select id="crypto-universe-select" class="scanner-select"></select>
+            </label>
+            <label class="scanner-field">
+              <span>타임프레임</span>
+              <select id="crypto-timeframe-select" class="scanner-select"></select>
+            </label>
+            <button id="crypto-refresh-button" class="scanner-action-button" type="button">최신 스캔 다시 불러오기</button>
           </div>
-          <div id="scanner-filter-tabs" class="scanner-filter-tabs" aria-label="패턴 상태 필터"></div>
-          <div id="scanner-results" class="scanner-results-grid"></div>
+          <p id="crypto-cooldown-text" class="scanner-cooldown-text">잠시 후 다시 시도할 수 있습니다.</p>
+          <div id="crypto-status-line" class="scanner-status-line">스캐너 manifest를 불러오는 중입니다.</div>
+          <div class="scanner-progress-track" aria-hidden="true">
+            <span id="crypto-progress-bar" class="scanner-progress-bar"></span>
+          </div>
         </section>
+
+        <nav id="crypto-page-tabs" class="crypto-page-tabs" aria-label="코인 분석 페이지"></nav>
+
+        <section class="crypto-summary-shell">
+          <div id="crypto-summary-meta" class="scanner-summary-meta"></div>
+          <div id="crypto-active-scan" class="scanner-active-scan"></div>
+        </section>
+
+        <section id="crypto-page-highlights" class="crypto-page-highlights"></section>
+        <section id="crypto-page-controls" class="crypto-page-controls"></section>
+        <section id="crypto-page-content" class="crypto-page-content"></section>
       </section>
 
-      <noscript class="noscript-note">JavaScript가 있어야 코인 패턴 스캐너를 렌더링할 수 있습니다.</noscript>
+      <noscript class="noscript-note">JavaScript가 있어야 코인 분석 허브를 렌더링할 수 있습니다.</noscript>
     </main>
     {% endif %}
 

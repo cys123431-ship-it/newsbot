@@ -286,13 +286,14 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'href="../markets/crypto/"' in analysis_html
 
     markets_alias_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
-    assert 'id="scanner-shell"' in markets_alias_html
-    assert 'id="scanner-universe-select"' in markets_alias_html
-    assert 'id="scanner-timeframe-select"' in markets_alias_html
-    assert 'id="scanner-refresh-button"' in markets_alias_html
-    assert 'id="scanner-filter-tabs"' in markets_alias_html
-    assert 'id="scanner-results"' in markets_alias_html
+    assert 'id="crypto-app"' in markets_alias_html
+    assert 'id="crypto-universe-select"' in markets_alias_html
+    assert 'id="crypto-timeframe-select"' in markets_alias_html
+    assert 'id="crypto-refresh-button"' in markets_alias_html
+    assert 'id="crypto-page-tabs"' in markets_alias_html
+    assert 'id="crypto-page-content"' in markets_alias_html
     assert '"initial_surface":"crypto"' in markets_alias_html
+    assert '"crypto_page_key":"overview"' in markets_alias_html
     assert '"surface_links":' in markets_alias_html
     assert '"scanner_manifest_url":"' in markets_alias_html
     assert "../assets/markets.js" in markets_alias_html
@@ -314,22 +315,42 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert "../../assets/markets.js" in korea_markets_html
 
     crypto_markets_html = (output_dir / "markets" / "crypto" / "index.html").read_text(encoding="utf-8")
-    assert 'id="scanner-shell"' in crypto_markets_html
-    assert 'id="scanner-universe-select"' in crypto_markets_html
-    assert 'id="scanner-timeframe-select"' in crypto_markets_html
-    assert 'id="scanner-refresh-button"' in crypto_markets_html
-    assert 'id="scanner-filter-tabs"' in crypto_markets_html
-    assert 'id="scanner-results"' in crypto_markets_html
+    assert 'id="crypto-app"' in crypto_markets_html
+    assert 'id="crypto-universe-select"' in crypto_markets_html
+    assert 'id="crypto-timeframe-select"' in crypto_markets_html
+    assert 'id="crypto-refresh-button"' in crypto_markets_html
+    assert 'id="crypto-page-tabs"' in crypto_markets_html
+    assert 'id="crypto-page-controls"' in crypto_markets_html
+    assert 'id="crypto-page-content"' in crypto_markets_html
     assert '"initial_surface":"crypto"' in crypto_markets_html
+    assert '"crypto_page_key":"overview"' in crypto_markets_html
+    assert '"crypto_page_links":' in crypto_markets_html
     assert '"scanner_manifest_url":"' in crypto_markets_html
     assert "../../assets/markets.js" in crypto_markets_html
+
+    for slug, key in (
+        ("signals", "signals"),
+        ("patterns", "patterns"),
+        ("opportunities", "opportunities"),
+        ("setups", "setups"),
+        ("technical-ratings", "technical_ratings"),
+        ("trend", "trend"),
+        ("momentum", "momentum"),
+        ("volatility", "volatility"),
+        ("multi-timeframe", "multi_timeframe"),
+    ):
+        nested_html = (output_dir / "markets" / "crypto" / slug / "index.html").read_text(encoding="utf-8")
+        assert f'"crypto_page_key":"{key}"' in nested_html
+        assert 'id="crypto-page-content"' in nested_html
+        assert '../../../assets/markets.js' in nested_html
 
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
     assert "buildTreemapOption" in markets_js
     assert "buildTreemapHierarchy" in markets_js
-    assert "loadScannerManifest" in markets_js
-    assert "renderScanner" in markets_js
-    assert "renderScannerResults" in markets_js
+    assert "loadCryptoManifest" in markets_js
+    assert "renderSignalsPage" in markets_js
+    assert "renderPatternsPage" in markets_js
+    assert "renderMultiTimeframePage" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -353,6 +374,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     scanner_manifest = _read_json(output_dir / "data" / "scanner" / "manifest.json")
     assert scanner_manifest["snapshots"]
+    assert scanner_manifest["page_data"]["overview"]["top100"]["5m"]
+    assert scanner_manifest["page_data"]["patterns"]["top100"]["5m"].startswith("scan-top100-")
+    assert any(page["key"] == "technical_ratings" for page in scanner_manifest["crypto_pages"])
     first_snapshot_path = (
         output_dir / "data" / "scanner" / scanner_manifest["snapshots"][0]["path"]
     )
@@ -361,8 +385,13 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     first_result = first_snapshot["results"][0]
     assert first_result["preview_image"]
     assert first_result["detail_page"]
+    assert first_result["detail_page"].startswith("crypto/setups/")
     detail_html_path = output_dir / "markets" / first_result["detail_page"] / "index.html"
     assert detail_html_path.exists()
+    legacy_detail_html_path = output_dir / "markets" / first_result["legacy_detail_page"] / "index.html"
+    assert legacy_detail_html_path.exists()
+    detail_json_path = output_dir / "data" / "scanner" / first_result["detail_data_path"]
+    assert detail_json_path.exists()
 
 
 def test_allow_static_candidate_blocks_pressian_urls():

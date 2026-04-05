@@ -19,12 +19,12 @@
     <main class="scanner-detail-shell">
       <section class="scanner-detail-hero">
         <div class="scanner-detail-copy">
-          <p class="analysis-eyebrow">Pattern Detail</p>
+          <p class="analysis-eyebrow">Setup Detail</p>
           <h1>{{ detail.symbol }} · {{ detail.pattern }}</h1>
           <p>{{ detail.summary }}</p>
         </div>
         <div class="scanner-detail-actions">
-          <a class="scanner-link-button" href="{{ back_href }}">스캐너로 돌아가기</a>
+          <a class="scanner-link-button" href="{{ back_href }}">패턴 페이지로 돌아가기</a>
           <a class="scanner-link-button is-muted" href="{{ external_links.binance }}" target="_blank" rel="noopener noreferrer">Binance</a>
           <a class="scanner-link-button is-muted" href="{{ external_links.tradingview }}" target="_blank" rel="noopener noreferrer">TradingView</a>
         </div>
@@ -81,7 +81,7 @@
         <article class="scanner-detail-card">
           <div class="scanner-detail-card-head">
             <span>Indicator Flags</span>
-            <strong>{{ snapshot.timeframe_label }} 스냅샷</strong>
+            <strong>{{ snapshot.timeframe_label }}</strong>
           </div>
           <div class="scanner-flag-list">
             {% for flag in detail.indicator_flags %}
@@ -91,6 +91,39 @@
                 <p>{{ flag.note }}</p>
               </div>
               <span class="scanner-flag-pill {{ 'is-pass' if flag.status == 'pass' else '' }}">{{ flag.value }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="scanner-detail-card">
+          <div class="scanner-detail-card-head">
+            <span>Analysis Layer</span>
+            <strong>{{ analysis.labels.technical_rating if analysis else 'Neutral' }}</strong>
+          </div>
+          <dl class="scanner-metric-list">
+            <div><dt>추세</dt><dd>{{ analysis.labels.trend_bias if analysis else '-' }}</dd></div>
+            <div><dt>모멘텀</dt><dd>{{ analysis.labels.momentum_bias if analysis else '-' }}</dd></div>
+            <div><dt>변동성</dt><dd>{{ analysis.labels.volatility_state if analysis else '-' }}</dd></div>
+            <div><dt>파생 편향</dt><dd>{{ analysis.labels.derivatives_bias if analysis else '-' }}</dd></div>
+            <div><dt>우선순위 점수</dt><dd>{{ analysis.scores.opportunity if analysis else '-' }}</dd></div>
+            <div><dt>기술 점수</dt><dd>{{ analysis.scores.technical if analysis else '-' }}</dd></div>
+          </dl>
+        </article>
+
+        <article class="scanner-detail-card">
+          <div class="scanner-detail-card-head">
+            <span>멀티 타임프레임</span>
+            <strong>{{ detail.symbol }}</strong>
+          </div>
+          <div class="scanner-flag-list">
+            {% for timeframe, row in related_timeframes.items() %}
+            <div class="scanner-flag-row">
+              <div>
+                <strong>{{ timeframe }}</strong>
+                <p>{{ row.trend_bias }} · {{ row.momentum_bias }}</p>
+              </div>
+              <span class="scanner-flag-pill is-pass">{{ row.technical_rating }}</span>
             </div>
             {% endfor %}
           </div>

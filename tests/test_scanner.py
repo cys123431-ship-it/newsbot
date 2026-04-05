@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from newsbot.scanner.engine import build_symbol_analysis
 from newsbot.scanner.engine import build_fallback_snapshot
 from newsbot.scanner.engine import build_manifest
 from newsbot.scanner.engine import find_pivots
@@ -57,11 +58,40 @@ def test_build_manifest_collects_snapshot_metadata():
         build_fallback_snapshot(timeframe="1h", generated_at="2026-04-05T12:00:00+00:00"),
     ]
 
-    manifest = build_manifest(snapshots)
+    manifest = build_manifest(
+        snapshots,
+        page_data={
+            "overview": {"top100": {"5m": "overview-top100-5m.json"}},
+            "patterns": {"top100": {"5m": "scan-top100-5m.json"}},
+        },
+    )
 
     assert manifest["total_results"] >= 4
     assert manifest["snapshots"][0]["path"].startswith("scan-top100-")
     assert manifest["symbols_scanned"] == 100
+    assert manifest["page_data"]["overview"]["top100"]["5m"] == "overview-top100-5m.json"
+    assert manifest["page_data"]["patterns"]["top100"]["5m"] == "scan-top100-5m.json"
+    assert any(page["key"] == "technical_ratings" for page in manifest["crypto_pages"])
+
+
+def test_build_symbol_analysis_exposes_scores_and_labels():
+    analysis = build_symbol_analysis(
+        symbol="SOLUSDT",
+        timeframe="5m",
+        candles=_sample_candles() * 20,
+        ticker={"change_24h": 4.25, "quote_volume": 123456789, "last_price": 101.5},
+        funding_rate=0.0112,
+        open_interest_usd=450_000_000,
+        long_short_ratio=1.17,
+        pattern_result=build_fallback_snapshot(timeframe="5m", generated_at="2026-04-05T12:00:00+00:00")["results"][0],
+    )
+
+    assert analysis["symbol"] == "SOLUSDT"
+    assert "technical" in analysis["scores"]
+    assert "trend_bias" in analysis["labels"]
+    assert "rsi14" in analysis["indicators"]
+    assert analysis["pattern"]["detail_page"].startswith("crypto/setups/")
+    assert analysis["pattern"]["detail_data_path"].startswith("setups/")
 
 
 def test_generate_preview_svg_writes_chart_image(tmp_path: Path):
