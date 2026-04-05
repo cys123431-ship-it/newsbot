@@ -1,4 +1,4 @@
-﻿const payload = JSON.parse(document.getElementById("site-data").textContent);
+const payload = JSON.parse(document.getElementById("site-data").textContent);
 
 const refs = {
   hubChooser: document.getElementById("news-hub-chooser"),
@@ -34,41 +34,26 @@ const categoryLabels = Object.fromEntries(
   categories.map((entry) => [entry.key, entry.label]),
 );
 const RECENCY_OPTIONS = [
-  { key: "all", label: "All time" },
-  { key: "today", label: "Today" },
-  { key: "yesterday", label: "Yesterday" },
-  { key: "week", label: "This week" },
-  { key: "older", label: "Earlier" },
-  { key: "unknown", label: "Unknown time" },
+  { key: "all", label: "전체 기간" },
+  { key: "today", label: "오늘" },
+  { key: "yesterday", label: "어제" },
+  { key: "week", label: "이번 주" },
+  { key: "older", label: "이전" },
+  { key: "unknown", label: "시간 미상" },
 ];
 const ENTRY_HUB_ORDER = ["kr", "us", "global"];
 const ENTRY_HUB_LABELS = {
-  kr: "Korea News",
-  us: "US News",
-  global: "Global News",
+  kr: "한국 뉴스",
+  us: "미국 뉴스",
+  global: "글로벌 뉴스",
 };
 const ENTRY_HUB_DESCRIPTIONS = {
-  kr: "A faster way to scan major domestic headlines first.",
-  us: "US economy, technology, and market stories in one flow.",
-  global: "Global macro and international headlines in one place.",
+  kr: "국내 주요 현안과 속보 흐름을 먼저 훑습니다.",
+  us: "미국 경제와 기술, 시장 이슈를 빠르게 모아 봅니다.",
+  global: "글로벌 거시 흐름과 국제 헤드라인을 한 번에 확인합니다.",
 };
 
 const PAGE_SIZE = Math.max(1, Number.parseInt(payload.page_size || "25", 10) || 25);
-const RECENCY_COPY = RECENCY_OPTIONS;
-const ENTRY_HUB_COPY = {
-  kr: {
-    label: "Korea News",
-    description: "A faster way to scan major domestic headlines first.",
-  },
-  us: {
-    label: "US News",
-    description: "US economy, technology, and market stories in one flow.",
-  },
-  global: {
-    label: "Global News",
-    description: "Global macro and international headlines in one place.",
-  },
-};
 
 function parsePositiveInt(value, fallback = 1) {
   const parsed = Number.parseInt(value || "", 10);
@@ -167,7 +152,7 @@ function getArticleRecencyKey(article) {
 }
 
 function getRecencyLabel(key) {
-  return RECENCY_COPY.find((entry) => entry.key === key)?.label || "전체 기간";
+  return RECENCY_OPTIONS.find((entry) => entry.key === key)?.label || "전체 기간";
 }
 
 function formatRefreshTimestamp(timestamp) {
@@ -194,9 +179,9 @@ function formatPublishedAt(timestamp) {
 
 function getHubEntryDescription(hub) {
   if (!hub) {
-    return "허브를 선택하면 해당 범위의 섹션과 헤드라인으로 바로 이동합니다.";
+    return "허브를 선택하면 곧바로 해당 범위의 섹션과 헤드라인으로 이동합니다.";
   }
-  return hub.description || ENTRY_HUB_COPY[hub.key]?.description || getHubDescription(hub.key);
+  return hub.description || ENTRY_HUB_DESCRIPTIONS[hub.key] || getHubDescription(hub.key);
 }
 
 function getHubEntryRefreshHint() {
@@ -222,15 +207,12 @@ function renderArticleCard(article) {
         <p class="news-meta-line">
           <span>${escapeHtml(article.source_name)}</span>
           <span>${escapeHtml(sectionLabel)}</span>
-        </p>
-        <p class="news-time-line">
-          <span class="news-recency-badge">${escapeHtml(getRecencyLabel(getArticleRecencyKey(article)))}</span>
           ${timestampHtml}
         </p>
       </div>
       <div class="news-card-footer">
         <div class="news-supporting">
-          <span class="news-link-label">원문</span>
+          <span class="news-recency-badge">${escapeHtml(getRecencyLabel(getArticleRecencyKey(article)))}</span>
           <a class="news-link" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">${escapeHtml(getArticleLinkLabel(article))}</a>
         </div>
         <div class="row-actions">
@@ -253,8 +235,8 @@ function renderRefreshSpotlight() {
   refs.refreshSpotlight.classList.toggle("is-stale", !isFresh);
   refs.refreshLabel.textContent = isFresh ? "방금 갱신" : "최근 갱신";
   refs.refreshTitle.textContent = isFresh
-    ? "방금 반영된 기사 묶음을 먼저 확인해보세요."
-    : "최근 갱신 기준으로 정리된 기사 묶음을 보고 있습니다.";
+    ? "새로 반영된 기사 묶음을 보고 있어요."
+    : "최근 갱신 기준 기사 묶음을 보고 있어요.";
   refs.refreshTime.textContent = formatRefreshTimestamp(payload.generated_at);
   refs.refreshTime.dateTime = payload.generated_at;
 }
@@ -275,11 +257,11 @@ function getHubTitle(hubKey) {
 
 function getHubDescription(hubKey) {
   if (hubKey === "all") {
-    return "한국, 미국, 글로벌 허브를 한 번에 보고 바로 원하는 섹션으로 좁혀갈 수 있습니다.";
+    return "대한민국, 미국, 글로벌 전문 허브를 한 번에 훑고 바로 세부 섹션으로 내려갈 수 있습니다.";
   }
   return (
     hubMap[hubKey]?.description ||
-    "선택한 허브 안에서 세부 섹션과 발행처를 좁혀 기사를 탐색할 수 있습니다."
+    "선택한 허브 안에서 세부 섹션과 언론사 소스를 좁혀 기사를 탐색할 수 있습니다."
   );
 }
 
@@ -400,7 +382,6 @@ function createPillButton({ datasetKey, datasetValue, label, count, active, onCl
   const button = document.createElement("button");
   button.type = "button";
   button.className = `pill${active ? " is-active" : ""}`;
-  button.setAttribute("aria-pressed", active ? "true" : "false");
   button.dataset[datasetKey] = datasetValue;
   if (typeof count === "number") {
     button.innerHTML = `${escapeHtml(label)} <span>${count}</span>`;
@@ -421,28 +402,19 @@ function renderHubChooser() {
       <div class="news-entry-copy">
         <p class="news-entry-kicker">Entry point</p>
         <h2>어디 뉴스부터 볼까요?</h2>
-        <p>가장 먼저 허브를 고르면, 그 범위에 맞는 섹션과 헤드라인만 다시 정리해서 보여줍니다.</p>
+        <p>세 개 허브 중 하나를 먼저 고르면, 바로 그 범위에 맞는 섹션과 헤드라인으로 내려갑니다.</p>
       </div>
       <div class="news-entry-grid">
         ${chooserHubs
           .map(
             (hub) => `
               <button type="button" class="news-entry-button" data-entry-hub="${escapeHtml(hub.key)}">
-                <div class="news-entry-header">
-                  <span class="news-entry-label">뉴스 허브</span>
-                  <span class="news-entry-arrow" aria-hidden="true">→</span>
-                </div>
-                <div class="news-entry-body">
-                  <strong>${escapeHtml(ENTRY_HUB_COPY[hub.key]?.label || hub.label)}</strong>
-                  <p class="news-entry-description">${escapeHtml(getHubEntryDescription(hub))}</p>
-                </div>
+                <span class="news-entry-label">뉴스 허브</span>
+                <strong>${escapeHtml(ENTRY_HUB_LABELS[hub.key] || hub.label)}</strong>
+                <p class="news-entry-description">${escapeHtml(getHubEntryDescription(hub))}</p>
                 <div class="news-entry-meta">
                   <span class="news-entry-count">기사 ${escapeHtml(String(hub.count || 0))}건</span>
                   <span class="news-entry-refresh">${escapeHtml(getHubEntryRefreshHint())}</span>
-                </div>
-                <div class="news-entry-cta">
-                  <span class="news-entry-action">바로 보기</span>
-                  <span class="news-entry-cta-copy">첫 화면부터 이 허브 기준으로 시작</span>
                 </div>
               </button>
             `,
@@ -475,7 +447,7 @@ function renderHubFilters() {
     createPillButton({
       datasetKey: "hubAction",
       datasetValue: "chooser",
-      label: "허브 다시 선택",
+      label: "뒤로 가기",
       active: false,
       onClick: () => {
         state.hub = "all";
@@ -493,7 +465,7 @@ function renderHubFilters() {
     createPillButton({
       datasetKey: "hub",
       datasetValue: state.hub,
-      label: ENTRY_HUB_COPY[state.hub]?.label || getHubTitle(state.hub),
+      label: ENTRY_HUB_LABELS[state.hub] || getHubTitle(state.hub),
       count: getSourceAndQueryFilteredArticles().filter((article) => article.hub === state.hub).length,
       active: true,
       onClick: () => {},
@@ -552,7 +524,7 @@ function renderCategoryFilters() {
 }
 
 function renderRecencyFilters() {
-  const counts = new Map(RECENCY_COPY.map((entry) => [entry.key, 0]));
+  const counts = new Map(RECENCY_OPTIONS.map((entry) => [entry.key, 0]));
   getScopedSourceAndQueryFilteredArticles().forEach((article) => {
     const recencyKey = getArticleRecencyKey(article);
     counts.set(recencyKey, (counts.get(recencyKey) || 0) + 1);
@@ -565,7 +537,7 @@ function renderRecencyFilters() {
   );
 
   refs.recencyFilters.innerHTML = "";
-  RECENCY_COPY.forEach((option) => {
+  RECENCY_OPTIONS.forEach((option) => {
     refs.recencyFilters.appendChild(
       createPillButton({
         datasetKey: "recency",
@@ -588,7 +560,7 @@ function renderHubHero(articles) {
     refs.hubKicker.textContent = "첫 화면";
     refs.hubTitle.textContent = "뉴스 범위 선택";
     refs.hubDescription.textContent =
-      "한국 뉴스, 미국 뉴스, 글로벌 뉴스 중 하나를 먼저 고르고 그다음 세부 섹션과 기사 목록으로 이동하세요.";
+      "한국뉴스, 미국뉴스, 글로벌뉴스 중 하나를 먼저 고르고 그 다음 세부 섹션과 기사 목록을 보세요.";
     refs.hubCountChip.textContent = `기사 ${payload.article_count || payload.articles.length}건`;
     refs.hubRangeChip.textContent = "한국 · 미국 · 글로벌";
     return;
@@ -605,7 +577,7 @@ function renderHubHero(articles) {
   refs.hubCountChip.textContent = `기사 ${articles.length}건`;
   refs.hubRangeChip.textContent =
     state.hub === "all"
-      ? "한국 · 미국 · 글로벌 전체 범위"
+      ? "대한민국 · 미국 · 글로벌 전문"
       : `${hubTitle} 허브 탐색`;
 }
 
@@ -778,7 +750,7 @@ function render() {
   syncUrl();
   renderHubHero(articles);
   if (isChooserMode()) {
-    refs.statusLine.textContent = "허브를 고르면 세부 섹션과 기사 목록이 바로 열립니다.";
+    refs.statusLine.textContent = "허브를 고르면 세부 섹션과 기사 목록이 열립니다.";
     refs.newsSections.innerHTML = "";
     refs.paginationNav.innerHTML = "";
     refs.paginationNav.hidden = true;
@@ -1056,12 +1028,12 @@ refs.copyAllButton.addEventListener("click", () => {
 
 refs.exportWordButton.addEventListener("click", () => {
   const ok = exportArticles("current", "word");
-  flashButtonState(refs.exportWordButton, ok ? "내보내기 완료" : "내보낼 뉴스 없음", ok ? "done" : "error");
+  flashButtonState(refs.exportWordButton, ok ? "저장 완료" : "저장할 뉴스 없음", ok ? "done" : "error");
 });
 
 refs.exportExcelButton.addEventListener("click", () => {
   const ok = exportArticles("current", "excel");
-  flashButtonState(refs.exportExcelButton, ok ? "내보내기 완료" : "내보낼 뉴스 없음", ok ? "done" : "error");
+  flashButtonState(refs.exportExcelButton, ok ? "저장 완료" : "저장할 뉴스 없음", ok ? "done" : "error");
 });
 
 refs.newsSections.addEventListener("click", (event) => {
@@ -1072,7 +1044,7 @@ refs.newsSections.addEventListener("click", (event) => {
   const format = button.dataset.exportFormat;
   const articleUrl = button.dataset.articleUrl || "";
   const ok = exportArticles("single", format, articleUrl);
-  flashButtonState(button, ok ? "?꾨즺" : "?놁쓬", ok ? "done" : "error");
+  flashButtonState(button, ok ? "완료" : "없음", ok ? "done" : "error");
 });
 
 refs.paginationNav?.addEventListener("click", (event) => {
@@ -1090,9 +1062,3 @@ refs.paginationNav?.addEventListener("click", (event) => {
 });
 
 render();
-
-
-
-
-
-
