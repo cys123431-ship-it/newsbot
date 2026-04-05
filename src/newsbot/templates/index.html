@@ -1,18 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero hero-hub">
+{% set featured_article = articles[0] if articles else None %}
+{% set list_articles = articles[1:] if articles|length > 1 else [] %}
+
+<section class="hero hero-newsfeed">
   <div class="hero-copy">
-    <p class="hero-kicker">{{ page_section_label if page_section_label else "newsbot hub" }}</p>
+    <p class="hero-kicker">{{ page_section_label if page_section_label else "오늘의 뉴스" }}</p>
     <h2>{{ page_title }}</h2>
     <p>{{ page_description }}</p>
   </div>
   <div class="hero-meta">
-    <span>총 {{ total_count }}건</span>
+    <span>{{ total_count }}건</span>
     <span>{{ current_page }}/{{ total_pages }} 페이지</span>
   </div>
 </section>
 
-<section class="hub-shell">
+<section class="feed-shell">
   <nav class="hub-tabs" aria-label="허브 선택">
     {% for item in hub_items %}
     <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
@@ -20,67 +23,120 @@
   </nav>
 
   {% if section_items %}
-  <nav class="section-tabs" aria-label="세부 섹션 선택">
+  <nav class="section-tabs" aria-label="섹션 선택">
     <a href="/hub/{{ active_hub }}" class="{% if not active_section %}active{% endif %}">전체</a>
     {% for item in section_items %}
     <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
     {% endfor %}
   </nav>
   {% endif %}
-</section>
 
-<form class="filters" method="get">
-  <input type="text" name="q" value="{{ active_query }}" placeholder="제목 검색" />
-  <select name="source">
-    <option value="">모든 소스</option>
-    {% for source in sources %}
-    <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
-      {{ source.name }}
-    </option>
-    {% endfor %}
-  </select>
-  <button type="submit">검색</button>
-</form>
-
-<p class="pagination-summary">총 {{ total_count }}건 · {{ current_page }}/{{ total_pages }} 페이지</p>
-
-<section class="article-list">
-  {% for article in articles %}
-  <article class="article-row">
-    <div class="meta compact-meta">
-      <span class="badge">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
-      <span>{{ article.source_name }}</span>
-      <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+  <form class="filters filters-feed" method="get">
+    <div class="filters-topline">
+      {% for item in period_items %}
+      <button
+        type="submit"
+        name="period"
+        value="{{ item.key }}"
+        class="period-chip {% if item.active %}is-active{% endif %}"
+      >
+        {{ item.label }}
+      </button>
+      {% endfor %}
     </div>
-    <h3 class="article-title">
-      <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
-    </h3>
-    <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-      {{ article.canonical_url }}
-    </a>
-  </article>
-  {% else %}
-  <p class="empty">표시할 뉴스가 없습니다.</p>
-  {% endfor %}
-</section>
 
-{% if total_pages > 1 %}
-<nav class="pagination-nav" aria-label="기사 페이지 이동">
-  {% if prev_page_url %}
-  <a class="pagination-link pagination-step" href="{{ prev_page_url }}">이전</a>
+    <div class="filters-searchline">
+      <input type="text" name="q" value="{{ active_query }}" placeholder="제목이나 키워드 검색" />
+      <select name="source">
+        <option value="">모든 소스</option>
+        {% for source in sources %}
+        <option value="{{ source.source_key }}" {% if active_source == source.source_key %}selected{% endif %}>
+          {{ source.name }}
+        </option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="period" value="{{ active_period }}" />
+      <button type="submit">적용</button>
+    </div>
+  </form>
+
+  <p class="pagination-summary">{{ total_count }}개의 기사 중 {{ current_page }}페이지를 보고 있습니다.</p>
+
+  {% if featured_article %}
+  <section class="featured-rail">
+    <article class="article-row article-row-featured">
+      <a class="story-thumb story-thumb-featured" href="{{ featured_article.canonical_url }}" target="_blank" rel="noreferrer">
+        {% if featured_article.thumbnail_url %}
+        <img src="{{ featured_article.thumbnail_url }}" alt="" loading="lazy" />
+        {% else %}
+        <span class="story-placeholder">{{ category_labels.get(featured_article.primary_category, featured_article.primary_category) }}</span>
+        {% endif %}
+      </a>
+      <div class="story-copy">
+        <div class="compact-meta">
+          <span class="badge">{{ category_labels.get(featured_article.primary_category, featured_article.primary_category) }}</span>
+          <span>{{ featured_article.source_name }}</span>
+          <span>{{ featured_article.published_at.strftime("%Y-%m-%d %H:%M") if featured_article.published_at else "시간 미상" }}</span>
+        </div>
+        <h3 class="article-title article-title-featured">
+          <a href="{{ featured_article.canonical_url }}" target="_blank" rel="noreferrer">{{ featured_article.title }}</a>
+        </h3>
+        {% if featured_article.short_summary %}
+        <p class="story-summary">{{ featured_article.short_summary }}</p>
+        {% endif %}
+        <a class="article-link" href="{{ featured_article.canonical_url }}" target="_blank" rel="noreferrer">원문 보기</a>
+      </div>
+    </article>
+  </section>
   {% endif %}
-  {% for item in pagination_items %}
-  {% if item.kind == "ellipsis" %}
-  <span class="pagination-ellipsis">…</span>
-  {% else %}
-  <a class="pagination-link {% if item.active %}is-active{% endif %}" href="{{ item.url }}">
-    {{ item.label }}
-  </a>
+
+  <section class="story-list">
+    {% for article in list_articles %}
+    <article class="article-row">
+      <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+        {% if article.thumbnail_url %}
+        <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+        {% else %}
+        <span class="story-placeholder">{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+        {% endif %}
+      </a>
+      <div class="story-copy">
+        <div class="compact-meta">
+          <span>{{ category_labels.get(article.primary_category, article.primary_category) }}</span>
+          <span>{{ article.source_name }}</span>
+          <span>{{ article.published_at.strftime("%Y-%m-%d %H:%M") if article.published_at else "시간 미상" }}</span>
+        </div>
+        <h3 class="article-title">
+          <a href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+        </h3>
+        <a class="article-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">원문 보기</a>
+      </div>
+    </article>
+    {% else %}
+    {% if not featured_article %}
+    <p class="empty">조건에 맞는 기사가 없습니다.</p>
+    {% endif %}
+    {% endfor %}
+  </section>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination-nav" aria-label="기사 페이지 이동">
+    {% if prev_page_url %}
+    <a class="pagination-link pagination-step" href="{{ prev_page_url }}">이전</a>
+    {% endif %}
+    {% for item in pagination_items %}
+    {% if item.kind == "ellipsis" %}
+    <span class="pagination-ellipsis">…</span>
+    {% else %}
+    <a class="pagination-link {% if item.active %}is-active{% endif %}" href="{{ item.url }}">
+      {{ item.label }}
+    </a>
+    {% endif %}
+    {% endfor %}
+    {% if next_page_url %}
+    <a class="pagination-link pagination-step" href="{{ next_page_url }}">다음</a>
+    {% endif %}
+  </nav>
   {% endif %}
-  {% endfor %}
-  {% if next_page_url %}
-  <a class="pagination-link pagination-step" href="{{ next_page_url }}">다음</a>
-  {% endif %}
-</nav>
-{% endif %}
+</section>
 {% endblock %}

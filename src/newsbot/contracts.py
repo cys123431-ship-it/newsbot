@@ -13,6 +13,7 @@ class ArticleCandidate:
     source_name: str
     title: str
     url: str
+    thumbnail_url: str | None = None
     published_at: datetime | None = None
     summary: str = ""
     category: str | None = None

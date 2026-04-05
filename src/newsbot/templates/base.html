@@ -6,32 +6,33 @@
     <title>{{ title if title else "newsbot" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}" />
   </head>
-  <body>
-    <header class="site-header">
-      <div>
-        <h1><a href="/">newsbot</a></h1>
-        <p>개인용 뉴스 어그리게이터</p>
+  <body class="app-shell">
+    <header class="mobile-appbar">
+      <div class="mobile-appbar-inner">
+        <a class="appbar-brand" href="/">
+          <span class="appbar-mark"></span>
+          <span>newsbot</span>
+        </a>
+        <nav class="appbar-nav">
+          <a href="/" class="{% if active_nav == 'all' %}is-active{% endif %}">뉴스</a>
+          <a href="/hub/kr" class="{% if active_nav == 'kr' %}is-active{% endif %}">국내</a>
+          <a href="/hub/us" class="{% if active_nav == 'us' %}is-active{% endif %}">미국</a>
+          <a href="/hub/global" class="{% if active_nav == 'global' %}is-active{% endif %}">글로벌</a>
+          <a href="/bookmarks">북마크</a>
+          <a href="/sources">소스</a>
+          <a href="/admin/health">상태</a>
+        </nav>
       </div>
-      <nav>
-        <a href="/" class="{% if active_nav == 'all' %}is-active{% endif %}">전체</a>
-        <a href="/hub/kr" class="{% if active_nav == 'kr' %}is-active{% endif %}">한국</a>
-        <a href="/hub/us" class="{% if active_nav == 'us' %}is-active{% endif %}">미국</a>
-        <a href="/hub/global" class="{% if active_nav == 'global' %}is-active{% endif %}">글로벌</a>
-        <a href="/bookmarks">북마크</a>
-        <a href="/sources">소스</a>
-        <a href="/admin/health">헬스</a>
-      </nav>
     </header>
+
     {% if refresh_notice %}
     <section class="site-refresh site-refresh-{{ refresh_notice.tone }}">
-      <div class="site-refresh-badge" aria-hidden="true"></div>
-      <div class="site-refresh-copy">
-        <span class="site-refresh-kicker">갱신 상태</span>
+      <div class="site-refresh-inner">
+        <span class="site-refresh-tag">최종 갱신</span>
         <strong>{{ refresh_notice.headline }}</strong>
         <p>
           {{ refresh_notice.detail }}
           {% if refresh_notice.refreshed_at %}
-          마지막 확인
           <time datetime="{{ refresh_notice.refreshed_at.isoformat() }}">
             {{ refresh_notice.refreshed_at.strftime("%Y-%m-%d %H:%M %Z") }}
           </time>
@@ -40,6 +41,7 @@
       </div>
     </section>
     {% endif %}
-    <main>{% block content %}{% endblock %}</main>
+
+    <main class="page-shell">{% block content %}{% endblock %}</main>
   </body>
 </html>

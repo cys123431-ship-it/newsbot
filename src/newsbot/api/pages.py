@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -96,6 +99,13 @@ _FALLBACK_CATEGORY_META = {
 router = APIRouter()
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent.parent / "templates")
+)
+_PERIOD_OPTIONS = (
+    {"key": "all", "label": "전체"},
+    {"key": "24h", "label": "24시간"},
+    {"key": "3d", "label": "3일"},
+    {"key": "7d", "label": "7일"},
+    {"key": "30d", "label": "30일"},
 )
 
 
@@ -205,6 +215,20 @@ def _filter_sources_for_scope(
     return [source for source in sources if source.category in allowed]
 
 
+def _resolve_since(period: str | None) -> datetime | None:
+    normalized = str(period or "all").strip().lower()
+    now = datetime.now(timezone.utc)
+    if normalized == "24h":
+        return now - timedelta(hours=24)
+    if normalized == "3d":
+        return now - timedelta(days=3)
+    if normalized == "7d":
+        return now - timedelta(days=7)
+    if normalized == "30d":
+        return now - timedelta(days=30)
+    return None
+
+
 def _render_article_page(
     request: Request,
     session: Session,
@@ -213,6 +237,7 @@ def _render_article_page(
     section: str | None,
     q: str | None,
     source: str | None,
+    period: str | None,
     page: int,
     path: str,
     title_override: str | None = None,
@@ -232,6 +257,7 @@ def _render_article_page(
         categories=allowed_categories if active_section is None else None,
         source_key=source,
         query_text=q,
+        since=_resolve_since(period),
         page=page,
         page_size=request.app.state.settings.article_page_size,
     )
@@ -256,6 +282,15 @@ def _render_article_page(
             "category_labels": {key: value.label for key, value in category_meta.items()},
             "active_query": q or "",
             "active_source": source or "",
+            "active_period": str(period or "all"),
+            "period_items": [
+                {
+                    "key": item["key"],
+                    "label": item["label"],
+                    "active": item["key"] == str(period or "all"),
+                }
+                for item in _PERIOD_OPTIONS
+            ],
             "sources": visible_sources,
             "page_title": page_title,
             "page_section_label": active_section_view.label if active_section_view else "",
@@ -289,12 +324,14 @@ def _render_article_page(
                 total_pages=total_pages,
                 q=q,
                 source=source,
+                period=period,
             ),
             "prev_page_url": _build_page_url(
                 path,
                 page=max(current_page - 1, 1),
                 q=q,
                 source=source,
+                period=period,
             )
             if current_page > 1
             else None,
@@ -303,6 +340,7 @@ def _render_article_page(
                 page=min(current_page + 1, total_pages),
                 q=q,
                 source=source,
+                period=period,
             )
             if current_page < total_pages
             else None,
@@ -317,6 +355,7 @@ def index(
     request: Request,
     q: str | None = Query(default=None),
     source: str | None = Query(default=None),
+    period: str | None = Query(default="all"),
     page: int = Query(default=1, ge=1),
     session: Session = Depends(get_session),
 ):
@@ -327,6 +366,7 @@ def index(
         section=None,
         q=q,
         source=source,
+        period=period,
         page=page,
         path="/",
     )
@@ -338,6 +378,7 @@ def hub_page(
     hub: str,
     q: str | None = Query(default=None),
     source: str | None = Query(default=None),
+    period: str | None = Query(default="all"),
     page: int = Query(default=1, ge=1),
     session: Session = Depends(get_session),
 ):
@@ -348,6 +389,7 @@ def hub_page(
         section=None,
         q=q,
         source=source,
+        period=period,
         page=page,
         path=f"/hub/{hub}",
     )
@@ -360,6 +402,7 @@ def hub_section_page(
     section: str,
     q: str | None = Query(default=None),
     source: str | None = Query(default=None),
+    period: str | None = Query(default="all"),
     page: int = Query(default=1, ge=1),
     session: Session = Depends(get_session),
 ):
@@ -370,6 +413,7 @@ def hub_section_page(
         section=section,
         q=q,
         source=source,
+        period=period,
         page=page,
         path=f"/hub/{hub}/{section}",
     )
@@ -381,6 +425,7 @@ def category_page(
     category: str,
     q: str | None = Query(default=None),
     source: str | None = Query(default=None),
+    period: str | None = Query(default="all"),
     page: int = Query(default=1, ge=1),
     session: Session = Depends(get_session),
 ):
@@ -392,6 +437,7 @@ def category_page(
         section=category,
         q=q,
         source=source,
+        period=period,
         page=page,
         path=f"/category/{category}",
         title_override=_coerce_category_metadata().get(category, CategoryView(category, category, hub, "", 999)).label,
@@ -452,12 +498,15 @@ def _build_page_url(
     page: int,
     q: str | None,
     source: str | None,
+    period: str | None,
 ) -> str:
     params: dict[str, str | int] = {}
     if q:
         params["q"] = q
     if source:
         params["source"] = source
+    if period and period != "all":
+        params["period"] = period
     if page > 1:
         params["page"] = page
     query = urlencode(params)
@@ -471,6 +520,7 @@ def _build_pagination_items(
     total_pages: int,
     q: str | None,
     source: str | None,
+    period: str | None,
 ) -> list[dict[str, object]]:
     if total_pages <= 7:
         tokens: list[int | None] = list(range(1, total_pages + 1))
@@ -497,7 +547,7 @@ def _build_pagination_items(
             {
                 "kind": "page",
                 "label": str(token),
-                "url": _build_page_url(path, page=token, q=q, source=source),
+                "url": _build_page_url(path, page=token, q=q, source=source, period=period),
                 "active": token == page,
             }
         )

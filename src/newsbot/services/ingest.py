@@ -24,6 +24,7 @@ from newsbot.models import Source
 from newsbot.services.classifier import classify_candidate
 from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.dedupe import find_existing_article
+from newsbot.services.thumbnails import hydrate_candidate_thumbnails
 from newsbot.source_registry import find_source_definition
 
 
@@ -159,6 +160,11 @@ async def fetch_single_source(
                 settings,
                 client,
             )
+            await hydrate_candidate_thumbnails(
+                candidates,
+                source_definition=source_definition,
+                client=client,
+            )
         inserted_count = await _store_candidates(
             session_factory, settings, source_definition, candidates
         )
@@ -226,6 +232,7 @@ async def _store_candidates(
                     canonical_url=canonical_url,
                     source_key=source_definition.source_key,
                     source_name=source_definition.name,
+                    thumbnail_url=candidate.thumbnail_url,
                     published_at=candidate.published_at,
                     primary_category=category,
                     tags=candidate.tags,
@@ -297,6 +304,8 @@ def _merge_existing_article(
         article.trust_level = source_definition.trust_level
     if not article.short_summary and candidate.summary:
         article.short_summary = candidate.summary
+    if not article.thumbnail_url and candidate.thumbnail_url:
+        article.thumbnail_url = candidate.thumbnail_url
     alias_exists = session.scalar(
         select(ArticleAlias).where(
             ArticleAlias.alias_url == canonical_url,

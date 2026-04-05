@@ -85,6 +85,7 @@ def _rss_source(
     poll_interval_sec: int = 300,
     static_enabled: bool = True,
     discovery_only: bool = False,
+    allow_page_fetch: bool = True,
     **config: Any,
 ) -> SourceDefinition:
     return SourceDefinition(
@@ -97,6 +98,7 @@ def _rss_source(
         trust_level=trust_level,
         static_enabled=static_enabled,
         discovery_only=discovery_only,
+        allow_page_fetch=allow_page_fetch,
         config={
             "feed_url": feed_url,
             **_meta(
@@ -126,6 +128,7 @@ def _html_source(
     max_links: int = 30,
     static_enabled: bool = True,
     discovery_only: bool = False,
+    allow_page_fetch: bool = True,
     **config: Any,
 ) -> SourceDefinition:
     return SourceDefinition(
@@ -137,7 +140,7 @@ def _html_source(
         base_url=base_url,
         trust_level=trust_level,
         discovery_only=discovery_only,
-        allow_page_fetch=False,
+        allow_page_fetch=allow_page_fetch,
         static_enabled=static_enabled,
         config={
             "page_url": page_url,

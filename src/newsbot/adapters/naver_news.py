@@ -14,6 +14,7 @@ from newsbot.text_tools import guess_language
 from newsbot.text_tools import limit_summary
 from newsbot.text_tools import normalize_whitespace
 from newsbot.text_tools import strip_html
+from newsbot.services.thumbnails import extract_thumbnail_from_payload
 
 
 class NaverNewsAdapter:
@@ -57,6 +58,7 @@ class NaverNewsAdapter:
                         source_name=source_definition.name,
                         title=title,
                         url=url,
+                        thumbnail_url=extract_thumbnail_from_payload(item, base_url=url),
                         published_at=published_at,
                         summary=limit_summary(summary),
                         category=source_definition.category,

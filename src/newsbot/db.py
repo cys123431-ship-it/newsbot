@@ -34,7 +34,16 @@ def create_session_factory(database_url: str):
 def init_db(bind_engine=None) -> None:
     from newsbot import models  # noqa: F401
 
-    Base.metadata.create_all(bind=bind_engine or engine)
+    active_engine = bind_engine or engine
+    Base.metadata.create_all(bind=active_engine)
+    if active_engine.dialect.name == "sqlite":
+        with active_engine.begin() as connection:
+            column_rows = connection.exec_driver_sql("PRAGMA table_info(articles)").fetchall()
+            column_names = {str(row[1]) for row in column_rows}
+            if "thumbnail_url" not in column_names:
+                connection.exec_driver_sql(
+                    "ALTER TABLE articles ADD COLUMN thumbnail_url VARCHAR(1000)"
+                )
 
 
 def get_session() -> Iterator[Session]:

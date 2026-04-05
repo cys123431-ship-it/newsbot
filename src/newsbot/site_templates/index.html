@@ -6,133 +6,70 @@
     <title>newsbot</title>
     <meta
       name="description"
-      content="newsbot personal newsboard for Korean and US headlines"
+      content="newsbot public news feed with a mobile-first news reading layout"
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
-  <body>
+  <body class="public-app">
     <nav class="surface-switcher" aria-label="View switcher">
       <a class="surface-link is-active" href="./">News</a>
       <a class="surface-link" href="analysis/">Analysis</a>
       <a class="surface-link" href="markets/">Markets</a>
     </nav>
 
-    <header class="compact-summary-header compact-summary-header-news">
-      <div class="compact-summary-top">
-        <div class="compact-summary-copy">
-          <p class="eyebrow">newsbot</p>
-          <h1>newsbot</h1>
-          <p class="compact-summary-description">
-            한국·미국 주요 뉴스를 허브와 섹션 기준으로 빠르게 훑는 개인 뉴스보드입니다.
-          </p>
+    <header class="news-appbar">
+      <div class="news-appbar-inner">
+        <div class="news-brand">
+          <span class="news-brand-dot"></span>
+          <div>
+            <p class="news-brand-kicker">newsbot</p>
+            <h1>newsbot mobile feed</h1>
+          </div>
         </div>
-        <div class="compact-summary-meta">
-          <span id="hub-count-chip" class="summary-chip">기사 {{ article_count }}건</span>
-          <span class="summary-chip">15분마다 자동 갱신</span>
-          <span class="summary-chip">마지막 갱신 <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time></span>
+        <div class="news-appbar-meta">
+          <span class="summary-pill">{{ article_count }} articles</span>
+          <span class="summary-pill">15-minute polling</span>
         </div>
       </div>
-      <div id="refresh-spotlight" class="compact-summary-status-strip compact-summary-status-strip-news">
-        <div class="compact-summary-status-main">
-          <div class="refresh-pulse" aria-hidden="true"></div>
-          <p id="refresh-label" class="compact-summary-chip-label">최근 갱신</p>
-          <strong id="refresh-title" class="compact-summary-status-strong">최근 갱신 기준 기사 흐름을 보고 있어요.</strong>
-        </div>
-        <div class="compact-summary-status-group">
-          <span id="hub-kicker" class="compact-summary-chip-label">뉴스 허브</span>
-          <strong id="hub-title">{{ initial_hub.label }}</strong>
-          <span id="hub-description">
-            {{ initial_hub.description if initial_hub.description else "허브와 섹션 필터로 한국·미국·글로벌 뉴스를 빠르게 이동할 수 있습니다." }}
-          </span>
-        </div>
-        <div class="compact-summary-meta compact-summary-meta-inline">
-          <span id="hub-range-chip" class="summary-chip">허브별 세부 탐색</span>
-        </div>
+      <div id="refresh-spotlight" class="refresh-strip">
+        <span id="refresh-label" class="refresh-badge">Latest refresh</span>
+        <strong id="refresh-title">Tracking the newest published headlines.</strong>
+        <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time>
       </div>
     </header>
 
-    <main class="shell">
-      <section id="news-hub-chooser" class="news-entry-chooser">
-        <section class="news-entry-panel">
-          <div class="news-entry-copy">
-            <p class="news-entry-kicker">Entry point</p>
-            <h2>어디 뉴스부터 볼까요?</h2>
-            <p>세 개 허브 중 하나를 먼저 고르면, 바로 그 범위에 맞는 섹션과 헤드라인으로 내려갑니다.</p>
+    <main class="news-shell">
+      <section id="news-hub-chooser" class="feed-rail rail-block">
+        <div class="rail-head">
+          <div>
+            <p class="rail-kicker">Hub</p>
+            <h2>어느 뉴스부터 볼까요?</h2>
           </div>
-          <div class="news-entry-grid">
-            {% for hub in hubs %}
-            <button type="button" class="news-entry-button" data-entry-hub="{{ hub.key }}">
-              <span class="news-entry-label">뉴스 허브</span>
-              <strong>{{ hub.label }}</strong>
-              <p class="news-entry-description">
-                {% if hub.description %}
-                {{ hub.description }}
-                {% elif hub.key == "kr" %}
-                국내 주요 현안과 속보 흐름을 먼저 훑습니다.
-                {% elif hub.key == "us" %}
-                미국 경제와 기술, 시장 이슈를 빠르게 모아 봅니다.
-                {% else %}
-                글로벌 거시 흐름과 국제 헤드라인을 한 번에 확인합니다.
-                {% endif %}
-              </p>
-              <div class="news-entry-meta">
-                <span class="news-entry-count">기사 {{ hub.count }}건</span>
-                <span class="news-entry-refresh">마지막 갱신 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
-              </div>
-            </button>
-            {% endfor %}
-          </div>
-        </section>
+          <p class="rail-copy">국내, 미국, 글로벌 허브를 모바일 탭처럼 빠르게 전환할 수 있습니다.</p>
+        </div>
+        <div id="hub-filters" class="hub-tab-rail"></div>
       </section>
 
-      <div id="news-content-shell" class="news-content-shell">
-      <section class="toolbar toolbar-news">
-        <div class="toolbar-group toolbar-group-scope">
-          <div class="toolbar-group-head">
-            <p class="toolbar-group-label">범위 선택</p>
-            <p class="toolbar-group-description">허브와 섹션을 먼저 좁히면 읽을 흐름이 훨씬 선명해집니다.</p>
-          </div>
-          <div id="hub-filters" class="pill-row hub-row">
-            <button type="button" class="pill is-active" data-hub="all">전체 허브</button>
-            {% for hub in hubs %}
-            <button type="button" class="pill" data-hub="{{ hub.key }}">
-              {{ hub.label }}
-              <span>{{ hub.count }}</span>
-            </button>
-            {% endfor %}
-          </div>
-
-          <div id="category-filters" class="pill-row section-row">
-            <button type="button" class="pill is-active" data-category="all">전체 섹션</button>
-            {% for category in categories %}
-            <button type="button" class="pill" data-category="{{ category.key }}">
-              {{ category.label }}
-              <span>{{ category.count }}</span>
-            </button>
-            {% endfor %}
+      <section class="feed-rail rail-block">
+        <div class="rail-head">
+          <div>
+            <p class="rail-kicker">Section</p>
+            <h2>주제를 빠르게 좁혀보세요</h2>
           </div>
         </div>
+        <div id="category-filters" class="section-tab-rail"></div>
+      </section>
 
-        <div class="toolbar-meta-grid">
-          <div class="toolbar-group toolbar-group-recency">
-            <div class="toolbar-group-head">
-              <p class="toolbar-group-label">시간</p>
-              <p class="toolbar-group-description">최근 기사 흐름만 따로 좁혀서 볼 수 있습니다.</p>
-            </div>
-            <div id="recency-filters" class="pill-row recency-row">
-              <button type="button" class="pill is-active" data-recency="all">전체 기간</button>
-            </div>
+      <section id="news-content-shell" class="filter-sheet rail-block">
+        <div class="filter-grid">
+          <div class="filter-column">
+            <p class="rail-kicker">Time</p>
+            <div id="recency-filters" class="chip-rail"></div>
           </div>
-
-          <div class="toolbar-group toolbar-group-search">
-            <div class="toolbar-group-head">
-              <p class="toolbar-group-label">검색과 소스</p>
-              <p class="toolbar-group-description">제목 키워드와 발행처를 같이 좁혀 보세요.</p>
-            </div>
+          <div class="filter-column">
+            <p class="rail-kicker">Search</p>
             <div class="search-row">
-              <label class="sr-only" for="search-input">제목 검색</label>
-              <input id="search-input" type="search" placeholder="제목 검색" />
-              <label class="sr-only" for="source-select">소스 선택</label>
+              <input id="search-input" type="search" placeholder="제목이나 키워드 검색" />
               <select id="source-select">
                 <option value="all">모든 소스</option>
               </select>
@@ -140,31 +77,23 @@
           </div>
         </div>
 
-        <div class="toolbar-group toolbar-group-utility">
-          <div class="toolbar-group-head">
-            <p class="toolbar-group-label">유틸리티</p>
-            <p class="toolbar-group-description">현재 화면을 복사하거나 문서로 바로 저장할 수 있습니다.</p>
-          </div>
-          <div class="utility-row">
-            <button id="reset-button" type="button" class="reset-button">초기화</button>
-            <button id="copy-all-button" type="button" class="copy-button">현재 화면 전체 복사</button>
-            <button id="export-word-button" type="button" class="export-button">현재 목록 Word 저장</button>
-            <button id="export-excel-button" type="button" class="export-button">현재 목록 Excel 저장</button>
-          </div>
-
-          <p id="status-line" class="status-line">전체 뉴스 {{ article_count }}건</p>
+        <div class="utility-bar">
+          <button id="reset-button" type="button" class="utility-button utility-button-muted">초기화</button>
+          <button id="copy-all-button" type="button" class="utility-button">현재 화면 복사</button>
+          <button id="export-word-button" type="button" class="utility-button">Word</button>
+          <button id="export-excel-button" type="button" class="utility-button">Excel</button>
+          <p id="status-line" class="status-line">{{ article_count }} articles in the feed</p>
         </div>
 
-        <details class="health-panel toolbar-secondary">
-          <summary>수집 상태 보기</summary>
+        <details class="health-panel">
+          <summary>Source health</summary>
           <div class="health-list">
             {% for status in source_statuses %}
             <div class="health-row health-row-{{ status.status }}">
               <strong>{{ status.source_name }}</strong>
-              <span class="health-state health-{{ status.status }}">{{ status.status }}</span>
-              <span>수집 {{ status.fetched_count }}</span>
-              <span>채택 {{ status.accepted_count }}</span>
-              <span>게시 {{ status.published_count }}</span>
+              <span>{{ status.status }}</span>
+              <span>Fetched {{ status.fetched_count }}</span>
+              <span>Published {{ status.published_count }}</span>
               {% if status.message %}
               <span class="health-message">{{ status.message }}</span>
               {% endif %}
@@ -174,52 +103,60 @@
         </details>
       </section>
 
-      <section id="news-sections" class="section-stack">
-        {% for section in initial_sections %}
-        <section class="news-section" data-category="{{ section.key }}">
-          <div class="section-head">
-            <div>
-              {% if section.eyebrow %}
-              <p class="section-kicker">{{ section.eyebrow }}</p>
-              {% endif %}
-              <h2>{{ section.label }}</h2>
+      <section id="news-sections" class="feed-stage">
+        {% if initial_feed.featured %}
+        <article class="featured-story-card">
+          <a class="featured-story-thumb" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
+            {% if initial_feed.featured.thumbnail_url %}
+            <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" />
+            {% else %}
+            <span class="story-fallback">{{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}</span>
+            {% endif %}
+          </a>
+          <div class="featured-story-copy">
+            <div class="story-meta-line">
+              <span>{{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}</span>
+              <span>{{ initial_feed.featured.source_name }}</span>
+              <span class="news-timestamp">{{ initial_feed.featured.published_at if initial_feed.featured.published_at else "시간 미상" }}</span>
             </div>
-            <span>{{ section.count }}건</span>
+            <a class="news-title news-title-featured" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">{{ initial_feed.featured.title }}</a>
+            <div class="story-actions">
+              <a class="news-link" href="{{ initial_feed.featured.canonical_url }}" target="_blank" rel="noreferrer">
+                {{ initial_feed.featured.link_label if initial_feed.featured.link_label else "원문 보기" }}
+              </a>
+            </div>
           </div>
-          <div class="news-list">
-            {% for article in section.articles %}
-            <article class="news-row">
-              <div class="news-card-main">
-                <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                  {{ article.title }}
+        </article>
+        {% endif %}
+
+        <div class="news-list">
+          {% for article in initial_feed["items"] %}
+          <article class="news-row">
+            <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+              {% if article.thumbnail_url %}
+              <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" />
+              {% else %}
+              <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
+              {% endif %}
+            </a>
+            <div class="story-copy">
+              <div class="news-meta-line">
+                <span>{{ article.section_label if article.section_label else article.hub_label }}</span>
+                <span>{{ article.source_name }}</span>
+                <span class="news-timestamp">{{ article.published_at if article.published_at else "시간 미상" }}</span>
+              </div>
+              <a class="news-title" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+              <div class="story-actions">
+                <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+                  {{ article.link_label if article.link_label else "원문 보기" }}
                 </a>
-                <p class="news-meta-line">
-                  <span>{{ article.source_name }}</span>
-                  <span>{{ article.section_label if article.section_label else section.label }}</span>
-                  {% if article.published_at %}
-                  <time class="news-timestamp" datetime="{{ article.published_at }}">{{ article.published_at }}</time>
-                  {% else %}
-                  <span class="news-timestamp">시간 미상</span>
-                  {% endif %}
-                </p>
+                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ article.canonical_url }}">Word</button>
+                <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ article.canonical_url }}">Excel</button>
               </div>
-              <div class="news-card-footer">
-                <div class="news-supporting">
-                  <span class="news-recency-badge">최근 기사</span>
-                  <a class="news-link" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
-                    {{ article.link_label if article.link_label else article.canonical_url }}
-                  </a>
-                </div>
-                <div class="row-actions">
-                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="word" data-article-url="{{ article.canonical_url }}">Word</button>
-                  <button type="button" class="mini-export-button" data-export-scope="single" data-export-format="excel" data-article-url="{{ article.canonical_url }}">Excel</button>
-                </div>
-              </div>
-            </article>
-            {% endfor %}
-          </div>
-        </section>
-        {% endfor %}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
       </section>
 
       <nav id="pagination-nav" class="pagination-nav" aria-label="기사 페이지 이동">
@@ -228,16 +165,15 @@
             {% if token is none %}
             <span class="pagination-chip pagination-ellipsis">…</span>
             {% else %}
-            <a class="pagination-chip {% if token == 1 %}is-active{% endif %}" href="?page={{ token }}">
+            <a class="pagination-chip {% if token == 1 %}is-active{% endif %}" href="?page={{ token }}" data-page="{{ token }}">
               {{ token }}
             </a>
             {% endif %}
           {% endfor %}
         {% endif %}
       </nav>
-      </div>
 
-      <noscript class="noscript-note">검색과 필터는 자바스크립트가 켜져 있어야 동작합니다.</noscript>
+      <noscript class="noscript-note">이 페이지는 JavaScript가 켜져 있어야 탭과 필터가 동작합니다.</noscript>
     </main>
 
     <script id="site-data" type="application/json">{{ payload_json | safe }}</script>

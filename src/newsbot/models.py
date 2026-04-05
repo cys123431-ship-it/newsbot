@@ -49,6 +49,7 @@ class Article(Base):
     canonical_url: Mapped[str] = mapped_column(String(1000), unique=True, index=True)
     source_key: Mapped[str] = mapped_column(String(100), index=True)
     source_name: Mapped[str] = mapped_column(String(120))
+    thumbnail_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     primary_category: Mapped[str] = mapped_column(String(40), index=True)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)

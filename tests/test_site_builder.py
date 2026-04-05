@@ -205,26 +205,24 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="news-content-shell"' in html
     assert 'id="hub-filters"' in html
     assert 'id="recency-filters"' in html
-    assert 'id="hub-title"' in html
-    assert 'class="news-entry-panel"' in html
-    assert 'class="news-entry-description"' in html
-    assert 'class="toolbar-group toolbar-group-scope"' in html
-    assert 'class="toolbar-group toolbar-group-utility"' in html
-    assert 'class="utility-row"' in html
-    assert 'class="news-card-footer"' in html
+    assert 'class="featured-story-card"' in html
+    assert 'class="featured-story-thumb"' in html
+    assert 'class="story-actions"' in html
+    assert 'class="hub-tab-rail"' in html
+    assert 'class="section-tab-rail"' in html
+    assert 'class="filter-grid"' in html
     assert 'class="news-timestamp"' in html
     assert 'href="analysis/"' in html
     assert 'href="markets/"' in html
 
     analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
     assert 'id="analysis-window-tabs"' in analysis_html
-    assert 'id="analysis-focus-tabs"' in analysis_html
-    assert 'id="analysis-repeated-panel"' in analysis_html
-    assert 'id="analysis-samples-panel"' in analysis_html
-    assert 'id="analysis-snapshot"' in analysis_html
-    assert 'class="analysis-dashboard-grid"' in analysis_html
-    assert 'class="analysis-record-grid"' in analysis_html
-    assert 'id="analysis-more-analytics"' in analysis_html
+    assert 'id="analysis-kpi-strip"' in analysis_html
+    assert 'id="analysis-mini-kpis"' in analysis_html
+    assert 'id="analysis-distribution-panels"' in analysis_html
+    assert 'id="analysis-trend-panels"' in analysis_html
+    assert 'id="analysis-repeated"' in analysis_html
+    assert 'id="analysis-samples"' in analysis_html
     assert "../assets/analysis.js" in analysis_html
 
     markets_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
@@ -233,10 +231,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert '"korea_url":"' in markets_html
     assert "../assets/markets.js" in markets_html
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
-    assert 'data-detail-panel="' in markets_js
-    assert "1 Heatmap" in markets_js
-    assert "renderHeatmapLegend" in markets_js
-    assert "metric_display" in markets_js
+    assert "heatmaps?.[marketsState.stockIndex]" in markets_js
+    assert "Binance market-cap heatmap" in markets_js
+    assert "buildHeatmap" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -244,10 +241,14 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert file_payload["warning_source_count"] == 0
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
+    assert "thumbnail_url" in file_payload["articles"][0]
 
     analysis_payload = _read_json(output_dir / "data" / "analysis-dashboard.json")
     assert analysis_payload["default_window"] == "7d"
     assert analysis_payload["windows"]["all"]["article_count"] >= 2
+    assert analysis_payload["windows"]["7d"]["kpi_series"]
+    assert analysis_payload["windows"]["7d"]["distribution_panels"]
+    assert analysis_payload["windows"]["7d"]["trend_panels"]
 
     markets_status = _read_json(output_dir / "data" / "markets-status.json")
     assert markets_status["providers"]["stocks"]["status"] == "warning"
@@ -296,7 +297,7 @@ def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):
     )
 
     html = (tmp_path / "site-dist" / "index.html").read_text(encoding="utf-8")
-    assert "health-warning" in html
+    assert "health-row-warning" in html
     assert "No usable external article links found in the latest 20 messages." in html
 
 

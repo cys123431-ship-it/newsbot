@@ -377,7 +377,7 @@ def test_build_crypto_dataset_keeps_rows_when_aux_calls_fail():
     assert "binance blocked" in payload["message"]
 
 
-def test_build_crypto_dataset_uses_binance_volume_share_heatmap():
+def test_build_crypto_dataset_uses_binance_market_cap_heatmap():
     settings = Settings(
         bootstrap_on_startup=False,
         enable_scheduler=False,
@@ -434,10 +434,12 @@ def test_build_crypto_dataset_uses_binance_volume_share_heatmap():
     )
 
     assert payload["status"] == "ok"
-    assert payload["heatmap_basis"]["source_label"] == "Binance spot market map"
+    assert payload["heatmap_basis"]["source_label"] == "Binance spot market-cap heatmap"
+    assert payload["heatmap_mode"] == "binance_market_cap"
+    assert payload["exchange"] == "binance_spot"
     assert payload["heatmap"][0]["label"] == "BTC"
-    assert payload["heatmap"][0]["share_pct"] > payload["heatmap"][1]["share_pct"]
-    assert payload["heatmap"][0]["metric_display"].endswith("volume share")
+    assert payload["heatmap"][0]["weight_pct"] > payload["heatmap"][1]["weight_pct"]
+    assert payload["heatmap"][0]["metric_display"].endswith("market-cap weight")
 
 
 def test_build_stocks_dataset_reuses_archive_when_fallback_fails():

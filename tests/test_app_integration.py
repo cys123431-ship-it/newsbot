@@ -241,13 +241,13 @@ def test_category_page_uses_numbered_pagination(client, app):
 
     first_page = client.get("/category/crypto?page=1")
     assert first_page.status_code == 200
-    assert "총 27건 · 1/2 페이지" in first_page.text
+    assert "27개의 기사 중 1페이지를 보고 있습니다." in first_page.text
     assert 'href="/category/crypto?page=2"' in first_page.text
     assert "Crypto archive story 26" in first_page.text
 
     second_page = client.get("/category/crypto?page=2")
     assert second_page.status_code == 200
-    assert "총 27건 · 2/2 페이지" in second_page.text
+    assert "27개의 기사 중 2페이지를 보고 있습니다." in second_page.text
     assert "Crypto archive story 01" in second_page.text
 
 

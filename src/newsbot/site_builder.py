@@ -40,6 +40,7 @@ from newsbot.services.classifier import classify_candidate
 from newsbot.services.dedupe import canonicalize_candidate
 from newsbot.services.ingest import ADAPTERS
 from newsbot.services.ingest import _fetch_with_retries
+from newsbot.services.thumbnails import hydrate_candidate_thumbnails
 from newsbot.source_registry import SourceDefinition
 from newsbot.source_registry import get_source_definitions
 from newsbot.text_tools import build_title_hash
@@ -119,6 +120,7 @@ class StaticArticle:
     canonical_url: str
     source_key: str
     source_name: str
+    thumbnail_url: str | None
     primary_category: str
     published_at: datetime | None
     trust_level: int
@@ -149,6 +151,7 @@ class StaticArticle:
             "link_label": self.link_label,
             "source_key": self.source_key,
             "source_name": self.source_name,
+            "thumbnail_url": self.thumbnail_url,
             "source_names": list(self.source_names or (self.source_name,)),
             "primary_category": self.primary_category,
             "hub": category_meta["hub"],
@@ -176,6 +179,7 @@ class StaticArticle:
             canonical_url=str(raw.get("canonical_url") or "").strip(),
             source_key=str(raw.get("source_key") or "").strip(),
             source_name=source_name,
+            thumbnail_url=str(raw.get("thumbnail_url") or "").strip() or None,
             primary_category=str(raw.get("primary_category") or "").strip(),
             published_at=_parse_optional_datetime(raw.get("published_at")),
             trust_level=int(raw.get("trust_level") or 0),
@@ -403,6 +407,11 @@ async def _collect_source(
     try:
         async with semaphore:
             candidates = await _fetch_with_retries(adapter, source_definition, settings, client)
+            await hydrate_candidate_thumbnails(
+                candidates,
+                source_definition=source_definition,
+                client=client,
+            )
     except Exception as exc:
         status.status = "failed"
         status.error = str(exc)
@@ -428,6 +437,7 @@ async def _collect_source(
                 canonical_url=canonical_url,
                 source_key=source_definition.source_key,
                 source_name=source_definition.name,
+                thumbnail_url=candidate.thumbnail_url,
                 primary_category=category,
                 published_at=candidate.published_at,
                 trust_level=max(candidate.trust_level, source_definition.trust_level),
@@ -1122,6 +1132,98 @@ def _build_window_payload_from_articles(
     }
 
 
+def _augment_analysis_window_payload(
+    payload: dict[str, Any],
+    *,
+    articles: list[AnalysisArticle],
+) -> dict[str, Any]:
+    timeline = list(payload.get("timeline") or [])
+    sparkline = [int(item.get("count") or 0) for item in timeline[-14:]]
+    sparkline = sparkline or [int(payload.get("article_count") or 0)]
+
+    daily_hub_counts: dict[str, Counter[str]] = {}
+    for article in articles:
+        if article.published_at is None:
+            continue
+        day_key = article.published_at.astimezone(timezone.utc).date().isoformat()
+        daily_hub_counts.setdefault(day_key, Counter())[article.hub] += 1
+
+    top_hubs = list(payload.get("top_hubs") or [])[:2]
+    timeline_by_key = {str(item.get("date")): item for item in timeline}
+    hub_series: list[dict[str, Any]] = []
+    for hub in top_hubs:
+        hub_key = str(hub.get("key") or "")
+        if not hub_key:
+            continue
+        series = []
+        for day_key in timeline_by_key:
+            series.append(
+                {
+                    "date": day_key,
+                    "count": int(daily_hub_counts.get(day_key, Counter()).get(hub_key, 0)),
+                }
+            )
+        hub_series.append(
+            {
+                "key": hub_key,
+                "label": str(hub.get("label") or hub_key),
+                "series": series,
+            }
+        )
+
+    payload["kpi_series"] = [
+        {
+            "key": "articles",
+            "label": "Articles",
+            "value": int(payload.get("article_count") or 0),
+            "series": sparkline,
+        },
+        {
+            "key": "sources",
+            "label": "Sources",
+            "value": int(payload.get("active_source_count") or 0),
+            "series": sparkline,
+        },
+        {
+            "key": "repeats",
+            "label": "Repeats",
+            "value": int(payload.get("repeated_title_count") or 0),
+            "series": sparkline,
+        },
+        {
+            "key": "unknown",
+            "label": "Unknown time",
+            "value": int(payload.get("unknown_time_count") or 0),
+            "series": sparkline,
+        },
+    ]
+    payload["distribution_panels"] = [
+        {
+            "key": "sources",
+            "label": "Source distribution",
+            "items": list(payload.get("top_sources") or [])[:8],
+        },
+        {
+            "key": "sections",
+            "label": "Section distribution",
+            "items": list(payload.get("top_sections") or [])[:8],
+        },
+    ]
+    payload["trend_panels"] = [
+        {
+            "key": "volume",
+            "label": "Article volume",
+            "series": timeline,
+        },
+        {
+            "key": "hubs",
+            "label": "Hub trend",
+            "series_groups": hub_series,
+        },
+    ]
+    return payload
+
+
 def _build_analysis_dashboard_payload(
     state: dict[str, Any],
     *,
@@ -1139,7 +1241,7 @@ def _build_analysis_dashboard_payload(
     for key, label, duration in ANALYSIS_WINDOW_DEFINITIONS:
         if duration is None:
             repeated_titles = _rank_title_groups(lifetime["title_groups"])
-            windows[key] = {
+            windows[key] = _augment_analysis_window_payload({
                 "label": label,
                 "article_count": lifetime["total_articles"],
                 "unknown_time_count": lifetime["unknown_time_count"],
@@ -1177,7 +1279,7 @@ def _build_analysis_dashboard_payload(
                     article.to_public_dict()
                     for article in recent_articles[:ANALYSIS_SAMPLE_LIMIT]
                 ],
-            }
+            }, articles=recent_articles)
             continue
 
         cutoff = timestamp - duration
@@ -1186,7 +1288,10 @@ def _build_analysis_dashboard_payload(
             for article in recent_articles
             if article.published_at is not None and article.published_at >= cutoff
         ]
-        windows[key] = _build_window_payload_from_articles(label=label, articles=window_articles)
+        windows[key] = _augment_analysis_window_payload(
+            _build_window_payload_from_articles(label=label, articles=window_articles),
+            articles=window_articles,
+        )
 
     return {
         "generated_at": generated_at,
@@ -1463,32 +1568,17 @@ def _build_page_tokens(total_pages: int, current_page: int) -> list[int | None]:
     return tokens
 
 
-def _build_initial_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    hubs = {entry["key"]: entry for entry in payload.get("hubs", [])}
-    articles_by_hub: dict[str, list[dict[str, Any]]] = {
-        hub_key: [] for hub_key in hubs
-    }
-    for article in _paginate_articles(
+def _build_initial_feed(payload: dict[str, Any]) -> dict[str, Any]:
+    page_articles = _paginate_articles(
         payload["articles"],
         page=1,
         page_size=int(payload.get("page_size") or 25),
-    ):
-        articles_by_hub.setdefault(article.get("hub", "global"), []).append(article)
-    sections: list[dict[str, Any]] = []
-    for hub_key, hub in hubs.items():
-        articles = articles_by_hub.get(hub_key, [])
-        if not articles:
-            continue
-        sections.append(
-            {
-                "key": hub_key,
-                "label": hub["label"],
-                "eyebrow": "허브",
-                "count": len(articles),
-                "articles": articles,
-            }
-        )
-    return sections
+    )
+    featured = page_articles[0] if page_articles else None
+    return {
+        "featured": featured,
+        "items": page_articles[1:] if len(page_articles) > 1 else [],
+    }
 
 
 def build_static_site(
@@ -1577,11 +1667,7 @@ def _write_static_site(
         generated_at=payload["generated_at"],
         hubs=payload["hubs"],
         categories=payload["categories"],
-        initial_sections=_build_initial_sections(payload),
-        initial_hub={
-            "label": "전체 허브",
-            "description": "대한민국, 미국, 글로벌 전문 허브를 한 화면에서 살펴볼 수 있습니다.",
-        },
+        initial_feed=_build_initial_feed(payload),
         initial_total_pages=max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),
         initial_pagination_tokens=_build_page_tokens(
             max(1, ceil(payload["article_count"] / max(payload["page_size"], 1))),

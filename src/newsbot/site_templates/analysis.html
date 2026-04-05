@@ -6,184 +6,80 @@
     <title>newsbot analysis</title>
     <meta
       name="description"
-      content="newsbot analysis dashboard for the full stream of collected news"
+      content="newsbot analysis dashboard with KPI strips and trend panels"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
-  <body>
+  <body class="public-app">
     <nav class="surface-switcher" aria-label="View switcher">
       <a class="surface-link" href="../">News</a>
       <a class="surface-link is-active" href="./">Analysis</a>
       <a class="surface-link" href="../markets/">Markets</a>
     </nav>
 
-    <header class="compact-summary-header compact-summary-header-analysis">
-      <div class="compact-summary-top">
-        <div class="compact-summary-copy">
-          <p class="eyebrow">newsbot analytics</p>
-          <h1>analysis</h1>
-          <p class="compact-summary-description">
-            수집된 전체 뉴스 흐름을 기간별 기사량, 반복 헤드라인, 출처 집중도로 빠르게 읽는 운영 대시보드입니다.
-          </p>
-        </div>
-        <div class="compact-summary-meta">
-          <span class="summary-chip">Retention {{ retention_days }} days</span>
-          <span class="summary-chip">Keywords, timelines, repeats</span>
-          <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
-        </div>
+    <header class="analysis-header">
+      <div class="analysis-header-copy">
+        <p class="analysis-eyebrow">newsbot analytics</p>
+        <h1>Analysis dashboard</h1>
+        <p>기사량, 출처 집중도, 반복 제목, 최근 샘플을 운영 대시보드 방식으로 바로 읽을 수 있게 재구성했습니다.</p>
       </div>
-      <div class="compact-summary-status-strip">
-        <p class="compact-summary-status-copy">기간을 바꾸며 기사량, 집중 출처, 반복 헤드라인을 한 화면에서 읽을 수 있습니다.</p>
-        <p id="analysis-status" class="compact-summary-status-line">Loading analysis data.</p>
+      <div class="analysis-header-meta">
+        <span class="summary-pill">Retention {{ retention_days }} days</span>
+        <span class="summary-pill">Expanded dashboard</span>
+        <span class="summary-pill">Updated <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
       </div>
     </header>
 
-    <main class="shell analysis-shell">
-      <section class="toolbar analysis-toolbar compact-toolbar analysis-toolbar-shell">
-        <div class="toolbar-group toolbar-group-scope analysis-toolbar-group">
-          <p class="toolbar-label">Window</p>
-          <div id="analysis-window-tabs" class="pill-row analysis-window-tabs"></div>
+    <main class="analysis-shell">
+      <section class="analysis-filter-bar">
+        <div class="analysis-filter-copy">
+          <p class="rail-kicker">Window</p>
+          <h2>기간별 흐름을 바꿔보세요</h2>
         </div>
-        <div class="toolbar-group analysis-toolbar-story">
-          <p class="toolbar-label">Reading Flow</p>
-          <p class="analysis-toolbar-copy">
-            Main KPI, volume timeline, source concentration, repeated headlines 순서로 화면을 읽도록 위계를 재정렬했습니다.
-          </p>
-        </div>
+        <div id="analysis-window-tabs" class="analysis-window-tabs"></div>
       </section>
 
-      <section id="analysis-kpis" class="analysis-kpis" aria-label="Key metrics"></section>
+      <section id="analysis-kpi-strip" class="analysis-kpi-strip"></section>
 
-      <section class="analysis-dashboard-grid" aria-label="Dashboard">
-        <section class="analysis-panel analysis-panel-wide analysis-timeline-panel">
+      <section class="analysis-secondary-grid">
+        <section class="analysis-panel">
           <div class="analysis-panel-head">
             <div>
-              <p class="analysis-kicker">Main KPI Trend</p>
-              <h2>Article timeline</h2>
+              <p class="analysis-kicker">Main KPI</p>
+              <h2>보조 지표</h2>
             </div>
           </div>
-          <div id="analysis-timeline" class="analysis-chart-slot"></div>
+          <div id="analysis-mini-kpis" class="analysis-mini-kpis"></div>
         </section>
 
-        <aside class="analysis-panel analysis-snapshot-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Reading Notes</p>
-              <h2>What stands out now</h2>
-            </div>
-          </div>
-          <div id="analysis-snapshot" class="analysis-snapshot-grid"></div>
-        </aside>
-
-        <section class="analysis-panel analysis-breakdown-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Keyword Trend</p>
-              <h2>Most repeated keywords</h2>
-            </div>
-          </div>
-          <div id="analysis-keywords" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel analysis-breakdown-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Source Mix</p>
-              <h2>Source concentration</h2>
-            </div>
-          </div>
-          <div id="analysis-sources" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel analysis-breakdown-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Hub and Section</p>
-              <h2>Topic distribution</h2>
-            </div>
-          </div>
-          <div id="analysis-sections" class="analysis-list-slot"></div>
-        </section>
-
-        <section class="analysis-panel analysis-breakdown-panel">
-          <div class="analysis-panel-head">
-            <div>
-              <p class="analysis-kicker">Language Mix</p>
-              <h2>Language coverage</h2>
-            </div>
-          </div>
-          <div id="analysis-languages" class="analysis-list-slot"></div>
-        </section>
+        <section id="analysis-distribution-panels" class="analysis-distribution-panels"></section>
       </section>
 
-      <section class="analysis-table-panel analysis-focus-switcher">
-        <div class="analysis-panel-head">
-          <div>
-            <p class="analysis-kicker">Focus</p>
-            <h2>Jump to the detailed reading panels</h2>
-          </div>
-        </div>
-        <div id="analysis-focus-tabs" class="pill-row analysis-focus-tabs"></div>
-      </section>
+      <section id="analysis-trend-panels" class="analysis-trend-grid"></section>
 
-      <section class="analysis-record-grid">
-        <section id="analysis-repeated-panel" class="analysis-table-panel">
+      <section class="analysis-lower-grid">
+        <section class="analysis-panel">
           <div class="analysis-panel-head">
             <div>
-              <p class="analysis-kicker">Repeated Titles</p>
-              <h2>Repeated headline groups</h2>
+              <p class="analysis-kicker">Repeated titles</p>
+              <h2>반복 헤드라인 묶음</h2>
             </div>
           </div>
           <div id="analysis-repeated" class="analysis-table-slot"></div>
         </section>
 
-        <section id="analysis-samples-panel" class="analysis-table-panel">
+        <section class="analysis-panel">
           <div class="analysis-panel-head">
             <div>
-              <p class="analysis-kicker">Recent Samples</p>
-              <h2>Recent collected samples</h2>
+              <p class="analysis-kicker">Recent samples</p>
+              <h2>최근 수집 기사 샘플</h2>
             </div>
           </div>
           <div id="analysis-samples" class="analysis-table-slot"></div>
         </section>
       </section>
 
-      <details id="analysis-more-analytics" class="analysis-more-analytics">
-        <summary>Method and reading guide</summary>
-        <div class="analysis-grid analysis-more-grid">
-          <section class="analysis-panel analysis-more-panel">
-            <div class="analysis-panel-head">
-              <div>
-                <p class="analysis-kicker">How to read</p>
-                <h2>Analysis guide</h2>
-              </div>
-            </div>
-            <div class="analysis-guide-copy">
-              <p>1. Main KPI에서 전체 기사량과 집중도를 먼저 확인합니다.</p>
-              <p>2. Timeline에서 피크 날짜와 평균 흐름을 비교합니다.</p>
-              <p>3. Source, topic, language 분포를 보며 왜 피크가 생겼는지 해석합니다.</p>
-              <p>4. Repeated Titles와 Recent Samples로 실제 기사 묶음을 검증합니다.</p>
-            </div>
-          </section>
-
-          <section class="analysis-panel analysis-more-panel">
-            <div class="analysis-panel-head">
-              <div>
-                <p class="analysis-kicker">Metric Notes</p>
-                <h2>Data definitions</h2>
-              </div>
-            </div>
-            <div class="analysis-guide-copy">
-              <p>Repeated titles는 정규화된 제목 해시 기준으로 묶습니다.</p>
-              <p>Active sources는 선택한 기간에 실제로 기사를 보낸 출처 수입니다.</p>
-              <p>Language mix는 기사 메타데이터에 기록된 언어 값을 집계합니다.</p>
-              <p>Unknown time는 수집은 되었지만 게시 시각이 비어 있는 항목을 뜻합니다.</p>
-            </div>
-          </section>
-        </div>
-      </details>
-
-      <noscript class="noscript-note">This analysis page needs JavaScript to render charts and tables.</noscript>
+      <noscript class="noscript-note">이 분석 페이지는 JavaScript가 켜져 있어야 대시보드가 렌더링됩니다.</noscript>
     </main>
 
     <script id="analysis-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>

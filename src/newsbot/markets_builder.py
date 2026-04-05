@@ -93,6 +93,35 @@ _MARKET_NEWS_CATEGORIES = {"us-markets", "crypto"}
 _BINANCE_SPOT_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
 _BINANCE_QUOTE_SUFFIX = "USDT"
 _BINANCE_LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
+_US_INDEX_FILTERS = (
+    {"key": "nasdaq", "label": "NASDAQ"},
+    {"key": "sp500", "label": "S&P 500"},
+    {"key": "russell", "label": "Russell 2000"},
+    {"key": "dow", "label": "Dow 30"},
+)
+_US_INDEX_MEMBERSHIPS = {
+    "nasdaq": {
+        "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "AVGO", "TSLA",
+        "COST", "NFLX", "AMD", "PEP", "ASML", "CSCO", "ADBE", "QCOM", "AMGN",
+        "TXN", "INTU", "INTC", "AMAT", "ISRG", "BKNG", "ADP", "CMCSA", "PANW",
+        "MU", "GILD", "VRTX", "MELI", "LRCX", "SNPS", "KLAC",
+    },
+    "sp500": {
+        "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "BRK.B", "BRK-B",
+        "JPM", "LLY", "V", "XOM", "UNH", "MA", "PG", "JNJ", "HD", "COST", "ABBV",
+        "KO", "BAC", "AVGO", "ORCL", "MRK", "CVX", "WMT", "NFLX", "ADBE", "CRM",
+    },
+    "russell": {
+        "HOOD", "CELH", "PLTR", "SMCI", "APP", "DKNG", "NET", "SOFI", "IOT", "U",
+        "AFRM", "RIVN", "FSLY", "PATH", "DUOL", "CFLT", "APPF", "ELF", "CAVA", "ONON",
+        "TTWO", "ZS", "MDB", "ESTC", "BILL", "DOCN", "RBLX", "COHR", "RKLB", "HIMS",
+    },
+    "dow": {
+        "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
+        "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
+        "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
+    },
+}
 _KOSPI_SUFFIX_LENGTH = 228
 _KOSDAQ_SUFFIX_LENGTH = 222
 _KOSPI_FIELD_WIDTHS = [
@@ -558,7 +587,7 @@ def _build_crypto_dataset(
             heatmap_basis = archived_heatmap_basis or _build_heatmap_basis(
                 size_label="market cap share",
                 color_label="24H price change",
-                source_label="CoinGecko market-cap fallback",
+                source_label="Coin market-cap map",
             )
             trending = archived_trending
 
@@ -578,7 +607,7 @@ def _build_crypto_dataset(
 
             try:
                 binance_tickers = binance_fetcher(client, settings)
-                heatmap, heatmap_basis = _build_binance_volume_heatmap(rows, binance_tickers)
+                heatmap, heatmap_basis = _build_binance_market_cap_heatmap(rows, binance_tickers)
             except Exception as exc:
                 notes.append(f"Binance heatmap unavailable: {exc}")
 
@@ -1539,6 +1568,7 @@ def _finalize_stocks_payload(
     stale: bool,
     message: str | None,
 ) -> dict[str, Any]:
+    index_heatmaps = _build_us_index_heatmaps(rows)
     return {
         "generated_at": generated_at,
         "asset_type": "stock",
@@ -1546,9 +1576,15 @@ def _finalize_stocks_payload(
         "status": status,
         "stale": stale,
         "message": message,
+        "heatmap_mode": "index_weight",
         "as_of": _resolve_latest_as_of(rows, generated_at),
         "row_count": len(rows),
         "presets": list(_STOCK_PRESETS),
+        "index_filters": list(_US_INDEX_FILTERS),
+        "index_memberships": {
+            key: sorted(symbols)
+            for key, symbols in _US_INDEX_MEMBERSHIPS.items()
+        },
         "filter_options": {
             "exchanges": _sorted_unique(row.exchange for row in rows if row.exchange),
             "sectors": _sorted_unique(
@@ -1561,11 +1597,12 @@ def _finalize_stocks_payload(
         "breadth": _build_breadth_payload(rows),
         "movers": _build_mover_payload(rows),
         "group_performance": _build_group_performance(rows),
-        "heatmap": _build_equity_heatmap(rows, basis="market_cap"),
+        "heatmaps": index_heatmaps,
+        "heatmap": list(index_heatmaps.get("nasdaq") or []),
         "heatmap_basis": _build_heatmap_basis(
-            size_label="market cap share",
+            size_label="index weight by market cap",
             color_label="daily price change",
-            source_label="US equity market map",
+            source_label="US index-weight market map",
         ),
     }
 
@@ -1593,6 +1630,7 @@ def _finalize_korea_payload(
         "status": status,
         "stale": stale,
         "message": message,
+        "heatmap_mode": "market_cap",
         "as_of": _resolve_latest_as_of(rows, generated_at),
         "row_count": len(rows),
         "presets": list(_KOREA_PRESETS),
@@ -1642,6 +1680,8 @@ def _finalize_crypto_payload(
         "status": status,
         "stale": stale,
         "message": message,
+        "heatmap_mode": "binance_market_cap",
+        "exchange": "binance_spot",
         "as_of": _resolve_latest_as_of(rows, generated_at),
         "row_count": len(rows),
         "presets": list(_CRYPTO_PRESETS),
@@ -1703,10 +1743,17 @@ def _empty_market_payload(
         "status": status,
         "stale": stale,
         "message": message,
+        "heatmap_mode": "market_cap" if asset_type == "stock" else "binance_market_cap",
         "as_of": None,
         "row_count": 0,
         "presets": list(
             presets or (_STOCK_PRESETS if asset_type == "stock" else _CRYPTO_PRESETS)
+        ),
+        "index_filters": list(_US_INDEX_FILTERS) if asset_type == "stock" else [],
+        "index_memberships": (
+            {key: sorted(symbols) for key, symbols in _US_INDEX_MEMBERSHIPS.items()}
+            if asset_type == "stock"
+            else {}
         ),
         "filter_options": (
             {"exchanges": [], "sectors": [], "industries": []}
@@ -1718,11 +1765,13 @@ def _empty_market_payload(
         "breadth": _build_breadth_payload([]),
         "movers": _build_mover_payload([]),
         "group_performance": [],
+        "heatmaps": {} if asset_type == "stock" else [],
         "heatmap": [],
         "heatmap_basis": {},
     }
     if asset_type == "crypto":
         payload["trending"] = []
+        payload["exchange"] = "binance_spot"
     return payload
 
 
@@ -1967,6 +2016,10 @@ def _build_heatmap_basis(
     }
 
 
+def _normalize_market_symbol(symbol: str) -> str:
+    return str(symbol or "").strip().upper().replace("-", ".")
+
+
 def _resolve_heatmap_tile_shape(
     value: float,
     max_value: float,
@@ -2012,6 +2065,7 @@ def _build_equity_heatmap(
                 "subLabel": row.sector_or_category or row.industry or row.exchange,
                 "change_pct": row.change_pct or 0.0,
                 "value": market_cap,
+                "weight_pct": share_pct,
                 "share_pct": share_pct,
                 "metric_display": f"{share_pct:.1f}% cap share",
                 "size": size,
@@ -2023,13 +2077,77 @@ def _build_equity_heatmap(
     return items
 
 
-def _build_binance_volume_heatmap(
+def _build_us_index_heatmaps(rows: list[MarketSnapshotRow]) -> dict[str, list[dict[str, Any]]]:
+    by_symbol = {_normalize_market_symbol(row.symbol): row for row in rows}
+    heatmaps: dict[str, list[dict[str, Any]]] = {}
+    for entry in _US_INDEX_FILTERS:
+        key = entry["key"]
+        members = _US_INDEX_MEMBERSHIPS.get(key, set())
+        member_rows = [
+            by_symbol[symbol]
+            for symbol in members
+            if symbol in by_symbol and _safe_number(by_symbol[symbol].market_cap) > 0
+        ]
+        if not member_rows and rows:
+            if key == "nasdaq":
+                member_rows = [
+                    row for row in rows
+                    if row.exchange.upper() == "NASDAQ" and _safe_number(row.market_cap) > 0
+                ][:48]
+            else:
+                member_rows = rows[:32]
+        heatmaps[key] = _build_index_heatmap(member_rows, label=entry["label"])
+    return heatmaps
+
+
+def _build_index_heatmap(
+    rows: list[MarketSnapshotRow],
+    *,
+    label: str,
+) -> list[dict[str, Any]]:
+    ordered_rows = sorted(
+        [row for row in rows if _safe_number(row.market_cap) > 0],
+        key=lambda row: (_safe_number(row.market_cap), abs(row.change_pct or 0.0), row.symbol),
+        reverse=True,
+    )[:48]
+    if not ordered_rows:
+        return []
+    total_market_cap = sum(_safe_number(row.market_cap) for row in ordered_rows) or 1.0
+    max_market_cap = max(_safe_number(row.market_cap) for row in ordered_rows) or 1.0
+    items: list[dict[str, Any]] = []
+    for row in ordered_rows:
+        market_cap = _safe_number(row.market_cap)
+        weight_pct = (market_cap / total_market_cap) * 100 if total_market_cap else 0.0
+        tile_cols, tile_rows, size = _resolve_heatmap_tile_shape(market_cap, max_market_cap)
+        items.append(
+            {
+                "label": row.symbol,
+                "name": row.name,
+                "change_pct": row.change_pct or 0.0,
+                "value": market_cap,
+                "weight_pct": weight_pct,
+                "share_pct": weight_pct,
+                "metric_display": f"{weight_pct:.2f}% of {label}",
+                "size": size,
+                "tile_cols": tile_cols,
+                "tile_rows": tile_rows,
+                "detail_url": row.detail_url,
+            }
+        )
+    return items
+
+
+def _build_binance_market_cap_heatmap(
     rows: list[MarketSnapshotRow],
     ticker_rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     by_symbol: dict[str, MarketSnapshotRow] = {}
-    for row in sorted(rows, key=lambda item: (_safe_number(item.market_cap), _safe_number(item.volume)), reverse=True):
-        symbol = row.symbol.upper()
+    for row in sorted(
+        rows,
+        key=lambda item: (_safe_number(item.market_cap), _safe_number(item.volume)),
+        reverse=True,
+    ):
+        symbol = _normalize_market_symbol(row.symbol)
         by_symbol.setdefault(symbol, row)
 
     matched: list[dict[str, Any]] = []
@@ -2040,11 +2158,11 @@ def _build_binance_volume_heatmap(
         base_symbol = market_symbol[: -len(_BINANCE_QUOTE_SUFFIX)]
         if not base_symbol or base_symbol.endswith(_BINANCE_LEVERAGED_SUFFIXES):
             continue
-        coin = by_symbol.get(base_symbol)
+        coin = by_symbol.get(_normalize_market_symbol(base_symbol))
         if coin is None:
             continue
-        quote_volume = _as_float(raw.get("quoteVolume"))
-        if quote_volume is None or quote_volume <= 0:
+        market_cap = _safe_number(coin.market_cap)
+        if market_cap <= 0:
             continue
         change_pct = _as_float(raw.get("priceChangePercent")) or 0.0
         matched.append(
@@ -2052,7 +2170,7 @@ def _build_binance_volume_heatmap(
                 "symbol": base_symbol,
                 "name": coin.name,
                 "change_pct": change_pct,
-                "quote_volume": quote_volume,
+                "market_cap": market_cap,
                 "detail_url": (
                     f"https://www.binance.com/en/trade/{base_symbol}_USDT?type=spot"
                 ),
@@ -2060,28 +2178,28 @@ def _build_binance_volume_heatmap(
         )
 
     matched.sort(
-        key=lambda item: (float(item["quote_volume"]), abs(float(item["change_pct"]))),
+        key=lambda item: (float(item["market_cap"]), abs(float(item["change_pct"]))),
         reverse=True,
     )
     if not matched:
         raise RuntimeError("Binance returned no mapped USDT spot pairs for the tracked crypto rows.")
 
-    total_quote_volume = sum(float(item["quote_volume"]) for item in matched) or 1.0
-    max_quote_volume = max(float(item["quote_volume"]) for item in matched) or 1.0
+    total_market_cap = sum(float(item["market_cap"]) for item in matched) or 1.0
+    max_market_cap = max(float(item["market_cap"]) for item in matched) or 1.0
     items: list[dict[str, Any]] = []
     for item in matched[:48]:
-        quote_volume = float(item["quote_volume"])
-        share_pct = (quote_volume / total_quote_volume) * 100 if total_quote_volume else 0.0
-        tile_cols, tile_rows, size = _resolve_heatmap_tile_shape(quote_volume, max_quote_volume)
+        market_cap = float(item["market_cap"])
+        share_pct = (market_cap / total_market_cap) * 100 if total_market_cap else 0.0
+        tile_cols, tile_rows, size = _resolve_heatmap_tile_shape(market_cap, max_market_cap)
         items.append(
             {
                 "label": item["symbol"],
                 "name": item["name"],
-                "subLabel": "Binance spot",
                 "change_pct": float(item["change_pct"]),
-                "value": quote_volume,
+                "value": market_cap,
+                "weight_pct": share_pct,
                 "share_pct": share_pct,
-                "metric_display": f"{share_pct:.2f}% volume share",
+                "metric_display": f"{share_pct:.2f}% market-cap weight",
                 "size": size,
                 "tile_cols": tile_cols,
                 "tile_rows": tile_rows,
@@ -2091,9 +2209,9 @@ def _build_binance_volume_heatmap(
     return (
         items,
         _build_heatmap_basis(
-            size_label="Binance USDT spot volume share",
+            size_label="market-cap share across Binance spot tracked coins",
             color_label="24H price change",
-            source_label="Binance spot market map",
+            source_label="Binance spot market-cap heatmap",
         ),
     )
 

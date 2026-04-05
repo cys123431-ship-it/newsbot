@@ -6,41 +6,38 @@
     <title>newsbot markets</title>
     <meta
       name="description"
-      content="newsbot markets dashboard for overview, US stocks, Korea stocks, and crypto"
+      content="newsbot markets dashboard with index-weighted stock maps and Binance-style crypto heatmaps"
     />
     <link rel="stylesheet" href="../assets/style.css" />
   </head>
-  <body>
+  <body class="public-app">
     <nav class="surface-switcher" aria-label="View switcher">
       <a class="surface-link" href="../">News</a>
       <a class="surface-link" href="../analysis/">Analysis</a>
       <a class="surface-link is-active" href="./">Markets</a>
     </nav>
 
-    <header class="compact-summary-header compact-summary-header-markets">
-      <div class="compact-summary-top">
-        <div class="compact-summary-copy">
-          <p class="eyebrow">newsbot markets</p>
-          <h1>markets</h1>
-          <p class="compact-summary-description">
-            Overview is the combined market view. Stocks, Korea, and Crypto open asset-specific boards.
-          </p>
-        </div>
-        <div class="compact-summary-meta">
-          <span class="summary-chip">Overview / Stocks / Korea / Crypto</span>
-          <span class="summary-chip">Delayed market data only</span>
-          <span class="summary-chip">Last refresh <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
-        </div>
+    <header class="markets-header">
+      <div class="analysis-header-copy">
+        <p class="analysis-eyebrow">newsbot markets</p>
+        <h1>Market maps</h1>
+        <p>미국 주식은 지수별 시총 비중으로, 코인은 Binance 거래쌍과 시총 매칭 기준으로 마켓맵을 다시 구성했습니다.</p>
       </div>
-      <div class="compact-summary-status-strip">
-        <p class="compact-summary-status-copy">Overview shows the combined picture. Detailed analysis lives in the dedicated tabs.</p>
-        <p id="markets-status-line" class="compact-summary-status-line">Loading market dashboard.</p>
+      <div class="analysis-header-meta">
+        <span class="summary-pill">Overview / US / Korea / Crypto</span>
+        <span class="summary-pill">Weighted heatmaps</span>
+        <span class="summary-pill">Updated <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
       </div>
+      <div id="markets-status-line" class="markets-status-line">Loading market dashboard.</div>
     </header>
 
-    <main class="shell analysis-shell">
-      <section class="toolbar analysis-toolbar compact-toolbar">
-        <div id="markets-surface-tabs" class="pill-row analysis-window-tabs"></div>
+    <main class="markets-shell">
+      <section class="analysis-filter-bar">
+        <div class="analysis-filter-copy">
+          <p class="rail-kicker">Surface</p>
+          <h2>시장별 보드를 전환하세요</h2>
+        </div>
+        <div id="markets-surface-tabs" class="analysis-window-tabs"></div>
       </section>
 
       <section id="markets-overview-surface" class="markets-surface"></section>
@@ -48,7 +45,7 @@
       <section id="markets-korea-surface" class="markets-surface" hidden></section>
       <section id="markets-crypto-surface" class="markets-surface" hidden></section>
 
-      <noscript class="noscript-note">This markets page needs JavaScript to render data.</noscript>
+      <noscript class="noscript-note">이 페이지는 JavaScript가 켜져 있어야 마켓맵이 렌더링됩니다.</noscript>
     </main>
 
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>

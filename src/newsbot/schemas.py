@@ -16,6 +16,7 @@ class ArticleRead(BaseModel):
     canonical_url: str
     source_key: str
     source_name: str
+    thumbnail_url: str | None
     published_at: datetime | None
     primary_category: str
     tags: list[str]

@@ -22,6 +22,28 @@ def _from_struct_time(value: struct_time | None) -> datetime | None:
     return datetime(*value[:6], tzinfo=timezone.utc)
 
 
+def _extract_rss_thumbnail(entry) -> str | None:
+    for attribute in ("media_thumbnail", "media_content", "enclosures"):
+        value = getattr(entry, attribute, None)
+        if not value:
+            continue
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or item.get("href") or "").strip()
+            if url:
+                return url
+    links = getattr(entry, "links", None) or []
+    for item in links:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("type") or "").startswith("image/"):
+            url = str(item.get("href") or "").strip()
+            if url:
+                return url
+    return None
+
+
 class RssAdapter:
     async def fetch(
         self,
@@ -56,11 +78,13 @@ class RssAdapter:
                     source_name=source_definition.name,
                     title=title,
                     url=link,
+                    thumbnail_url=_extract_rss_thumbnail(entry),
                     published_at=published_at,
                     summary=limit_summary(summary),
                     category=source_definition.category,
                     language=guess_language(title, summary),
                     trust_level=source_definition.trust_level,
+                    raw_payload=dict(entry),
                 )
             )
         return candidates
