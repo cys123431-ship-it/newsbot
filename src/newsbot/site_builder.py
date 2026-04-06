@@ -2241,10 +2241,19 @@ def _write_static_site(
         loader=FileSystemLoader(str(SITE_TEMPLATE_DIR)),
         autoescape=select_autoescape(("html",)),
     )
+    asset_version = (
+        str(payload["generated_at"])
+        .replace("-", "")
+        .replace(":", "")
+        .replace(".", "")
+        .replace("+", "")
+        .replace("T", "")
+    )
     template = environment.get_template("index.html")
     html = template.render(
         article_count=payload["article_count"],
         generated_at=payload["generated_at"],
+        asset_version=asset_version,
         hubs=payload["hubs"],
         categories=payload["categories"],
         initial_feed=_build_initial_feed(payload),
@@ -2267,6 +2276,7 @@ def _write_static_site(
     ).replace("</", "<\\/")
     analysis_html = analysis_template.render(
         generated_at=payload["generated_at"],
+        asset_version=asset_version,
         retention_days=analysis_dashboard["retention_days"],
         bootstrap_json=analysis_bootstrap_json,
     )
@@ -2294,6 +2304,7 @@ def _write_static_site(
         ).replace("</", "<\\/")
         markets_html = markets_template.render(
             generated_at=payload["generated_at"],
+            asset_version=asset_version,
             page_title=page_spec["page_title"],
             page_description=page_spec["page_description"],
             asset_prefix=page_spec["asset_prefix"],
@@ -2625,6 +2636,14 @@ def _write_scanner_detail_pages(
                 detail_output_dir.mkdir(parents=True, exist_ok=True)
                 detail_html = detail_template.render(
                     generated_at=generated_at,
+                    asset_version=(
+                        str(generated_at)
+                        .replace("-", "")
+                        .replace(":", "")
+                        .replace(".", "")
+                        .replace("+", "")
+                        .replace("T", "")
+                    ),
                     page_title=f"{result.get('symbol', 'Scanner')} | {result.get('pattern', 'Pattern')}",
                     page_description=str(result.get("summary") or "Static scanner detail view"),
                     asset_prefix=prefix_root + "assets",

@@ -8,7 +8,7 @@
       name="description"
       content="newsbot analysis dashboard with KPI strips and trend panels"
     />
-    <link rel="stylesheet" href="../assets/style.css" />
+    <link rel="stylesheet" href="../assets/style.css?v={{ asset_version }}" />
   </head>
   <body class="public-app">
     <nav class="surface-switcher" aria-label="View switcher">
@@ -78,6 +78,6 @@
     </main>
 
     <script id="analysis-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
-    <script src="../assets/analysis.js"></script>
+    <script src="../assets/analysis.js?v={{ asset_version }}"></script>
   </body>
 </html>

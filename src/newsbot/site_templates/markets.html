@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ page_title }}</title>
     <meta name="description" content="{{ page_description }}" />
-    <link rel="stylesheet" href="{{ asset_prefix }}/style.css" />
+    <link rel="stylesheet" href="{{ asset_prefix }}/style.css?v={{ asset_version }}" />
   </head>
   <body class="public-app {{ body_class }}">
     <nav class="surface-switcher" aria-label="View switcher">
@@ -67,6 +67,6 @@
     </main>
 
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
-    <script src="{{ asset_prefix }}/markets.js"></script>
+    <script src="{{ asset_prefix }}/markets.js?v={{ asset_version }}"></script>
   </body>
 </html>

@@ -149,8 +149,8 @@ function ratingToneClass(label) {
 }
 
 function loadJson(url, { bust = false } = {}) {
-  const target = bust ? `${url}${url.includes("?") ? "&" : "?"}ts=${Date.now()}` : url;
-  return fetch(target, { cache: bust ? "no-store" : "default" }).then((response) => {
+  const target = `${url}${url.includes("?") ? "&" : "?"}ts=${Date.now()}`;
+  return fetch(target, { cache: "no-store" }).then((response) => {
     if (!response.ok) throw new Error(`Failed to load ${url}: ${response.status}`);
     return response.json();
   });
