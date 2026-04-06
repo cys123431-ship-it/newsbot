@@ -162,7 +162,7 @@ def _build_market_nav_links(
     return [
         {"key": "news", "label": "News", "href": news_href},
         {"key": "analysis", "label": "Analysis", "href": analysis_href},
-        {"key": "crypto", "label": "??", "href": crypto_href},
+        {"key": "crypto", "label": "코인", "href": crypto_href},
     ]
 
 def _build_crypto_page_links(
@@ -217,12 +217,12 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
     page_specs: list[MarketPageSpec] = [
         _build_market_page_spec(
             surface="crypto",
-            surface_label="??",
+            surface_label="코인",
             output_dir=MARKETS_DIRECTORY_NAME,
             asset_prefix="../assets",
             data_prefix="../data",
-            page_title="newsbot crypto | ???",
-            page_description="newsbot static crypto overview",
+            page_title="newsbot crypto | 오버뷰",
+            page_description="newsbot static crypto overview dashboard",
             body_class="market-crypto-page crypto-page-overview",
             show_market_map=False,
             nav_links=_build_market_nav_links(
@@ -232,7 +232,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             ),
             surface_links=[],
             crypto_page_key="overview",
-            crypto_page_label="???",
+            crypto_page_label="오버뷰",
             crypto_page_links=_build_crypto_page_links(
                 overview_href="crypto/",
                 child_prefix="crypto/",
@@ -240,12 +240,12 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
         ),
         _build_market_page_spec(
             surface="crypto",
-            surface_label="??",
+            surface_label="코인",
             output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto",
             asset_prefix="../../assets",
             data_prefix="../../data",
-            page_title="newsbot crypto | ???",
-            page_description="newsbot static crypto overview",
+            page_title="newsbot crypto | 오버뷰",
+            page_description="newsbot static crypto overview dashboard",
             body_class="market-crypto-page crypto-page-overview",
             show_market_map=False,
             nav_links=_build_market_nav_links(
@@ -255,7 +255,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             ),
             surface_links=[],
             crypto_page_key="overview",
-            crypto_page_label="???",
+            crypto_page_label="오버뷰",
             crypto_page_links=_build_crypto_page_links(
                 overview_href="./",
                 child_prefix="",
@@ -270,7 +270,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
         page_specs.append(
             _build_market_page_spec(
                 surface="crypto",
-                surface_label="??",
+                surface_label="코인",
                 output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto/{slug}",
                 asset_prefix="../../../assets",
                 data_prefix="../../../data",
@@ -2311,11 +2311,11 @@ def _write_static_site(
         )
     redirect_pages = {
         "us": _build_market_redirect_html(
-            title="newsbot markets | ????",
+            title="newsbot markets | 코인으로 이동",
             target_href="../crypto/",
         ),
         "korea": _build_market_redirect_html(
-            title="newsbot markets | ????",
+            title="newsbot markets | 코인으로 이동",
             target_href="../crypto/",
         ),
     }
@@ -2631,7 +2631,7 @@ def _write_scanner_detail_pages(
                     nav_links=[
                         {"key": "news", "label": "News", "href": prefix_root},
                         {"key": "analysis", "label": "Analysis", "href": prefix_root + "analysis/"},
-                        {"key": "crypto", "label": "??", "href": prefix_root + "markets/crypto/"},
+                        {"key": "crypto", "label": "코인", "href": prefix_root + "markets/crypto/"},
                     ],
                     back_href=prefix_root + "markets/crypto/patterns/",
                     detail=detail_payload.get("result") or result,

@@ -2,32 +2,33 @@ const bootstrapElement = document.getElementById("markets-bootstrap");
 const marketsBootstrap = bootstrapElement ? JSON.parse(bootstrapElement.textContent || "{}") : {};
 
 const refs = {
-  cryptoUniverseSelect: document.getElementById("crypto-universe-select"),
-  cryptoTimeframeSelect: document.getElementById("crypto-timeframe-select"),
-  cryptoRefreshButton: document.getElementById("crypto-refresh-button"),
-  cryptoCooldownText: document.getElementById("crypto-cooldown-text"),
-  cryptoStatusLine: document.getElementById("crypto-status-line"),
-  cryptoProgressBar: document.getElementById("crypto-progress-bar"),
-  cryptoPageTabs: document.getElementById("crypto-page-tabs"),
-  cryptoSummaryMeta: document.getElementById("crypto-summary-meta"),
-  cryptoActiveScan: document.getElementById("crypto-active-scan"),
-  cryptoPageHighlights: document.getElementById("crypto-page-highlights"),
-  cryptoPageControls: document.getElementById("crypto-page-controls"),
-  cryptoPageContent: document.getElementById("crypto-page-content"),
+  universeSelect: document.getElementById("crypto-universe-select"),
+  timeframeSelect: document.getElementById("crypto-timeframe-select"),
+  refreshButton: document.getElementById("crypto-refresh-button"),
+  cooldownText: document.getElementById("crypto-cooldown-text"),
+  statusLine: document.getElementById("crypto-status-line"),
+  progressBar: document.getElementById("crypto-progress-bar"),
+  pageTabs: document.getElementById("crypto-page-tabs"),
+  summaryMeta: document.getElementById("crypto-summary-meta"),
+  activeScan: document.getElementById("crypto-active-scan"),
+  pageHighlights: document.getElementById("crypto-page-highlights"),
+  pageControls: document.getElementById("crypto-page-controls"),
+  pageContent: document.getElementById("crypto-page-content"),
 };
 
 const CRYPTO_PATTERN_FILTERS = [
-  { key: "all", label: "??" },
-  { key: "forming", label: "??? ??" },
-  { key: "touch", label: "??? ??" },
-  { key: "tbar_complete", label: "T-Bar ??" },
-  { key: "complete", label: "?? ??" },
+  { key: "all", label: "전체" },
+  { key: "forming", label: "실시간 진입" },
+  { key: "touch", label: "실시간 터치" },
+  { key: "tbar_complete", label: "T-Bar 완성" },
+  { key: "complete", label: "일반 완성" },
 ];
 
 const CRYPTO_COOLDOWN_MS = 45_000;
 const CRYPTO_COOLDOWN_STORAGE_KEY = "newsbot-crypto-refresh-cooldown";
 const CRYPTO_LAST_LOADED_STORAGE_KEY = "newsbot-crypto-last-loaded-at";
 const SEOUL_TIMEZONE = "Asia/Seoul";
+
 const ROOT_PREFIX = (() => {
   const path = window.location.pathname || "/";
   const marker = "/markets/";
@@ -40,21 +41,18 @@ const ROOT_PREFIX = (() => {
 })();
 
 const state = {
-  surface: "crypto",
-  crypto: {
-    pageKey: String(marketsBootstrap.crypto_page_key || "overview"),
-    manifest: null,
-    manifestUrl: "",
-    pagePayload: null,
-    universeKey: "top100",
-    timeframe: "5m",
-    filter: "all",
-    cooldownUntil: Number.parseInt(localStorage.getItem(CRYPTO_COOLDOWN_STORAGE_KEY) || "0", 10) || 0,
-    lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
-    errorMessage: "",
-    notice: "?? ?? ??? ???? ?? ????.",
-    isLoading: false,
-  },
+  manifest: null,
+  manifestUrl: "",
+  pagePayload: null,
+  pageKey: String(marketsBootstrap.crypto_page_key || "overview"),
+  universeKey: "top100",
+  timeframe: "5m",
+  filter: "all",
+  cooldownUntil: Number.parseInt(localStorage.getItem(CRYPTO_COOLDOWN_STORAGE_KEY) || "0", 10) || 0,
+  lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
+  isLoading: false,
+  errorMessage: "",
+  notice: "최근 배치 스냅샷을 준비하고 있습니다.",
 };
 
 function escapeHtml(value) {
@@ -66,12 +64,12 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function normalizePath(value) {
-  return String(value || "").replace(/^\.?\/*/, "");
-}
-
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function normalizePath(value) {
+  return String(value || "").replace(/^\.?\/*/, "");
 }
 
 function toNumber(value) {
@@ -79,14 +77,15 @@ function toNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function formatCompact(value) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(toNumber(value));
+function parseTimestamp(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatSeoulDateTime(value) {
-  if (!value) return "-";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = parseTimestamp(value);
+  if (!date) return "-";
   return `${new Intl.DateTimeFormat("ko-KR", {
     timeZone: SEOUL_TIMEZONE,
     year: "numeric",
@@ -99,51 +98,16 @@ function formatSeoulDateTime(value) {
   }).format(date)} KST`;
 }
 
-function parseTimestamp(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+function formatCompact(value) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(toNumber(value));
 }
 
-function buildFreshnessState(value) {
-  const timestamp = parseTimestamp(value);
-  if (!timestamp) {
-    return { label: "?? ??", className: "is-neutral", elapsedLabel: "?? ?? ?? ??" };
-  }
-  const elapsedMs = Math.max(Date.now() - timestamp.getTime(), 0);
-  const elapsedMinutes = elapsedMs / 60_000;
-  let label = "??";
-  let className = "is-positive";
-  if (elapsedMinutes > 45) {
-    label = "??? ??";
-    className = "is-negative";
-  } else if (elapsedMinutes > 25) {
-    label = "??";
-    className = "is-neutral";
-  }
-  const totalSeconds = Math.floor(elapsedMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  let elapsedLabel = "";
-  if (hours > 0) {
-    elapsedLabel = `${hours}?? ${minutes}? ??`;
-  } else if (minutes > 0) {
-    elapsedLabel = `${minutes}? ??`;
-  } else {
-    elapsedLabel = `${seconds}? ??`;
-  }
-  return { label, className, elapsedLabel };
-}
-
-function formatPercent(value, digits = 2) {
+function formatUsdCompact(value) {
   const numeric = toNumber(value);
-  return `${numeric > 0 ? "+" : ""}${numeric.toFixed(digits)}%`;
-}
-
-function formatRatio(value, digits = 3) {
-  const numeric = toNumber(value);
-  return numeric ? numeric.toFixed(digits) : "-";
+  return numeric ? `$${formatCompact(numeric)}` : "-";
 }
 
 function formatTickerPrice(value) {
@@ -154,21 +118,14 @@ function formatTickerPrice(value) {
   return `$${numeric.toFixed(5)}`;
 }
 
-function formatMarketPrice(value, surface) {
+function formatPercent(value, digits = 2) {
   const numeric = toNumber(value);
-  if (numeric <= 0) return "-";
-  return surface === "korea"
-    ? `?${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(numeric)}`
-    : formatTickerPrice(numeric);
+  return `${numeric > 0 ? "+" : ""}${numeric.toFixed(digits)}%`;
 }
 
-function formatUsdCompact(value) {
+function formatRatio(value, digits = 3) {
   const numeric = toNumber(value);
-  return numeric ? `$${formatCompact(numeric)}` : "-";
-}
-
-function formatCap(value, surface) {
-  return `${surface === "korea" ? "?" : "$"}${formatCompact(value)}`;
+  return numeric ? numeric.toFixed(digits) : "-";
 }
 
 function formatCardValue(value, format) {
@@ -208,360 +165,163 @@ function resolveMarketUrl(relativePath) {
 }
 
 function resolveScannerDataUrl(relativePath) {
-  const manifestUrl = state.crypto.manifestUrl || String(marketsBootstrap.scanner_manifest_url || "");
+  const manifestUrl = state.manifestUrl || String(marketsBootstrap.scanner_manifest_url || "");
   if (manifestUrl) {
     return manifestUrl.replace(/manifest\.json(?:\?.*)?$/, normalizePath(relativePath));
   }
   return resolveSiteUrl(`data/scanner/${normalizePath(relativePath)}`);
 }
 
-// EQUITY_RENDERERS
-
-function renderMainTabs() {
-  if (!refs.mainTabs) return;
-  const routes = Array.isArray(marketsBootstrap.surface_links) ? marketsBootstrap.surface_links : [];
-  refs.mainTabs.innerHTML = MARKET_TABS.map((tab) => {
-    const href = routes.find((item) => item.key === tab.key)?.href || "#";
-    return `<a class="market-tab-button ${tab.key === state.surface ? "is-active" : ""}" href="${escapeHtml(href)}">${escapeHtml(tab.label)}</a>`;
-  }).join("");
+function currentPageLinks() {
+  return Array.isArray(marketsBootstrap.crypto_page_links) ? marketsBootstrap.crypto_page_links : [];
 }
 
-function renderSubTabs() {
-  if (!refs.subTabs) return;
-  const current = state.filters[state.surface];
-  refs.subTabs.innerHTML = activeSubfilters()
-    .map((tab) => `<button type="button" class="market-subtab-button ${tab.key === current ? "is-active" : ""}" data-filter="${tab.key}">${escapeHtml(tab.label)}</button>`)
-    .join("");
-  refs.subTabs.querySelectorAll("[data-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = button.dataset.filter;
-      if (!next || next === state.filters[state.surface]) return;
-      state.filters[state.surface] = next;
-      renderMarkets();
-    });
-  });
+function currentPageLabel() {
+  return currentPageLinks().find((link) => link.key === state.pageKey)?.label || String(marketsBootstrap.crypto_page_label || "오버뷰");
 }
 
-function renderMarketsStatus() {
-  if (!refs.statusLine) return;
-  const providers = payloads.status?.providers || {};
-  const parts = [
-    `?? ${providers.stocks?.status || "-"}`,
-    `?? ${providers.korea?.status || "-"}`,
-    `?? ${providers.crypto?.status || "-"}`,
-  ];
-  if (payloads.status?.generated_at) parts.push(`???? ${payloads.status.generated_at}`);
-  refs.statusLine.textContent = parts.join(" ? ");
+function currentSnapshotMeta() {
+  return asArray(state.manifest?.snapshots).find((item) => item.universe_key === state.universeKey && item.timeframe === state.timeframe);
 }
 
-function resolveSurfaceModel() {
-  const payload = currentPayload();
-  const filterKey = state.filters[state.surface];
-  const subfilter = activeSubfilters().find((item) => item.key === filterKey) || activeSubfilters()[0];
-  const rows = asArray(payload?.rows).filter((row) => toNumber(row.market_cap) > 0);
-
-  if (state.surface === "korea") {
-    const exchange = filterKey === "kosdaq" ? "KOSDAQ" : "KOSPI";
-    return {
-      surface: "korea",
-      title: `???? ? ${subfilter?.label || "KOSPI"}`,
-      subtitle: `${subfilter?.label || "KOSPI"} ?? ???? ??`,
-      groupLabel: "??",
-      rows: rows
-        .filter((row) => String(row.exchange || "").toUpperCase().includes(exchange))
-        .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
-        .slice(0, 120),
-      benchmarks: asArray(payload?.benchmarks).filter((row) => String(row.symbol || "").toUpperCase() === exchange),
-      asOf: payload?.as_of || payload?.generated_at || "",
-    };
-  }
-
-  const members = new Set(asArray((payload?.index_memberships || {})[filterKey]).map((item) => String(item).toUpperCase()));
-  const filteredRows = rows
-    .filter((row) => members.has(String(row.symbol || "").toUpperCase()))
-    .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
-    .slice(0, 160);
-
-  return {
-    surface: "us",
-    title: `???? ? ${subfilter?.label || "S&P 500"}`,
-    subtitle: US_INDEX_HEADLINES[filterKey] || `${subfilter?.label || "S&P 500"} ?? ?? ??`,
-    groupLabel: "??",
-    rows: filteredRows.length ? filteredRows : rows.slice(0, 120),
-    benchmarks: asArray(payload?.benchmarks).filter((row) => String(row.symbol || "").toUpperCase() === US_INDEX_PROXY_SYMBOLS[filterKey]),
-    asOf: payload?.as_of || payload?.generated_at || "",
-  };
-}
-
-function resolveTreemapColor(changePct, surface) {
-  const value = toNumber(changePct);
-  if (surface === "korea") {
-    if (value > 0) return "rgba(235, 74, 101, 0.9)";
-    if (value < 0) return "rgba(38, 153, 255, 0.88)";
-    return "rgba(93, 108, 130, 0.82)";
-  }
-  if (value > 0) return "rgba(14, 203, 129, 0.88)";
-  if (value < 0) return "rgba(246, 70, 93, 0.88)";
-  return "rgba(93, 108, 130, 0.82)";
-}
-
-function buildTreemapHierarchy(model) {
-  const total = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0) || 1;
-  const grouped = new Map();
-  model.rows.forEach((row) => {
-    const categoryLabel = String(row.sector_or_category || row.industry || "??").trim() || "??";
-    if (!grouped.has(categoryLabel)) grouped.set(categoryLabel, { name: categoryLabel, value: 0, children: [] });
-    const group = grouped.get(categoryLabel);
-    const cap = toNumber(row.market_cap);
-    group.value += cap;
-    group.children.push({
-      name: String(row.symbol || row.name || "").trim(),
-      fullName: String(row.name || row.symbol || "").trim(),
-      symbol: String(row.symbol || "").trim(),
-      value: cap,
-      last: row.last,
-      changePct: row.change_pct,
-      marketCap: cap,
-      detailUrl: row.detail_url,
-      weightPct: (cap / total) * 100,
-      itemStyle: { color: resolveTreemapColor(row.change_pct, model.surface), borderColor: "rgba(10,14,19,.72)", borderWidth: 1 },
-    });
-  });
-  return { name: model.title, value: total, children: Array.from(grouped.values()).sort((left, right) => right.value - left.value) };
-}
-
-function buildTreemapOption(model) {
-  const root = buildTreemapHierarchy(model);
-  return {
-    backgroundColor: "transparent",
-    tooltip: {
-      backgroundColor: "rgba(11,16,23,.96)",
-      borderColor: "#273241",
-      borderWidth: 1,
-      textStyle: { color: "#f8fbff", fontSize: 12 },
-      padding: 12,
-      formatter: (params) => {
-        const data = params.data || {};
-        if (Array.isArray(data.children)) {
-          return `<div class="market-tooltip"><strong>${escapeHtml(data.name)}</strong><div>???? ${escapeHtml(formatCap(data.value, model.surface))}</div></div>`;
-        }
-        return `<div class="market-tooltip"><strong>${escapeHtml(data.fullName || data.name)}</strong><div>??? ${escapeHtml(formatMarketPrice(data.last, model.surface))}</div><div>??? ${escapeHtml(formatPercent(data.changePct))}</div><div>???? ${escapeHtml(formatCap(data.marketCap, model.surface))}</div></div>`;
-      },
-    },
-    series: [
-      {
-        type: "treemap",
-        roam: false,
-        nodeClick: false,
-        sort: "desc",
-        breadcrumb: { show: false },
-        label: {
-          show: true,
-          formatter: (params) => {
-            if (Array.isArray(params.data?.children)) return "";
-            const data = params.data || {};
-            if (toNumber(data.weightPct) < 0.5) return "";
-            return `${data.symbol || data.name}\n${formatPercent(data.changePct)}`;
-          },
-          color: "#fff",
-          overflow: "break",
-        },
-        upperLabel: { show: true, color: "#a6b4c7", fontSize: 11, fontWeight: 700, height: 24 },
-        itemStyle: { borderColor: "#10161d", borderWidth: 2, gapWidth: 2 },
-        levels: [{ upperLabel: { show: false } }, { upperLabel: { show: true } }, {}],
-        data: root.children,
-      },
-    ],
-  };
-}
-
-function renderBenchmarkStrip(model) {
-  if (!refs.benchmarkStrip) return;
-  refs.benchmarkStrip.innerHTML =
-    model.benchmarks
-      .map(
-        (item) => `
-          <article class="market-benchmark-card">
-            <span class="market-benchmark-label">${escapeHtml(item.name || item.symbol || "-")}</span>
-            <strong>${escapeHtml(formatMarketPrice(item.last, model.surface))}</strong>
-            <div class="market-benchmark-move"><span class="${toneClass(item.change_pct)}">${escapeHtml(formatPercent(item.change_pct))}</span></div>
-          </article>
-        `,
-      )
-      .join("") || '<div class="analysis-empty">??? ????? ????.</div>';
-}
-
-function renderSelectionSummary(model) {
-  if (!refs.selectionSummary) return;
-  const totalCap = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0);
-  const advancers = model.rows.filter((row) => toNumber(row.change_pct) > 0).length;
-  const decliners = model.rows.filter((row) => toNumber(row.change_pct) < 0).length;
-  const cards = [
-    { label: "?? ??", value: model.title, detail: model.asOf || "-" },
-    { label: "?? ??", value: `${model.rows.length}?`, detail: `${model.groupLabel} ??` },
-    { label: "?? ??", value: formatCap(totalCap, model.surface), detail: "?? ?? ??" },
-    { label: "?? / ??", value: `${advancers} / ${decliners}`, detail: `?? ${model.rows.length - advancers - decliners}` },
-  ];
-  refs.selectionSummary.innerHTML = cards.map((card) => `<article class="market-summary-card"><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail)}</small></article>`).join("");
-}
-
-function renderLegend(model) {
-  if (!refs.legend) return;
-  const toneText = model.surface === "korea" ? "??? ???, ??? ???" : "??? ???, ??? ???";
-  refs.legend.innerHTML = `
-    <div class="market-legend-item"><span class="market-legend-swatch size"></span><strong>??</strong><small>???? ??</small></div>
-    <div class="market-legend-item"><span class="market-legend-swatch tone"></span><strong>??</strong><small>${escapeHtml(toneText)}</small></div>
-    <div class="market-legend-item"><span class="market-legend-swatch group"></span><strong>${escapeHtml(model.groupLabel)} ??</strong><small>?? ???? ?? ??</small></div>
-  `;
-}
-
-function ensureChart() {
-  if (!refs.board || !window.echarts) return null;
-  if (!state.chart) {
-    state.chart = window.echarts.init(refs.board, null, { renderer: "canvas" });
-    window.addEventListener("resize", () => state.chart?.resize());
-    state.chart.on("click", (params) => {
-      if (params?.data?.detailUrl) window.open(params.data.detailUrl, "_blank", "noopener,noreferrer");
-    });
-  }
-  return state.chart;
-}
-
-function renderTreemapSurface(model) {
-  const chart = ensureChart();
-  if (!chart) return;
-  if (!model.rows.length) {
-    chart.clear();
-    chart.setOption({ graphic: [{ type: "text", left: "center", top: "middle", style: { text: "??? ?? ???? ????.", fill: "#b8c4d6", font: '600 15px "Segoe UI", "Noto Sans KR", sans-serif' } }] }, true);
-    return;
-  }
-  chart.setOption(buildTreemapOption(model), true);
-  chart.resize();
-}
-
-// CRYPTO_RENDERERS
-
-function renderCryptoPageTabs() {
-  if (!refs.cryptoPageTabs) return;
-  const links = Array.isArray(marketsBootstrap.crypto_page_links) ? marketsBootstrap.crypto_page_links : [];
-  refs.cryptoPageTabs.innerHTML = links
-    .map((link) => `<a class="crypto-page-tab ${link.key === state.crypto.pageKey ? "is-active" : ""}" href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
-    .join("");
-}
-
-function currentCryptoPageLabel() {
-  const links = Array.isArray(marketsBootstrap.crypto_page_links) ? marketsBootstrap.crypto_page_links : [];
-  return links.find((link) => link.key === state.crypto.pageKey)?.label || String(marketsBootstrap.crypto_page_label || "???");
-}
-
-function currentCryptoSnapshotMeta() {
-  return asArray(state.crypto.manifest?.snapshots).find((item) => item.universe_key === state.crypto.universeKey && item.timeframe === state.crypto.timeframe);
-}
-
-function currentCryptoDataTimestamp() {
-  return state.crypto.pagePayload?.generated_at || currentCryptoSnapshotMeta()?.generated_at || state.crypto.manifest?.generated_at || "";
+function currentDataTimestamp() {
+  return state.pagePayload?.generated_at || currentSnapshotMeta()?.generated_at || state.manifest?.generated_at || "";
 }
 
 function currentUniverseLimit() {
-  return Number(asArray(state.crypto.manifest?.universe_presets).find((item) => item.key === state.crypto.universeKey)?.limit || currentCryptoSnapshotMeta()?.symbols_scanned || 0);
+  return Number(asArray(state.manifest?.universe_presets).find((item) => item.key === state.universeKey)?.limit || currentSnapshotMeta()?.symbols_scanned || 0);
 }
 
-function setCryptoCooldown() {
-  state.crypto.cooldownUntil = Date.now() + CRYPTO_COOLDOWN_MS;
-  localStorage.setItem(CRYPTO_COOLDOWN_STORAGE_KEY, String(state.crypto.cooldownUntil));
+function buildFreshnessState(value) {
+  const timestamp = parseTimestamp(value);
+  if (!timestamp) {
+    return { label: "확인 불가", className: "is-neutral", elapsedLabel: "경과 시간 확인 불가" };
+  }
+  const elapsedMs = Math.max(Date.now() - timestamp.getTime(), 0);
+  const elapsedMinutes = elapsedMs / 60_000;
+  let label = "최신";
+  let className = "is-positive";
+  if (elapsedMinutes > 45) {
+    label = "심각한 지연";
+    className = "is-negative";
+  } else if (elapsedMinutes > 25) {
+    label = "지연";
+    className = "is-neutral";
+  }
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  let elapsedLabel = "";
+  if (hours > 0) {
+    elapsedLabel = `${hours}시간 ${minutes}분 경과`;
+  } else if (minutes > 0) {
+    elapsedLabel = `${minutes}분 ${seconds}초 경과`;
+  } else {
+    elapsedLabel = `${seconds}초 경과`;
+  }
+  return { label, className, elapsedLabel };
 }
 
-function setCryptoLoadedAt(timestamp = Date.now()) {
-  state.crypto.lastLoadedAt = timestamp;
+function setCooldown() {
+  state.cooldownUntil = Date.now() + CRYPTO_COOLDOWN_MS;
+  localStorage.setItem(CRYPTO_COOLDOWN_STORAGE_KEY, String(state.cooldownUntil));
+}
+
+function setLoadedAt(timestamp = Date.now()) {
+  state.lastLoadedAt = timestamp;
   localStorage.setItem(CRYPTO_LAST_LOADED_STORAGE_KEY, String(timestamp));
 }
 
-function updateCryptoCooldownUI() {
-  if (!refs.cryptoRefreshButton || !refs.cryptoCooldownText) return;
-  const remaining = state.crypto.cooldownUntil - Date.now();
+function updateCooldownUI() {
+  if (!refs.refreshButton || !refs.cooldownText) return;
+  const remaining = state.cooldownUntil - Date.now();
   if (remaining <= 0) {
-    refs.cryptoRefreshButton.disabled = false;
-    refs.cryptoCooldownText.textContent = "?? ???? ?? ??? ? ????.";
+    refs.refreshButton.disabled = false;
+    refs.cooldownText.textContent = "최신 스냅샷을 곧 다시 불러올 수 있습니다.";
     return;
   }
-  refs.cryptoRefreshButton.disabled = true;
-  refs.cryptoCooldownText.textContent = `?? ?????? ${Math.ceil(remaining / 1000)}?`;
+  refs.refreshButton.disabled = true;
+  refs.cooldownText.textContent = `다음 새로고침까지 ${Math.ceil(remaining / 1000)}초`;
 }
 
-function renderCryptoSkeleton() {
-  if (refs.cryptoPageHighlights) {
-    refs.cryptoPageHighlights.innerHTML = Array.from({ length: 4 }, () => '<article class="crypto-stat-card scanner-detail-card"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div></article>').join("");
+function renderSkeleton() {
+  if (refs.pageHighlights) {
+    refs.pageHighlights.innerHTML = Array.from({ length: 4 }, () => '<article class="crypto-stat-card scanner-detail-card"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div></article>').join("");
   }
-  if (refs.cryptoPageControls) {
-    refs.cryptoPageControls.innerHTML = '<article class="crypto-panel crypto-panel-controls"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-grid"></div></article>';
+  if (refs.pageControls) {
+    refs.pageControls.innerHTML = '<article class="crypto-panel crypto-panel-controls"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-grid"></div></article>';
   }
-  if (refs.cryptoPageContent) {
-    refs.cryptoPageContent.innerHTML = Array.from({ length: 3 }, () => '<article class="scanner-card is-loading"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div><div class="scanner-skeleton scanner-skeleton-preview"></div></article>').join("");
+  if (refs.pageContent) {
+    refs.pageContent.innerHTML = Array.from({ length: 3 }, () => '<article class="scanner-card is-loading"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div><div class="scanner-skeleton scanner-skeleton-preview"></div></article>').join("");
   }
 }
 
-function renderCryptoErrorState() {
-  const message = state.crypto.errorMessage || "?? ???? ???? ?????.";
-  if (refs.cryptoPageHighlights) {
-    refs.cryptoPageHighlights.innerHTML = `
+function renderErrorState() {
+  const message = state.errorMessage || "코인 데이터를 불러오지 못했습니다.";
+  if (refs.pageHighlights) {
+    refs.pageHighlights.innerHTML = `
       <div class="crypto-stat-grid">
         <article class="crypto-stat-card scanner-detail-card">
-          <span class="crypto-card-label">?? ??</span>
-          <strong class="crypto-card-value">?? ??</strong>
+          <span class="crypto-card-label">상태</span>
+          <strong class="crypto-card-value">배포 점검 필요</strong>
           <p class="crypto-card-note">${escapeHtml(message)}</p>
         </article>
       </div>
     `;
   }
-  if (refs.cryptoPageControls) {
-    refs.cryptoPageControls.innerHTML = `
+  if (refs.pageControls) {
+    refs.pageControls.innerHTML = `
       <article class="crypto-panel crypto-panel-controls">
         <div class="crypto-panel-head">
-          <strong>??? ??</strong>
-          <span>?? ?? ??? ??</span>
+          <strong>데이터 상태</strong>
+          <span>배포 또는 데이터셋 점검이 필요합니다.</span>
         </div>
         <div class="analysis-empty">${escapeHtml(message)}</div>
       </article>
     `;
   }
-  if (refs.cryptoPageContent) {
-    refs.cryptoPageContent.innerHTML = `<div class="analysis-empty">${escapeHtml(message)}</div>`;
+  if (refs.pageContent) {
+    refs.pageContent.innerHTML = `<div class="analysis-empty">${escapeHtml(message)}</div>`;
   }
 }
 
-function populateCryptoControls() {
-  const manifest = state.crypto.manifest;
-  if (!manifest || !refs.cryptoUniverseSelect || !refs.cryptoTimeframeSelect) return;
-  refs.cryptoUniverseSelect.innerHTML = asArray(manifest.universe_presets).map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.crypto.universeKey ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("");
-  refs.cryptoTimeframeSelect.innerHTML = asArray(manifest.timeframes).map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.crypto.timeframe ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("");
+function populateControls() {
+  const manifest = state.manifest;
+  if (!manifest || !refs.universeSelect || !refs.timeframeSelect) return;
+  refs.universeSelect.innerHTML = asArray(manifest.universe_presets)
+    .map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.universeKey ? "selected" : ""}>${escapeHtml(item.label)}</option>`)
+    .join("");
+  refs.timeframeSelect.innerHTML = asArray(manifest.timeframes)
+    .map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.timeframe ? "selected" : ""}>${escapeHtml(item.label)}</option>`)
+    .join("");
 }
 
-function cryptoDataMissingMessage() {
-  const baseMessage = "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????.";
-  if (state.crypto.pageKey === "patterns") {
-    return `??? ??? ?? ??? ??? ?? ?????. ${baseMessage}`;
-  }
-  return `${currentCryptoPageLabel()} ??? ???? ?? ???? ?????. ${baseMessage}`;
+function dataMissingMessage() {
+  const baseMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
+  return state.pageKey === "patterns"
+    ? `패턴 스냅샷이 아직 준비되지 않았습니다. ${baseMessage}`
+    : `${currentPageLabel()} 데이터셋이 아직 준비되지 않았습니다. ${baseMessage}`;
 }
 
-function resolveCryptoPageDatasetPath() {
-  const manifest = state.crypto.manifest;
+function resolveDatasetPath() {
+  const manifest = state.manifest;
   if (!manifest) return null;
-  const pageFiles = manifest.page_data?.[state.crypto.pageKey]?.[state.crypto.universeKey] || {};
-  return pageFiles[state.crypto.timeframe] || null;
+  const pageFiles = manifest.page_data?.[state.pageKey]?.[state.universeKey] || {};
+  return pageFiles[state.timeframe] || null;
 }
 
-function resolveCryptoPageDatasetUrl() {
-  const datasetPath = resolveCryptoPageDatasetPath();
+function resolveDatasetUrl() {
+  const datasetPath = resolveDatasetPath();
   if (datasetPath) return resolveScannerDataUrl(datasetPath);
-  if (state.crypto.pageKey === "patterns") {
-    const snapshot = currentCryptoSnapshotMeta();
+  if (state.pageKey === "patterns") {
+    const snapshot = currentSnapshotMeta();
     return snapshot ? resolveScannerDataUrl(snapshot.path) : null;
   }
   return null;
 }
 
-function cryptoManifestCandidates() {
+function manifestCandidates() {
   const candidates = [
     String(marketsBootstrap.scanner_manifest_url || "").trim(),
     resolveSiteUrl("data/scanner/manifest.json"),
@@ -569,103 +329,114 @@ function cryptoManifestCandidates() {
   return [...new Set(candidates)];
 }
 
-async function loadCryptoManifest({ bust = false } = {}) {
+async function loadManifest({ bust = false } = {}) {
   let lastError = null;
-  for (const candidate of cryptoManifestCandidates()) {
+  for (const candidate of manifestCandidates()) {
     try {
-      state.crypto.manifest = await loadJson(candidate, { bust });
-      state.crypto.manifestUrl = candidate;
-      state.crypto.errorMessage = "";
-      const manifest = state.crypto.manifest;
-      const firstUniverse = manifest?.universe_presets?.[0]?.key;
-      const firstTimeframe = manifest?.timeframes?.[0]?.key;
-      if (firstUniverse && !asArray(manifest.universe_presets).some((item) => item.key === state.crypto.universeKey)) state.crypto.universeKey = firstUniverse;
-      if (firstTimeframe && !asArray(manifest.timeframes).some((item) => item.key === state.crypto.timeframe)) state.crypto.timeframe = firstTimeframe;
+      state.manifest = await loadJson(candidate, { bust });
+      state.manifestUrl = candidate;
+      state.errorMessage = "";
+      const firstUniverse = state.manifest?.universe_presets?.[0]?.key;
+      const firstTimeframe = state.manifest?.timeframes?.[0]?.key;
+      if (firstUniverse && !asArray(state.manifest.universe_presets).some((item) => item.key === state.universeKey)) {
+        state.universeKey = firstUniverse;
+      }
+      if (firstTimeframe && !asArray(state.manifest.timeframes).some((item) => item.key === state.timeframe)) {
+        state.timeframe = firstTimeframe;
+      }
       return;
     } catch (error) {
       lastError = error;
     }
   }
-  state.crypto.errorMessage = "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????.";
-  throw lastError || new Error(state.crypto.errorMessage);
+  state.errorMessage = "스캐너 manifest를 불러오지 못했습니다. 배포 경로를 확인해 주세요.";
+  throw lastError || new Error(state.errorMessage);
 }
 
-async function loadCryptoPagePayload({ bust = false } = {}) {
-  const previousTimestamp = currentCryptoDataTimestamp();
-  const datasetUrl = resolveCryptoPageDatasetUrl();
+async function loadPagePayload({ bust = false } = {}) {
+  const previousTimestamp = currentDataTimestamp();
+  const datasetUrl = resolveDatasetUrl();
   if (!datasetUrl) {
-    state.crypto.notice = state.crypto.pageKey === "patterns"
-      ? "??? ??? ?? ???? ???? ?????."
-      : `${currentCryptoPageLabel()} ??? ??? ?? ??? ??? ???.`;
-    state.crypto.errorMessage = cryptoDataMissingMessage();
-    state.crypto.pagePayload = null;
-    state.crypto.isLoading = false;
-    renderCryptoPage();
+    state.pagePayload = null;
+    state.isLoading = false;
+    state.errorMessage = dataMissingMessage();
+    state.notice = state.pageKey === "patterns"
+      ? "패턴 스냅샷 경로를 찾지 못했습니다."
+      : `${currentPageLabel()} 데이터 경로를 찾지 못했습니다.`;
+    renderPage();
     return;
   }
+
   try {
-    state.crypto.pagePayload = await loadJson(datasetUrl, { bust });
-    setCryptoLoadedAt();
-    state.crypto.errorMessage = "";
-    const nextTimestamp = currentCryptoDataTimestamp();
+    state.pagePayload = await loadJson(datasetUrl, { bust });
+    setLoadedAt();
+    state.errorMessage = "";
+    const nextTimestamp = currentDataTimestamp();
     if (bust) {
-      state.crypto.notice = previousTimestamp && previousTimestamp === nextTimestamp
-        ? "?? ????? ?? ??? ??? ?????."
-        : "?? ?? ???? ?? ??????.";
-    } else if (!state.crypto.notice) {
-      state.crypto.notice = "?? ?? ??? ???? ?? ????.";
+      state.notice = previousTimestamp && previousTimestamp === nextTimestamp
+        ? "다시 불러왔지만 최신 스냅샷 시각은 동일합니다."
+        : "최신 스냅샷을 다시 불러왔습니다.";
+    } else if (!state.notice) {
+      state.notice = "최근 배치 스냅샷 기준으로 화면을 표시합니다.";
     }
   } catch (error) {
-    state.crypto.notice = state.crypto.pageKey === "patterns"
-      ? "??? ?? ???? ???? ?????."
-      : `${currentCryptoPageLabel()} ??? ???? ???? ?????.`;
-    if (!state.crypto.pagePayload) {
-      state.crypto.errorMessage = cryptoDataMissingMessage();
+    state.notice = state.pageKey === "patterns"
+      ? "패턴 스냅샷을 불러오는 중 오류가 발생했습니다."
+      : `${currentPageLabel()} 데이터를 불러오는 중 오류가 발생했습니다.`;
+    if (!state.pagePayload) {
+      state.errorMessage = dataMissingMessage();
     }
     throw error;
   } finally {
-    state.crypto.isLoading = false;
-    renderCryptoPage();
+    state.isLoading = false;
+    renderPage();
   }
 }
 
-function renderCryptoSummaryMeta() {
-  const snapshot = currentCryptoSnapshotMeta();
-  const dataTimestamp = currentCryptoDataTimestamp();
-  const loadedTimestamp = state.crypto.lastLoadedAt;
-  const universeLabel = asArray(state.crypto.manifest?.universe_presets).find((item) => item.key === state.crypto.universeKey)?.label || state.crypto.universeKey;
-  const freshness = buildFreshnessState(dataTimestamp);
+function renderPageTabs() {
+  if (!refs.pageTabs) return;
+  refs.pageTabs.innerHTML = currentPageLinks()
+    .map((link) => `<a class="crypto-page-tab ${link.key === state.pageKey ? "is-active" : ""}" href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
+    .join("");
+}
 
-  if (refs.cryptoSummaryMeta) {
-    refs.cryptoSummaryMeta.innerHTML = `
-      <span class="scanner-summary-pill">??? ??(????) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
-      <span class="scanner-summary-pill">??? ??(????) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
-      <span class="scanner-summary-pill ${freshness.className}">?? ?? ${escapeHtml(freshness.elapsedLabel)}</span>
-      <span class="scanner-summary-pill ${freshness.className}">?? ${escapeHtml(freshness.label)}</span>
+function renderSummaryMeta() {
+  const snapshot = currentSnapshotMeta();
+  const dataTimestamp = currentDataTimestamp();
+  const loadedTimestamp = state.lastLoadedAt;
+  const freshness = buildFreshnessState(dataTimestamp);
+  const universeLabel = asArray(state.manifest?.universe_presets).find((item) => item.key === state.universeKey)?.label || state.universeKey;
+
+  if (refs.summaryMeta) {
+    refs.summaryMeta.innerHTML = `
+      <span class="scanner-summary-pill">데이터 기준(한국시간) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
+      <span class="scanner-summary-pill">불러온 시각(한국시간) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
+      <span class="scanner-summary-pill ${freshness.className}">경과 시간 ${escapeHtml(freshness.elapsedLabel)}</span>
+      <span class="scanner-summary-pill ${freshness.className}">상태 ${escapeHtml(freshness.label)}</span>
       <span class="scanner-summary-pill">${escapeHtml(universeLabel)}</span>
-      <span class="scanner-summary-pill">${escapeHtml(currentCryptoPageLabel())}</span>
+      <span class="scanner-summary-pill">${escapeHtml(currentPageLabel())}</span>
     `;
   }
 
-  if (refs.cryptoActiveScan) {
-    refs.cryptoActiveScan.innerHTML = snapshot
-      ? `<span class="scanner-active-pill ${freshness.className}">?? ?? ??? ?? ? ${escapeHtml(freshness.label)} ? [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.crypto.timeframe)} ??? ?? ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
-      : '<span class="scanner-active-pill">??? ??? ???? ?? ????.</span>';
+  if (refs.activeScan) {
+    refs.activeScan.innerHTML = snapshot
+      ? `<span class="scanner-active-pill ${freshness.className}">최근 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
+      : '<span class="scanner-active-pill">선택한 조건의 스냅샷을 준비 중입니다.</span>';
   }
 
-  if (refs.cryptoStatusLine) {
-    if (state.crypto.errorMessage) {
-      refs.cryptoStatusLine.textContent = state.crypto.notice || state.crypto.errorMessage;
+  if (refs.statusLine) {
+    if (state.errorMessage) {
+      refs.statusLine.textContent = state.notice || state.errorMessage;
     } else if (snapshot) {
-      refs.cryptoStatusLine.textContent = `${state.crypto.notice} ??? ?? ${formatSeoulDateTime(dataTimestamp)}, ??? ${formatSeoulDateTime(loadedTimestamp)}? ???? ${freshness.elapsedLabel}.`;
+      refs.statusLine.textContent = `${state.notice} 데이터 기준 ${formatSeoulDateTime(dataTimestamp)}, 이 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔고 현재 ${freshness.elapsedLabel}입니다.`;
     } else {
-      refs.cryptoStatusLine.textContent = state.crypto.notice || "?? ??? ???? ???? ????.";
+      refs.statusLine.textContent = state.notice || "선택한 조건의 스냅샷을 준비하고 있습니다.";
     }
   }
 
-  if (refs.cryptoProgressBar) {
+  if (refs.progressBar) {
     const total = Math.max(currentUniverseLimit() || snapshot?.symbols_scanned || 1, 1);
-    refs.cryptoProgressBar.style.width = `${Math.min(((snapshot?.symbols_scanned || 0) / total) * 100, 100)}%`;
+    refs.progressBar.style.width = `${Math.min(((snapshot?.symbols_scanned || 0) / total) * 100, 100)}%`;
   }
 }
 
@@ -682,17 +453,17 @@ function renderBadge(label, extraClass = "") {
 }
 
 function renderPatternBadge(pattern) {
-  if (!pattern) return renderBadge("?? ??", "is-neutral");
+  if (!pattern) return renderBadge("패턴 없음", "is-neutral");
   return renderBadge(`${pattern.side_label} ${pattern.pattern}`, pattern.side === "bullish" ? "is-positive" : "is-negative");
 }
 
 function renderSetupLink(pattern) {
-  if (!pattern?.detail_page) return '<span class="crypto-inline-muted">?? ??</span>';
-  return `<a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(pattern.detail_page))}">?? ??</a>`;
+  if (!pattern?.detail_page) return '<span class="crypto-inline-muted">상세 없음</span>';
+  return `<a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(pattern.detail_page))}">상세 보기</a>`;
 }
 
 function renderFlags(flags) {
-  return flags?.length ? flags.map((flag) => renderBadge(flag)).join("") : '<span class="crypto-inline-muted">??? ??? ??</span>';
+  return flags?.length ? flags.map((flag) => renderBadge(flag)).join("") : '<span class="crypto-inline-muted">표시할 플래그 없음</span>';
 }
 
 function renderSection(title, subtitle, bodyHtml) {
@@ -709,23 +480,25 @@ function renderScoreStack(row) {
 }
 
 function renderOverviewControls(payload) {
-  const statusCards = asArray(payload.status_counts).map((entry) => ({ label: entry.label, count: entry.count, note: "?? ?? ??" }));
-  const previews = asArray(payload.page_previews).map((card) => `<article class="crypto-preview-card"><div class="crypto-preview-head"><strong>${escapeHtml(card.title)}</strong><span>${escapeHtml(card.symbol)}</span></div><p>${escapeHtml(card.description)}</p><span class="crypto-preview-score">Score ${escapeHtml(String(card.score ?? 0))}</span></article>`).join("");
-  return `<div class="crypto-control-grid"><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>??? ???</strong><span>?? ??? ??</span></div>${renderCountCards(statusCards)}</article><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>??? ????</strong><span>? ?? ?? ?? ??</span></div><div class="crypto-preview-grid">${previews}</div></article></div>`;
+  const statusCards = asArray(payload.status_counts).map((entry) => ({ label: entry.label, count: entry.count, note: "패턴 상태 집계" }));
+  const previews = asArray(payload.page_previews)
+    .map((card) => `<article class="crypto-preview-card"><div class="crypto-preview-head"><strong>${escapeHtml(card.title)}</strong><span>${escapeHtml(card.symbol)}</span></div><p>${escapeHtml(card.description)}</p><span class="crypto-preview-score">Score ${escapeHtml(String(card.score ?? 0))}</span></article>`)
+    .join("");
+  return `<div class="crypto-control-grid"><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>상태 요약</strong><span>패턴 상태 집계</span></div>${renderCountCards(statusCards)}</article><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>페이지 미리보기</strong><span>각 분석 화면의 대표 후보</span></div><div class="crypto-preview-grid">${previews}</div></article></div>`;
 }
 
 function renderOverviewContent(payload) {
   const opportunities = asArray(payload.top_opportunities).slice(0, 6).map((row) => `
     <article class="crypto-opportunity-card scanner-card">
       <div class="scanner-card-head">
-        <div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.labels?.technical_rating || "Neutral")} ? ${escapeHtml(row.labels?.trend_bias || "-")}</p></div>
-        <div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">???? ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div>
+        <div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.labels?.technical_rating || "Neutral")} · ${escapeHtml(row.labels?.trend_bias || "-")}</p></div>
+        <div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div>
       </div>
       <div class="crypto-kpi-pair-grid">
-        <div class="scanner-point-card"><span>???</span><strong>${escapeHtml(formatTickerPrice(row.last_price))}</strong></div>
+        <div class="scanner-point-card"><span>현재가</span><strong>${escapeHtml(formatTickerPrice(row.last_price))}</strong></div>
         <div class="scanner-point-card"><span>24h</span><strong class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</strong></div>
-        <div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div>
-        <div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div>
+        <div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div>
+        <div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div>
       </div>
       <div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 4))}</div>
       <div class="scanner-card-footer"><span>${escapeHtml(row.timeframe_label || "-")}</span>${renderSetupLink(row.pattern)}</div>
@@ -734,24 +507,24 @@ function renderOverviewContent(payload) {
   const patterns = asArray(payload.top_patterns).slice(0, 4).map((row) => `
     <article class="crypto-compact-card scanner-detail-card">
       <div class="crypto-compact-head"><strong>${escapeHtml(row.symbol)}</strong>${renderPatternBadge(row.pattern)}</div>
-      <p>${escapeHtml(row.pattern?.summary || "?? ?? ??")}</p>
-      <div class="crypto-compact-meta"><span>?? ${escapeHtml(String(row.pattern?.score ?? 0))}</span><span>?? ${escapeHtml(String(row.scores?.technical ?? 0))}</span><span>??? ${escapeHtml(String(row.scores?.momentum ?? 0))}</span></div>
+      <p>${escapeHtml(row.pattern?.summary || "패턴 요약이 없습니다.")}</p>
+      <div class="crypto-compact-meta"><span>패턴 ${escapeHtml(String(row.pattern?.score ?? 0))}</span><span>기술 ${escapeHtml(String(row.scores?.technical ?? 0))}</span><span>모멘텀 ${escapeHtml(String(row.scores?.momentum ?? 0))}</span></div>
     </article>
   `).join("");
-  return `${renderSection("Overview", "?? ?? ??", `<div class="crypto-opportunity-grid">${opportunities}</div>`)}${renderSection("Patterns", "?? ???", `<div class="crypto-compact-grid">${patterns}</div>`)}`;
+  return `${renderSection("Overview", "지금 볼 만한 후보", `<div class="crypto-opportunity-grid">${opportunities}</div>`)}${renderSection("Patterns", "상위 패턴 후보", `<div class="crypto-compact-grid">${patterns}</div>`)}`;
 }
 
 function renderSignalsPage(payload) {
   const anomaly = payload.anomaly_counts || {};
-  refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge(`Funding Hot ${anomaly.funding_hot || 0}`)}${renderBadge(`OI Heavy ${anomaly.oi_heavy || 0}`)}${renderBadge(`Squeeze ${anomaly.squeeze || 0}`)}${renderBadge(`Divergence ${anomaly.divergence || 0}`)}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge(`Funding Hot ${anomaly.funding_hot || 0}`)}${renderBadge(`OI Heavy ${anomaly.oi_heavy || 0}`)}${renderBadge(`Squeeze ${anomaly.squeeze || 0}`)}${renderBadge(`Divergence ${anomaly.divergence || 0}`)}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Signals",
-    "?? ?? + ?? ?? ???",
+    "파생 지표와 기술 지표 이상치",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "종목", render: (row) => renderScoreStack(row) },
         { label: "24h", render: (row) => `<span class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</span>` },
         { label: "Funding", render: (row) => `<span class="${toneClass(row.funding_rate)}">${escapeHtml(formatPercent(row.funding_rate, 4))}</span>` },
         { label: "OI", render: (row) => escapeHtml(formatUsdCompact(row.open_interest_usd)) },
@@ -759,10 +532,10 @@ function renderSignalsPage(payload) {
         { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
         { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
         { label: "VWAP Gap", render: (row) => `<span class="${toneClass(row.indicators?.close_vs_vwap_pct)}">${escapeHtml(formatPercent(row.indicators?.close_vs_vwap_pct))}</span>` },
-        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
       ],
       asArray(payload.rows).slice(0, 40),
-      "??? ??? ????.",
+      "시그널 데이터가 아직 없습니다.",
     ),
   );
 }
@@ -770,175 +543,194 @@ function renderSignalsPage(payload) {
 function buildPatternSummaryCards(snapshot) {
   const counts = snapshot?.status_counts || {};
   return [
-    { label: "?? ??", count: snapshot?.result_count || 0, note: "?? ??? ?? ?" },
-    { label: "??? ??", count: counts.forming || 0, note: "PRZ ?? ???" },
-    { label: "??? ??", count: counts.touch || 0, note: "PRZ ??" },
-    { label: "T-Bar ??", count: counts.tbar_complete || 0, note: "?? ?? ??" },
-    { label: "?? ??", count: counts.complete || 0, note: "?? ??" },
+    { label: "전체 결과", count: snapshot?.result_count || 0, note: "현재 스냅샷 기준" },
+    { label: "실시간 진입", count: counts.forming || 0, note: "PRZ 진입 대기" },
+    { label: "실시간 터치", count: counts.touch || 0, note: "PRZ 접촉" },
+    { label: "T-Bar 완성", count: counts.tbar_complete || 0, note: "반응 캔들 확인" },
+    { label: "일반 완성", count: counts.complete || 0, note: "패턴 완료" },
   ];
 }
 
 function filteredPatternResults(snapshot) {
   const results = asArray(snapshot?.results);
-  return state.crypto.filter === "all" ? results : results.filter((item) => item.status === state.crypto.filter);
+  return state.filter === "all" ? results : results.filter((item) => item.status === state.filter);
 }
 
 function renderPatternFilters(snapshot) {
   const counts = snapshot?.status_counts || {};
   const total = asArray(snapshot?.results).length;
-  return `<div class="scanner-filter-tabs">${CRYPTO_PATTERN_FILTERS.map((filter) => `<button type="button" class="scanner-filter-button ${filter.key === state.crypto.filter ? "is-active" : ""}" data-pattern-filter="${filter.key}"><span>${escapeHtml(filter.label)}</span><strong>${escapeHtml(String(filter.key === "all" ? total : Number(counts[filter.key] || 0)))}</strong></button>`).join("")}</div>`;
+  return `<div class="scanner-filter-tabs">${CRYPTO_PATTERN_FILTERS.map((filter) => `<button type="button" class="scanner-filter-button ${filter.key === state.filter ? "is-active" : ""}" data-pattern-filter="${filter.key}"><span>${escapeHtml(filter.label)}</span><strong>${escapeHtml(String(filter.key === "all" ? total : Number(counts[filter.key] || 0)))}</strong></button>`).join("")}</div>`;
 }
 
 function renderPatternCards(snapshot) {
   const results = filteredPatternResults(snapshot);
-  if (!results.length) return '<div class="analysis-empty">?? ???? ??? ??? ????.</div>';
+  if (!results.length) return '<div class="analysis-empty">선택한 패턴 결과가 없습니다.</div>';
   return `<div class="scanner-results-grid">${results.map((result) => {
     const pointCells = ["X", "A", "B", "C", "D"].map((label) => {
       const point = result.points?.[label] || {};
       return `<div class="scanner-point-card"><span>${label}</span><strong>${escapeHtml(String(point.price ?? "-"))}</strong><small>${escapeHtml(String(point.timestamp || "").replace("T", " ").slice(5, 16))}</small></div>`;
     }).join("");
     const ratioCells = Object.entries(result.ratios || {}).map(([label, value]) => `<div class="scanner-ratio-card"><span>${escapeHtml(label.toUpperCase())}</span><strong>${escapeHtml(String(value))}</strong></div>`).join("");
-    const flags = asArray(result.indicator_flags).slice(0, 4).map((flag) => `<span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">${escapeHtml(flag.label)} ? ${escapeHtml(flag.value)}</span>`).join("");
-    return `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(result.symbol)}</h3><p>${escapeHtml(result.summary || "")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span><span class="scanner-badge is-score">??? ${escapeHtml(String(result.score))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" /></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>??</span><strong>${escapeHtml(result.pattern)}</strong></div><div class="scanner-point-grid">${pointCells}</div></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>??</span><strong>${escapeHtml(result.status_label)}</strong></div><div class="scanner-ratio-grid">${ratioCells}</div></div><div class="scanner-prz-box"><div><span>PRZ</span><strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong></div><div><span>TP1 / TP2</span><strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong></div><div><span>SL</span><strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong></div></div><div class="scanner-card-flags">${flags || '<span class="crypto-inline-muted">?? ?? ??</span>'}</div><div class="scanner-card-footer"><span>${escapeHtml(result.timeframe_label || "-")} ? 24h ${escapeHtml(formatPercent(result.change_24h))}</span><a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(result.detail_page))}">?? ??</a></div></article>`;
+    const flags = asArray(result.indicator_flags).slice(0, 4).map((flag) => `<span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">${escapeHtml(flag.label)} · ${escapeHtml(flag.value)}</span>`).join("");
+    return `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(result.symbol)}</h3><p>${escapeHtml(result.summary || "")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span><span class="scanner-badge is-score">점수 ${escapeHtml(String(result.score))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" /></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>좌표</span><strong>${escapeHtml(result.pattern)}</strong></div><div class="scanner-point-grid">${pointCells}</div></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>비율</span><strong>${escapeHtml(result.status_label)}</strong></div><div class="scanner-ratio-grid">${ratioCells}</div></div><div class="scanner-prz-box"><div><span>PRZ</span><strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong></div><div><span>TP1 / TP2</span><strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong></div><div><span>SL</span><strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong></div></div><div class="scanner-card-flags">${flags || '<span class="crypto-inline-muted">표시할 플래그 없음</span>'}</div><div class="scanner-card-footer"><span>${escapeHtml(result.timeframe_label || "-")} · 24h ${escapeHtml(formatPercent(result.change_24h))}</span><a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(result.detail_page))}">상세 보기</a></div></article>`;
   }).join("")}</div>`;
 }
 
 function bindPatternFilterEvents() {
-  refs.cryptoPageControls.querySelectorAll("[data-pattern-filter]").forEach((button) => {
+  refs.pageControls.querySelectorAll("[data-pattern-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       const next = button.dataset.patternFilter;
-      if (!next || next === state.crypto.filter) return;
-      state.crypto.filter = next;
-      renderCryptoPage();
+      if (!next || next === state.filter) return;
+      state.filter = next;
+      renderPage();
     });
   });
 }
 
 function renderPatternsPage(snapshot) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards(buildPatternSummaryCards(snapshot));
-  refs.cryptoPageControls.innerHTML = renderPatternFilters(snapshot);
-  refs.cryptoPageContent.innerHTML = renderPatternCards(snapshot);
+  refs.pageHighlights.innerHTML = renderCountCards(buildPatternSummaryCards(snapshot));
+  refs.pageControls.innerHTML = renderPatternFilters(snapshot);
+  refs.pageContent.innerHTML = renderPatternCards(snapshot);
   bindPatternFilterEvents();
 }
 
 function renderOpportunitiesPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("?? ?? 40")}${renderBadge("PRZ/?? 20")}${renderBadge("?? ?? 15")}${renderBadge("?? 10")}${renderBadge("??? 10")}${renderBadge("??? 5")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("패턴 적합도 40")}${renderBadge("PRZ/구조 20")}${renderBadge("파생 지표 15")}${renderBadge("추세 10")}${renderBadge("모멘텀 10")}${renderBadge("변동성 5")}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Opportunities",
-    "?? ? ?? ?? ??",
+    "지금 볼 만한 종목 랭킹",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
-        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
-        { label: "????", render: (row) => escapeHtml(String(row.scores?.opportunity ?? 0)) },
-        { label: "??", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "??", render: (row) => escapeHtml(String(row.scores?.derivatives ?? 0)) },
-        { label: "??", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "???", render: (row) => escapeHtml(row.labels?.momentum_bias || "-") },
-        { label: "??", render: (row) => renderSetupLink(row.pattern) },
+        { label: "종목", render: (row) => renderScoreStack(row) },
+        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "우선순위", render: (row) => escapeHtml(String(row.scores?.opportunity ?? 0)) },
+        { label: "기술", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
+        { label: "파생", render: (row) => escapeHtml(String(row.scores?.derivatives ?? 0)) },
+        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
+        { label: "모멘텀", render: (row) => escapeHtml(row.labels?.momentum_bias || "-") },
+        { label: "상세", render: (row) => renderSetupLink(row.pattern) },
       ],
       asArray(payload.rows),
-      "???? ??? ?? ????.",
+      "우선순위 데이터가 아직 없습니다.",
     ),
   );
 }
 
 function renderSetupsPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("?? ???? ?? ??")}${renderBadge("?? ????? ?? ????? ??")}</div>`;
-  refs.cryptoPageContent.innerHTML = `<div class="crypto-opportunity-grid">${asArray(payload.rows).map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.pattern?.summary || "?? ?? ??")}</p></div><div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">???? ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(row.pattern?.preview_image || ""))}" alt="${escapeHtml(row.symbol)} preview" loading="lazy" /></div><div class="crypto-kpi-pair-grid"><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.trend ?? 0))}</strong></div><div class="scanner-point-card"><span>???</span><strong>${escapeHtml(String(row.scores?.momentum ?? 0))}</strong></div><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div></div><div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 5))}</div><div class="scanner-card-footer"><span>${escapeHtml(row.labels?.trend_bias || "-")} ? ${escapeHtml(row.labels?.momentum_bias || "-")}</span>${renderSetupLink(row.pattern)}</div></article>`).join("")}</div>`;
+  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("상위 세트업만 표시")}${renderBadge("상세 페이지에서 전체 해설 확인")}</div>`;
+  refs.pageContent.innerHTML = `<div class="crypto-opportunity-grid">${asArray(payload.rows).map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.pattern?.summary || "세트업 요약이 없습니다.")}</p></div><div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(row.pattern?.preview_image || ""))}" alt="${escapeHtml(row.symbol)} preview" loading="lazy" /></div><div class="crypto-kpi-pair-grid"><div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div><div class="scanner-point-card"><span>추세</span><strong>${escapeHtml(String(row.scores?.trend ?? 0))}</strong></div><div class="scanner-point-card"><span>모멘텀</span><strong>${escapeHtml(String(row.scores?.momentum ?? 0))}</strong></div><div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div></div><div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 5))}</div><div class="scanner-card-footer"><span>${escapeHtml(row.labels?.trend_bias || "-")} · ${escapeHtml(row.labels?.momentum_bias || "-")}</span>${renderSetupLink(row.pattern)}</div></article>`).join("")}</div>`;
 }
 
 function renderTechnicalRatingsPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards(asArray(payload.distribution).map((entry) => ({ label: entry.label, count: entry.count, note: "?? ??? ??" })));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA 20/50/200")}${renderBadge("Supertrend")}${renderBadge("Ichimoku")}${renderBadge("RSI / MACD / ROC")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderCountCards(asArray(payload.distribution).map((entry) => ({ label: entry.label, count: entry.count, note: "기술 점수 분포" })));
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA 20/50/200")}${renderBadge("Supertrend")}${renderBadge("Ichimoku")}${renderBadge("RSI / MACD / ROC")}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Technical Ratings",
-    "TradingView ??? ?? ?? ??",
+    "TradingView 감성의 종합 기술 점수",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
-        { label: "???", render: (row) => renderBadge(row.labels?.technical_rating || "Neutral", ratingToneClass(row.labels?.technical_rating)) },
-        { label: "??", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "??", render: (row) => escapeHtml(String(row.scores?.moving_average ?? 0)) },
-        { label: "?????", render: (row) => escapeHtml(String(row.scores?.oscillator ?? 0)) },
-        { label: "??", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "종목", render: (row) => renderScoreStack(row) },
+        { label: "등급", render: (row) => renderBadge(row.labels?.technical_rating || "Neutral", ratingToneClass(row.labels?.technical_rating)) },
+        { label: "기술", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
+        { label: "이평선", render: (row) => escapeHtml(String(row.scores?.moving_average ?? 0)) },
+        { label: "오실레이터", render: (row) => escapeHtml(String(row.scores?.oscillator ?? 0)) },
+        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
+        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
       ],
       asArray(payload.rows),
-      "?? ??? ???? ????.",
+      "테크니컬 레이팅 데이터가 아직 없습니다.",
     ),
   );
 }
 
 function renderTrendPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "?? ??", count: payload.counts?.bullish || 0, note: "?? ?? ??" }, { label: "?? ??", count: payload.counts?.bearish || 0, note: "?? ?? ??" }, { label: "??", count: payload.counts?.mixed || 0, note: "?? ??" }]);
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA Cross")}${renderBadge("Supertrend")}${renderBadge("ADX / DMI")}${renderBadge("Ichimoku")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderCountCards([
+    { label: "상승 추세", count: payload.counts?.bullish || 0, note: "추세 정렬 종목" },
+    { label: "하락 추세", count: payload.counts?.bearish || 0, note: "추세 약세 종목" },
+    { label: "혼조", count: payload.counts?.mixed || 0, note: "방향성 혼재" },
+  ]);
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA Cross")}${renderBadge("Supertrend")}${renderBadge("ADX / DMI")}${renderBadge("Ichimoku")}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Trend",
-    "?? ??? ?? ??",
+    "추세 정렬과 전환 후보",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
-        { label: "??", render: (row) => renderBadge(row.labels?.trend_bias || "-", toneClass(row.scores?.trend_bias)) },
-        { label: "??", render: (row) => escapeHtml(String(row.scores?.trend ?? 0)) },
+        { label: "종목", render: (row) => renderScoreStack(row) },
+        { label: "추세", render: (row) => renderBadge(row.labels?.trend_bias || "-", toneClass(row.scores?.trend_bias)) },
+        { label: "점수", render: (row) => escapeHtml(String(row.scores?.trend ?? 0)) },
         { label: "ADX", render: (row) => escapeHtml(String(row.indicators?.adx14 ?? "-")) },
         { label: "+DI / -DI", render: (row) => `${escapeHtml(String(row.indicators?.plus_di ?? "-"))} / ${escapeHtml(String(row.indicators?.minus_di ?? "-"))}` },
         { label: "Supertrend", render: (row) => escapeHtml(row.signals?.supertrend || "-") },
         { label: "Ichimoku", render: (row) => escapeHtml(row.signals?.ichimoku_bias || "-") },
       ],
       asArray(payload.rows),
-      "?? ???? ????.",
+      "추세 데이터가 아직 없습니다.",
     ),
   );
 }
 
 function renderMomentumPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "???", count: payload.counts?.overbought || 0, note: "?? ?? ??" }, { label: "???", count: payload.counts?.oversold || 0, note: "?? ?? ??" }, { label: "?????", count: payload.counts?.divergence || 0, note: "?? ??" }]);
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("RSI 14")}${renderBadge("Stoch RSI")}${renderBadge("MACD")}${renderBadge("ROC")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderCountCards([
+    { label: "과매수", count: payload.counts?.overbought || 0, note: "상단 과열 후보" },
+    { label: "과매도", count: payload.counts?.oversold || 0, note: "하단 과열 후보" },
+    { label: "다이버전스", count: payload.counts?.divergence || 0, note: "반전 후보" },
+  ]);
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("RSI 14")}${renderBadge("Stoch RSI")}${renderBadge("MACD")}${renderBadge("ROC")}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Momentum",
-    "???????? ??? ??",
+    "오실레이터 중심 모멘텀 체크",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
-        { label: "???", render: (row) => renderBadge(row.labels?.momentum_bias || "-", toneClass(row.scores?.momentum_bias)) },
+        { label: "종목", render: (row) => renderScoreStack(row) },
+        { label: "모멘텀", render: (row) => renderBadge(row.labels?.momentum_bias || "-", toneClass(row.scores?.momentum_bias)) },
         { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
         { label: "Stoch RSI", render: (row) => escapeHtml(String(row.indicators?.stoch_rsi ?? "-")) },
         { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
         { label: "ROC", render: (row) => `<span class="${toneClass(row.indicators?.roc12)}">${escapeHtml(formatPercent(row.indicators?.roc12))}</span>` },
-        { label: "?????", render: (row) => escapeHtml(row.signals?.divergence_candidate ? "??" : "-") },
+        { label: "다이버전스", render: (row) => escapeHtml(row.signals?.divergence_candidate ? "후보" : "-") },
       ],
       asArray(payload.rows),
-      "??? ???? ????.",
+      "모멘텀 데이터가 아직 없습니다.",
     ),
   );
 }
 
+function volatilityToneClass(label) {
+  if (label === "상방 돌파") return "is-positive";
+  if (label === "하방 돌파") return "is-negative";
+  return "is-neutral";
+}
+
 function renderVolatilityPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "Squeeze", count: payload.counts?.squeeze || 0, note: "?? ??" }, { label: "?? ??", count: payload.counts?.breakout_up || 0, note: "?? ????" }, { label: "?? ??", count: payload.counts?.breakout_down || 0, note: "?? ????" }, { label: "??", count: payload.counts?.expansion || 0, note: "??? ??" }]);
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("Bollinger Bands")}${renderBadge("BBWidth")}${renderBadge("ATR 14")}${renderBadge("Breakout State")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection(
+  refs.pageHighlights.innerHTML = renderCountCards([
+    { label: "Squeeze", count: payload.counts?.squeeze || 0, note: "압축 상태" },
+    { label: "상방 돌파", count: payload.counts?.breakout_up || 0, note: "상승 돌파 후보" },
+    { label: "하방 돌파", count: payload.counts?.breakout_down || 0, note: "하락 돌파 후보" },
+    { label: "확장", count: payload.counts?.expansion || 0, note: "변동성 확장" },
+  ]);
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("Bollinger Bands")}${renderBadge("BBWidth")}${renderBadge("ATR 14")}${renderBadge("Breakout State")}</div>`;
+  refs.pageContent.innerHTML = renderSection(
     "Volatility",
-    "?? ? ?? ? ?? ?? ??",
+    "압축과 돌파 준비 구간",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "??", render: (row) => renderScoreStack(row) },
-        { label: "??", render: (row) => renderBadge(row.labels?.volatility_state || "??", row.labels?.volatility_state === "?? ??" ? "is-positive" : row.labels?.volatility_state === "?? ??" ? "is-negative" : "is-neutral") },
+        { label: "종목", render: (row) => renderScoreStack(row) },
+        { label: "상태", render: (row) => renderBadge(row.labels?.volatility_state || "중립", volatilityToneClass(row.labels?.volatility_state)) },
         { label: "BB Width", render: (row) => escapeHtml(String(row.indicators?.bb_width ?? "-")) },
         { label: "ATR%", render: (row) => escapeHtml(formatPercent(row.indicators?.atr_pct)) },
-        { label: "Squeeze", render: (row) => escapeHtml(row.signals?.squeeze ? "?" : "-") },
-        { label: "??", render: (row) => escapeHtml(row.signals?.breakout_up ? "?" : "-") },
-        { label: "??", render: (row) => escapeHtml(row.signals?.breakout_down ? "?" : "-") },
+        { label: "Squeeze", render: (row) => escapeHtml(row.signals?.squeeze ? "예" : "-") },
+        { label: "상방", render: (row) => escapeHtml(row.signals?.breakout_up ? "예" : "-") },
+        { label: "하방", render: (row) => escapeHtml(row.signals?.breakout_down ? "예" : "-") },
       ],
       asArray(payload.rows),
-      "??? ???? ????.",
+      "변동성 데이터가 아직 없습니다.",
     ),
   );
 }
@@ -947,136 +739,120 @@ function renderMultiTimeframePage(payload) {
   const rows = asArray(payload.rows).slice(0, 24);
   const cards = rows.length
     ? `<div class="crypto-mtf-grid">${rows.map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.consensus_label || "-")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${toNumber(row.agreement_score) > 0 ? "is-bullish" : toNumber(row.agreement_score) < 0 ? "is-bearish" : ""}">${escapeHtml(String(row.agreement_score ?? 0))}</span></div></div><div class="crypto-mtf-table">${Object.entries(row.timeframes || {}).map(([timeframe, details]) => `<div class="crypto-mtf-row"><strong>${escapeHtml(timeframe)}</strong><span>${escapeHtml(details.technical_rating || "-")}</span><span>${escapeHtml(details.trend_bias || "-")}</span><span>${escapeHtml(details.momentum_bias || "-")}</span><span>${escapeHtml(String(details.opportunity ?? "-"))}</span></div>`).join("")}</div></article>`).join("")}</div>`
-    : '<div class="analysis-empty">?? ????? ???? ????.</div>';
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "?? ??", count: payload.counts?.bullish || 0, note: "3? ?? ??? ??" }, { label: "?? ??", count: payload.counts?.bearish || 0, note: "3? ?? ??? ??" }, { label: "??", count: payload.counts?.mixed || 0, note: "?? ??" }]);
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("5m")}${renderBadge("15m")}${renderBadge("1h")}${renderBadge("4h")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection("Multi-Timeframe", "????? ?? ????", cards);
+    : '<div class="analysis-empty">멀티 타임프레임 데이터가 없습니다.</div>';
+  refs.pageHighlights.innerHTML = renderCountCards([
+    { label: "상승 합의", count: payload.counts?.bullish || 0, note: "3개 이상 동일 방향" },
+    { label: "하락 합의", count: payload.counts?.bearish || 0, note: "3개 이상 동일 방향" },
+    { label: "혼조", count: payload.counts?.mixed || 0, note: "방향 충돌" },
+  ]);
+  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("5m")}${renderBadge("15m")}${renderBadge("1h")}${renderBadge("4h")}</div>`;
+  refs.pageContent.innerHTML = renderSection("Multi-Timeframe", "타임프레임 합의 매트릭스", cards);
 }
 
-function renderCryptoPage() {
-  populateCryptoControls();
-  renderCryptoPageTabs();
-  updateCryptoCooldownUI();
-  renderCryptoSummaryMeta();
+function renderPage() {
+  populateControls();
+  renderPageTabs();
+  updateCooldownUI();
+  renderSummaryMeta();
 
-  if (state.crypto.isLoading) {
-    renderCryptoSkeleton();
+  if (state.isLoading) {
+    renderSkeleton();
     return;
   }
 
-  if (state.crypto.errorMessage && !state.crypto.pagePayload) {
-    renderCryptoErrorState();
+  if (state.errorMessage && !state.pagePayload) {
+    renderErrorState();
     return;
   }
 
-  if (state.crypto.pageKey === "overview") {
-    refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(state.crypto.pagePayload.summary_cards));
-    refs.cryptoPageControls.innerHTML = renderOverviewControls(state.crypto.pagePayload);
-    refs.cryptoPageContent.innerHTML = renderOverviewContent(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "signals") {
-    renderSignalsPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "patterns") {
-    renderPatternsPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "opportunities") {
-    renderOpportunitiesPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "setups") {
-    renderSetupsPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "technical_ratings") {
-    renderTechnicalRatingsPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "trend") {
-    renderTrendPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "momentum") {
-    renderMomentumPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "volatility") {
-    renderVolatilityPage(state.crypto.pagePayload);
-  } else if (state.crypto.pageKey === "multi_timeframe") {
-    renderMultiTimeframePage(state.crypto.pagePayload);
-  } else {
-    refs.cryptoPageHighlights.innerHTML = "";
-    refs.cryptoPageControls.innerHTML = "";
-    refs.cryptoPageContent.innerHTML = '<div class="analysis-empty">? ? ?? ?? ??????.</div>';
+  if (!state.pagePayload) {
+    renderErrorState();
+    return;
   }
+
+  if (state.pageKey === "overview") {
+    refs.pageHighlights.innerHTML = renderMetricCards(asArray(state.pagePayload.summary_cards));
+    refs.pageControls.innerHTML = renderOverviewControls(state.pagePayload);
+    refs.pageContent.innerHTML = renderOverviewContent(state.pagePayload);
+    return;
+  }
+  if (state.pageKey === "signals") return renderSignalsPage(state.pagePayload);
+  if (state.pageKey === "patterns") return renderPatternsPage(state.pagePayload);
+  if (state.pageKey === "opportunities") return renderOpportunitiesPage(state.pagePayload);
+  if (state.pageKey === "setups") return renderSetupsPage(state.pagePayload);
+  if (state.pageKey === "technical_ratings") return renderTechnicalRatingsPage(state.pagePayload);
+  if (state.pageKey === "trend") return renderTrendPage(state.pagePayload);
+  if (state.pageKey === "momentum") return renderMomentumPage(state.pagePayload);
+  if (state.pageKey === "volatility") return renderVolatilityPage(state.pagePayload);
+  if (state.pageKey === "multi_timeframe") return renderMultiTimeframePage(state.pagePayload);
+
+  refs.pageHighlights.innerHTML = "";
+  refs.pageControls.innerHTML = "";
+  refs.pageContent.innerHTML = '<div class="analysis-empty">아직 지원되지 않는 페이지입니다.</div>';
 }
 
-// INIT
-
-function bindCryptoEvents() {
-  if (refs.cryptoUniverseSelect) {
-    refs.cryptoUniverseSelect.addEventListener("change", async (event) => {
-      state.crypto.universeKey = event.target.value;
-      state.crypto.isLoading = true;
-      state.crypto.notice = "??? ??? ?? ?? ???? ???? ????.";
-      renderCryptoPage();
-      await loadCryptoPagePayload();
+function bindEvents() {
+  if (refs.universeSelect) {
+    refs.universeSelect.addEventListener("change", async (event) => {
+      state.universeKey = event.target.value;
+      state.isLoading = true;
+      state.notice = "선택한 조건으로 데이터를 다시 불러오는 중입니다.";
+      renderPage();
+      await loadPagePayload();
     });
   }
-  if (refs.cryptoTimeframeSelect) {
-    refs.cryptoTimeframeSelect.addEventListener("change", async (event) => {
-      state.crypto.timeframe = event.target.value;
-      state.crypto.isLoading = true;
-      state.crypto.notice = "??? ??? ?? ?? ???? ???? ????.";
-      renderCryptoPage();
-      await loadCryptoPagePayload();
+  if (refs.timeframeSelect) {
+    refs.timeframeSelect.addEventListener("change", async (event) => {
+      state.timeframe = event.target.value;
+      state.isLoading = true;
+      state.notice = "선택한 조건으로 데이터를 다시 불러오는 중입니다.";
+      renderPage();
+      await loadPagePayload();
     });
   }
-  if (refs.cryptoRefreshButton) {
-    refs.cryptoRefreshButton.addEventListener("click", async () => {
-      if (Date.now() < state.crypto.cooldownUntil) {
-        updateCryptoCooldownUI();
+  if (refs.refreshButton) {
+    refs.refreshButton.addEventListener("click", async () => {
+      if (Date.now() < state.cooldownUntil) {
+        updateCooldownUI();
         return;
       }
-      setCryptoCooldown();
-      updateCryptoCooldownUI();
-      state.crypto.isLoading = true;
-      state.crypto.notice = "?? ?? ???? ???? ????.";
-      renderCryptoPage();
+      setCooldown();
+      updateCooldownUI();
+      state.isLoading = true;
+      state.notice = "최신 스냅샷을 다시 확인하는 중입니다.";
+      renderPage();
       try {
-        await loadCryptoManifest({ bust: true });
-        await loadCryptoPagePayload({ bust: true });
+        await loadManifest({ bust: true });
+        await loadPagePayload({ bust: true });
       } catch (error) {
-        state.crypto.isLoading = false;
-        if (!state.crypto.errorMessage) {
-          state.crypto.errorMessage = error?.message || "?? ???? ???? ?????.";
-        }
-        state.crypto.notice = state.crypto.errorMessage;
-        renderCryptoPage();
+        state.isLoading = false;
+        if (!state.errorMessage) state.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+        state.notice = state.errorMessage;
+        renderPage();
       }
     });
   }
   window.setInterval(() => {
-    updateCryptoCooldownUI();
-    if (!state.crypto.isLoading) {
-      renderCryptoSummaryMeta();
-    }
+    updateCooldownUI();
+    if (!state.isLoading) renderSummaryMeta();
   }, 1000);
 }
 
-function renderMarkets() {
-  renderCryptoPage();
-}
-
-async function initCryptoMarkets() {
-  state.crypto.isLoading = true;
-  renderCryptoPage();
-  bindCryptoEvents();
-  await loadCryptoManifest();
-  await loadCryptoPagePayload();
-}
-
-async function initMarkets() {
-  renderMarkets();
+async function init() {
+  state.isLoading = true;
+  renderPage();
+  bindEvents();
   try {
-    await initCryptoMarkets();
+    await loadManifest();
+    await loadPagePayload();
   } catch (error) {
-    state.crypto.isLoading = false;
-    if (!state.crypto.errorMessage) {
-      state.crypto.errorMessage = error?.message || "?? ???? ???? ?????.";
-    }
-    state.crypto.notice = state.crypto.errorMessage;
-    renderCryptoPage();
+    state.isLoading = false;
+    if (!state.errorMessage) state.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+    state.notice = state.errorMessage;
+    renderPage();
   }
 }
 
 if (bootstrapElement) {
-  void initMarkets();
+  void init();
 }
