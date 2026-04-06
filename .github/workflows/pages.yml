@@ -26,6 +26,9 @@ jobs:
       NEWSBOT_ENABLE_SCHEDULER: "false"
       NEWSBOT_BOOTSTRAP_ON_STARTUP: "false"
       NEWSBOT_TELEGRAM_INPUT_ENABLED: "true"
+      NEWSBOT_REQUEST_TIMEOUT_SEC: "8"
+      NEWSBOT_MAX_RETRIES: "2"
+      NEWSBOT_STATIC_FETCH_CONCURRENCY: "8"
       NEWSBOT_TELEGRAM_API_ID: ${{ secrets.NEWSBOT_TELEGRAM_API_ID }}
       NEWSBOT_TELEGRAM_API_HASH: ${{ secrets.NEWSBOT_TELEGRAM_API_HASH }}
       NEWSBOT_TELEGRAM_SESSION_STRING: ${{ secrets.NEWSBOT_TELEGRAM_SESSION_STRING }}
@@ -37,11 +40,20 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Record workflow start time
+        run: echo "NEWSBOT_WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            scripts/requirements.txt
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -56,6 +68,14 @@ jobs:
 
       - name: Validate built site
         run: python scripts/validate_site_dist.py
+
+      - name: Report workflow runtime
+        run: |
+          elapsed=$(( $(date +%s) - NEWSBOT_WORKFLOW_STARTED_AT ))
+          echo "Workflow runtime: ${elapsed}s"
+          if [ "$elapsed" -gt 240 ]; then
+            echo "::warning::Publish Static Site exceeded the 4 minute warning threshold (${elapsed}s)."
+          fi
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4
