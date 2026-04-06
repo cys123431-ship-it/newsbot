@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install . -r scripts/requirements.txt
+          pip install -e . -r scripts/requirements.txt
 
       - name: Refresh scanner snapshots
         run: python scripts/update_data.py
