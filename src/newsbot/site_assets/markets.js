@@ -52,7 +52,7 @@ const state = {
   lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
   isLoading: false,
   errorMessage: "",
-  notice: "최근 배치 스냅샷을 준비하고 있습니다.",
+  notice: "최근 5분 배치 스냅샷을 준비하고 있습니다.",
 };
 
 function escapeHtml(value) {
@@ -201,10 +201,10 @@ function buildFreshnessState(value) {
   const elapsedMinutes = elapsedMs / 60_000;
   let label = "최신";
   let className = "is-positive";
-  if (elapsedMinutes > 45) {
+  if (elapsedMinutes > 20) {
     label = "심각한 지연";
     className = "is-negative";
-  } else if (elapsedMinutes > 25) {
+  } else if (elapsedMinutes > 10) {
     label = "지연";
     className = "is-neutral";
   }
@@ -238,7 +238,7 @@ function updateCooldownUI() {
   const remaining = state.cooldownUntil - Date.now();
   if (remaining <= 0) {
     refs.refreshButton.disabled = false;
-    refs.cooldownText.textContent = "최신 스냅샷을 곧 다시 불러올 수 있습니다.";
+    refs.cooldownText.textContent = "5분 배치 기준 최신 스냅샷을 곧 다시 불러올 수 있습니다.";
     return;
   }
   refs.refreshButton.disabled = true;
@@ -377,7 +377,7 @@ async function loadPagePayload({ bust = false } = {}) {
         ? "다시 불러왔지만 최신 스냅샷 시각은 동일합니다."
         : "최신 스냅샷을 다시 불러왔습니다.";
     } else if (!state.notice) {
-      state.notice = "최근 배치 스냅샷 기준으로 화면을 표시합니다.";
+      state.notice = "최근 5분 배치 스냅샷 기준으로 화면을 표시합니다.";
     }
   } catch (error) {
     state.notice = state.pageKey === "patterns"
@@ -420,7 +420,7 @@ function renderSummaryMeta() {
 
   if (refs.activeScan) {
     refs.activeScan.innerHTML = snapshot
-      ? `<span class="scanner-active-pill ${freshness.className}">최근 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
+      ? `<span class="scanner-active-pill ${freshness.className}">최근 5분 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
       : '<span class="scanner-active-pill">선택한 조건의 스냅샷을 준비 중입니다.</span>';
   }
 

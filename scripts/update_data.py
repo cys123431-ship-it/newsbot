@@ -7,8 +7,8 @@ from datetime import timezone
 from hashlib import sha1
 import json
 import math
+import os
 from pathlib import Path
-import shutil
 import sys
 from typing import Any
 
@@ -36,10 +36,11 @@ from newsbot.scanner import generate_preview_svg
 BASE_URL = "https://fapi.binance.com"
 PUBLIC_DATA_DIR = ROOT_DIR / "public" / "data" / "scanner"
 PUBLIC_GENERATED_DIR = ROOT_DIR / "public" / "generated" / "scanner"
+MANIFEST_PATH = PUBLIC_DATA_DIR / "manifest.json"
 UNIVERSE_KEY = "top100"
 TIMEFRAMES = ("5m", "15m", "1h", "4h")
-REQUEST_TIMEOUT = 20.0
-REQUEST_CONCURRENCY = 8
+REQUEST_TIMEOUT = float(os.getenv("NEWSBOT_REQUEST_TIMEOUT_SEC", "10"))
+REQUEST_CONCURRENCY = max(1, int(os.getenv("NEWSBOT_STATIC_FETCH_CONCURRENCY", "8")))
 KLINE_LIMIT = 220
 TIMEFRAME_MINUTES = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
 FALLBACK_SYMBOL_BASELINES: dict[str, dict[str, float]] = {
@@ -97,6 +98,98 @@ def _parse_iso_datetime(value: str) -> datetime:
 def _stable_seed(*parts: str) -> int:
     digest = sha1("|".join(parts).encode("utf-8")).hexdigest()
     return int(digest[:12], 16)
+
+
+def _json_text(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _load_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _ensure_output_directories() -> None:
+    PUBLIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    PUBLIC_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _result_cache_key(result: dict[str, Any]) -> str:
+    return "|".join(
+        [
+            str(result.get("symbol") or "").upper(),
+            str(result.get("pattern") or "").strip().lower(),
+            str(result.get("status") or "").strip().lower(),
+            f"{_safe_float(result.get('score')):.4f}",
+        ]
+    )
+
+
+def _result_fingerprint(result: dict[str, Any]) -> str:
+    payload = {
+        "symbol": result.get("symbol"),
+        "timeframe": result.get("timeframe"),
+        "pattern": result.get("pattern"),
+        "status": result.get("status"),
+        "side": result.get("side"),
+        "score": round(_safe_float(result.get("score")), 4),
+        "summary": result.get("summary"),
+        "side_label": result.get("side_label"),
+        "status_label": result.get("status_label"),
+        "points": result.get("points"),
+        "ratios": result.get("ratios"),
+        "prz": result.get("prz"),
+        "targets": result.get("targets"),
+        "stop": result.get("stop"),
+        "change_24h": result.get("change_24h"),
+        "detail_page": result.get("detail_page"),
+        "detail_data_path": result.get("detail_data_path"),
+        "legacy_detail_page": result.get("legacy_detail_page"),
+    }
+    return sha1(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _existing_result_lookup(snapshot: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not snapshot:
+        return {}
+    lookup: dict[str, dict[str, Any]] = {}
+    for result in snapshot.get("results", []):
+        if not isinstance(result, dict):
+            continue
+        lookup[_result_cache_key(result)] = {
+            "fingerprint": _result_fingerprint(result),
+            "preview_image": str(result.get("preview_image") or "").strip(),
+        }
+    return lookup
+
+
+def _load_existing_snapshots() -> dict[str, dict[str, Any]]:
+    manifest = _load_json(MANIFEST_PATH)
+    if not manifest:
+        return {}
+    snapshots: dict[str, dict[str, Any]] = {}
+    for item in manifest.get("snapshots", []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("universe_key") != UNIVERSE_KEY:
+            continue
+        timeframe = str(item.get("timeframe") or "").strip()
+        relative_path = str(item.get("path") or "").strip()
+        if not timeframe or not relative_path:
+            continue
+        snapshot = _load_json(PUBLIC_DATA_DIR / relative_path)
+        if snapshot:
+            snapshots[timeframe] = snapshot
+    return snapshots
+
+
+def _without_generated_at(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if key != "generated_at"}
 
 
 async def _fetch_json(
@@ -403,32 +496,70 @@ def _build_fallback_analyses(
     return analyses
 
 
-def _clean_output_directories() -> None:
-    for path in (PUBLIC_DATA_DIR, PUBLIC_GENERATED_DIR):
-        if path.exists():
-            shutil.rmtree(path)
-        path.mkdir(parents=True, exist_ok=True)
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
+def _write_json(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    preserve_generated_at_when_unchanged: bool = False,
+) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    next_payload = payload
+    if preserve_generated_at_when_unchanged:
+        existing_payload = _load_json(path)
+        if existing_payload and _without_generated_at(existing_payload) == _without_generated_at(payload):
+            next_payload = dict(payload)
+            if existing_payload.get("generated_at"):
+                next_payload["generated_at"] = existing_payload["generated_at"]
+    text = _json_text(next_payload)
+    if path.exists():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return False
+        except OSError:
+            pass
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def _prune_stale_files(base_dir: Path, expected_paths: set[Path]) -> None:
+    if not base_dir.exists():
+        return
+    normalized_expected = {path.resolve() for path in expected_paths}
+    for candidate in sorted((path for path in base_dir.rglob("*") if path.is_file()), reverse=True):
+        if candidate.resolve() not in normalized_expected:
+            candidate.unlink()
+    for directory in sorted((path for path in base_dir.rglob("*") if path.is_dir()), reverse=True):
+        if directory == base_dir:
+            continue
+        if not any(directory.iterdir()):
+            directory.rmdir()
 
 
 def _decorate_results(
     *,
     snapshot: dict[str, Any],
     candles_by_symbol: dict[str, list[dict[str, Any]]],
+    existing_snapshot: dict[str, Any] | None,
+    expected_generated_paths: set[Path],
 ) -> None:
     scan_dir = PUBLIC_GENERATED_DIR / snapshot["scan_id"]
     scan_dir.mkdir(parents=True, exist_ok=True)
+    existing_results = _existing_result_lookup(existing_snapshot)
     for result in snapshot["results"]:
         image_name = (
             f"{_slugify(result['symbol'])}-{_slugify(result['pattern'])}-{_slugify(result['status'])}.svg"
         )
         image_path = scan_dir / image_name
-        candles = candles_by_symbol.get(result["symbol"]) or _build_preview_candles(result)
         result["preview_image"] = f"generated/scanner/{snapshot['scan_id']}/{image_name}"
+        expected_generated_paths.add(image_path)
+        existing_entry = existing_results.get(_result_cache_key(result))
+        if (
+            existing_entry
+            and existing_entry.get("fingerprint") == _result_fingerprint(result)
+            and image_path.exists()
+        ):
+            continue
+        candles = candles_by_symbol.get(result["symbol"]) or _build_preview_candles(result)
         generate_preview_svg(result=result, candles=candles, output_path=image_path)
 
 
@@ -851,7 +982,11 @@ def _build_page_payloads(
     return page_data, page_payloads, detail_payloads
 
 
-async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+async def _scan_all(
+    *,
+    existing_snapshots: dict[str, dict[str, Any]],
+    expected_generated_paths: set[Path],
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     generated_at = _now_iso()
     async with httpx.AsyncClient(
         base_url=BASE_URL,
@@ -873,7 +1008,12 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
             ]
             analyses = {}
             for snapshot in snapshots:
-                _decorate_results(snapshot=snapshot, candles_by_symbol={})
+                _decorate_results(
+                    snapshot=snapshot,
+                    candles_by_symbol={},
+                    existing_snapshot=existing_snapshots.get(snapshot["timeframe"]),
+                    expected_generated_paths=expected_generated_paths,
+                )
                 analyses[snapshot["timeframe"]] = _build_fallback_analyses(
                     timeframe=snapshot["timeframe"],
                     generated_at=generated_at,
@@ -924,7 +1064,12 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
                     failures=failures,
                 )
             )
-            _decorate_results(snapshot=snapshot, candles_by_symbol=candles_by_symbol)
+            _decorate_results(
+                snapshot=snapshot,
+                candles_by_symbol=candles_by_symbol,
+                existing_snapshot=existing_snapshots.get(timeframe),
+                expected_generated_paths=expected_generated_paths,
+            )
             for result in snapshot["results"]:
                 pattern_lookup[result["symbol"]] = result
             snapshots.append(snapshot)
@@ -960,8 +1105,15 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
 
 
 def main() -> None:
-    _clean_output_directories()
-    snapshots, analyses_by_timeframe = asyncio.run(_scan_all())
+    _ensure_output_directories()
+    existing_snapshots = _load_existing_snapshots()
+    expected_generated_paths: set[Path] = set()
+    snapshots, analyses_by_timeframe = asyncio.run(
+        _scan_all(
+            existing_snapshots=existing_snapshots,
+            expected_generated_paths=expected_generated_paths,
+        )
+    )
     snapshot_map = {snapshot["timeframe"]: snapshot for snapshot in snapshots}
     generated_at = max((snapshot["generated_at"] for snapshot in snapshots), default=_now_iso())
     page_data, page_payloads, detail_payloads = _build_page_payloads(
@@ -971,17 +1123,27 @@ def main() -> None:
         analyses_by_timeframe=analyses_by_timeframe,
     )
     manifest = build_manifest(snapshots, page_data=page_data)
+    expected_data_paths: set[Path] = {MANIFEST_PATH}
 
     for snapshot in snapshots:
-        _write_json(
-            PUBLIC_DATA_DIR / f"scan-{snapshot['universe_key']}-{snapshot['timeframe']}.json",
-            snapshot,
-        )
+        snapshot_path = PUBLIC_DATA_DIR / f"scan-{snapshot['universe_key']}-{snapshot['timeframe']}.json"
+        expected_data_paths.add(snapshot_path)
+        _write_json(snapshot_path, snapshot)
     for filename, payload in page_payloads.items():
-        _write_json(PUBLIC_DATA_DIR / filename, payload)
+        page_path = PUBLIC_DATA_DIR / filename
+        expected_data_paths.add(page_path)
+        _write_json(page_path, payload)
     for relative_path, payload in detail_payloads.items():
-        _write_json(PUBLIC_DATA_DIR / relative_path, payload)
-    _write_json(PUBLIC_DATA_DIR / "manifest.json", manifest)
+        detail_path = PUBLIC_DATA_DIR / relative_path
+        expected_data_paths.add(detail_path)
+        _write_json(
+            detail_path,
+            payload,
+            preserve_generated_at_when_unchanged=True,
+        )
+    _write_json(MANIFEST_PATH, manifest)
+    _prune_stale_files(PUBLIC_DATA_DIR, expected_data_paths)
+    _prune_stale_files(PUBLIC_GENERATED_DIR, expected_generated_paths)
     print(
         f"Updated scanner dataset with {len(snapshots)} snapshots, "
         f"{len(page_payloads)} page datasets, and {manifest['total_results']} pattern results."
