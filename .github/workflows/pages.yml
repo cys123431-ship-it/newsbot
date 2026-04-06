@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "public/data/scanner/**"
+      - "public/generated/scanner/**"
   workflow_dispatch:
-  schedule:
-    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
@@ -56,6 +57,7 @@ jobs:
         run: |
           mkdir -p public-site/newsbot
           rsync -a --delete site-dist/ public-site/newsbot/
+          test -f public-site/newsbot/data/scanner/manifest.json
           touch public-site/.nojekyll
           cat > public-site/index.html <<'HTML'
           <!doctype html>

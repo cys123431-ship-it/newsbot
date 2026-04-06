@@ -16,6 +16,19 @@ jobs:
   update-scanner-data:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NEWSBOT_ENABLE_SCHEDULER: "false"
+      NEWSBOT_BOOTSTRAP_ON_STARTUP: "false"
+      NEWSBOT_TELEGRAM_INPUT_ENABLED: "true"
+      NEWSBOT_TELEGRAM_API_ID: ${{ secrets.NEWSBOT_TELEGRAM_API_ID }}
+      NEWSBOT_TELEGRAM_API_HASH: ${{ secrets.NEWSBOT_TELEGRAM_API_HASH }}
+      NEWSBOT_TELEGRAM_SESSION_STRING: ${{ secrets.NEWSBOT_TELEGRAM_SESSION_STRING }}
+      NEWSBOT_NAVER_CLIENT_ID: ${{ secrets.NEWSBOT_NAVER_CLIENT_ID }}
+      NEWSBOT_NAVER_CLIENT_SECRET: ${{ secrets.NEWSBOT_NAVER_CLIENT_SECRET }}
+      NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH: "20"
+      NEWSBOT_STATIC_MAX_TOTAL_ARTICLES: "2000"
+      NEWSBOT_STATIC_ARCHIVE_URL: "https://cys123431-ship-it.github.io/newsbot/data/site-data.json"
+      PUBLIC_SITE_REPO: "cys123431-ship-it/cys123431-ship-it.github.io"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -36,13 +49,69 @@ jobs:
         run: python scripts/update_data.py
 
       - name: Commit and push updated scanner dataset
+        id: scanner_commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/data/scanner public/generated/scanner
           if git diff --cached --quiet; then
             echo "No scanner data changes detected."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Auto update scanner data"
+            git push
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build static site
+        run: python -m newsbot.site_builder
+
+      - name: Validate scanner artifacts in site-dist
+        run: |
+          test -f site-dist/data/scanner/manifest.json
+          test -f site-dist/markets/crypto/index.html
+          find site-dist/generated/scanner -type f | grep -q .
+
+      - name: Check out public site repository
+        env:
+          DEPLOY_TOKEN: ${{ secrets.PUBLIC_SITE_DEPLOY_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${DEPLOY_TOKEN}@github.com/${PUBLIC_SITE_REPO}.git" public-site
+          cd public-site
+          git checkout -B main
+
+      - name: Sync static artifacts
+        run: |
+          mkdir -p public-site/newsbot
+          rsync -a --delete site-dist/ public-site/newsbot/
+          test -f public-site/newsbot/data/scanner/manifest.json
+          test -f public-site/newsbot/markets/crypto/index.html
+          find public-site/newsbot/generated/scanner -type f | grep -q .
+          touch public-site/.nojekyll
+          cat > public-site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta http-equiv="refresh" content="0; url=/newsbot/" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>newsbot</title>
+            </head>
+            <body>
+              <p>Redirecting to <a href="/newsbot/">/newsbot/</a>...</p>
+            </body>
+          </html>
+          HTML
+
+      - name: Commit and push site update
+        run: |
+          cd public-site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --cached --quiet; then
+            echo "No site changes to publish."
             exit 0
           fi
-          git commit -m "Auto update scanner data"
-          git push
+          git commit -m "Deploy newsbot site"
+          git push origin main
