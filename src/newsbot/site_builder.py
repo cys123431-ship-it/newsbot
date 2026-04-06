@@ -446,6 +446,12 @@ def validate_site_output(output_dir: Path) -> None:
         sample = ", ".join(str(path) for path in missing_crypto_pages[:3])
         raise FileNotFoundError(f"Missing crypto analysis page output: {sample}")
 
+    def _normalize_relative_public_path(value: str) -> str:
+        normalized = str(value or "").replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return normalized.lstrip("/")
+
     expected_preview_assets = 0
     for snapshot_meta in manifest.get("snapshots", []):
         if not isinstance(snapshot_meta, dict):
@@ -460,14 +466,19 @@ def validate_site_output(output_dir: Path) -> None:
             preview_relative = str(result.get("preview_image") or "").strip()
             if preview_relative:
                 expected_preview_assets += 1
-            if preview_relative and not (output_dir / "generated" / normalize_public_path(preview_relative)).exists():
+            if preview_relative and not (
+                output_dir / _normalize_relative_public_path(preview_relative)
+            ).exists():
                 raise FileNotFoundError(
                     f"Missing scanner preview asset referenced by {snapshot_relative}: {preview_relative}"
                 )
 
             detail_relative = str(result.get("detail_page") or "").strip()
             if detail_relative and not (
-                output_dir / MARKETS_DIRECTORY_NAME / normalize_public_path(detail_relative) / "index.html"
+                output_dir
+                / MARKETS_DIRECTORY_NAME
+                / _normalize_relative_public_path(detail_relative)
+                / "index.html"
             ).exists():
                 raise FileNotFoundError(
                     f"Missing scanner detail page referenced by {snapshot_relative}: {detail_relative}"
@@ -475,7 +486,10 @@ def validate_site_output(output_dir: Path) -> None:
 
             legacy_relative = str(result.get("legacy_detail_page") or "").strip()
             if legacy_relative and not (
-                output_dir / MARKETS_DIRECTORY_NAME / normalize_public_path(legacy_relative) / "index.html"
+                output_dir
+                / MARKETS_DIRECTORY_NAME
+                / _normalize_relative_public_path(legacy_relative)
+                / "index.html"
             ).exists():
                 raise FileNotFoundError(
                     f"Missing legacy scanner detail page referenced by {snapshot_relative}: {legacy_relative}"
@@ -483,7 +497,7 @@ def validate_site_output(output_dir: Path) -> None:
 
             detail_data_relative = str(result.get("detail_data_path") or "").strip()
             if detail_data_relative and not (
-                scanner_dir / normalize_public_path(detail_data_relative)
+                scanner_dir / _normalize_relative_public_path(detail_data_relative)
             ).exists():
                 raise FileNotFoundError(
                     f"Missing scanner detail data referenced by {snapshot_relative}: {detail_data_relative}"
