@@ -432,8 +432,6 @@ def validate_site_output(output_dir: Path) -> None:
     manifest = _validate_scanner_manifest_tree(scanner_dir)
 
     generated_dir = output_dir / "generated" / SCANNER_DIRECTORY_NAME
-    if not generated_dir.exists() or not any(path.is_file() for path in generated_dir.rglob("*")):
-        raise FileNotFoundError(f"Missing generated scanner assets in {generated_dir}")
 
     crypto_page_paths = [output_dir / MARKETS_DIRECTORY_NAME / "crypto" / "index.html"]
     for page in CRYPTO_PAGE_DEFINITIONS:
@@ -448,6 +446,7 @@ def validate_site_output(output_dir: Path) -> None:
         sample = ", ".join(str(path) for path in missing_crypto_pages[:3])
         raise FileNotFoundError(f"Missing crypto analysis page output: {sample}")
 
+    expected_preview_assets = 0
     for snapshot_meta in manifest.get("snapshots", []):
         if not isinstance(snapshot_meta, dict):
             continue
@@ -459,6 +458,8 @@ def validate_site_output(output_dir: Path) -> None:
             if not isinstance(result, dict):
                 continue
             preview_relative = str(result.get("preview_image") or "").strip()
+            if preview_relative:
+                expected_preview_assets += 1
             if preview_relative and not (output_dir / "generated" / normalize_public_path(preview_relative)).exists():
                 raise FileNotFoundError(
                     f"Missing scanner preview asset referenced by {snapshot_relative}: {preview_relative}"
@@ -487,6 +488,11 @@ def validate_site_output(output_dir: Path) -> None:
                 raise FileNotFoundError(
                     f"Missing scanner detail data referenced by {snapshot_relative}: {detail_data_relative}"
                 )
+
+    if expected_preview_assets and (
+        not generated_dir.exists() or not any(path.is_file() for path in generated_dir.rglob("*"))
+    ):
+        raise FileNotFoundError(f"Missing generated scanner assets in {generated_dir}")
 
 
 def _assert_scanner_site_output(output_dir: Path) -> None:
