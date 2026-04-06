@@ -1,0 +1,20 @@
+name: Update Scanner Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: scanner-data-update
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  refresh-and-deploy:
+    uses: ./.github/workflows/data-cron.yml
+    secrets: inherit

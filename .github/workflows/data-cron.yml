@@ -1,9 +1,8 @@
-name: Update Scanner Data
+name: Update Scanner Data Manual
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
+  workflow_call:
 
 concurrency:
   group: scanner-data-update
