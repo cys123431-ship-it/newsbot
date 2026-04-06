@@ -4,7 +4,9 @@ import asyncio
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from hashlib import sha1
 import json
+import math
 from pathlib import Path
 import shutil
 import sys
@@ -19,6 +21,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from newsbot.scanner import CRYPTO_PAGE_DEFINITIONS
+from newsbot.scanner import FALLBACK_SYMBOLS
 from newsbot.scanner import SCANNER_STATUS_ORDER
 from newsbot.scanner import TIMEFRAME_LABELS
 from newsbot.scanner import UNIVERSE_PRESETS
@@ -38,6 +41,19 @@ TIMEFRAMES = ("5m", "15m", "1h", "4h")
 REQUEST_TIMEOUT = 20.0
 REQUEST_CONCURRENCY = 8
 KLINE_LIMIT = 220
+TIMEFRAME_MINUTES = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
+FALLBACK_SYMBOL_BASELINES: dict[str, dict[str, float]] = {
+    "BTCUSDT": {"last_price": 68320.0, "quote_volume": 9_450_000_000.0, "open_interest_usd": 3_850_000_000.0},
+    "ETHUSDT": {"last_price": 3315.0, "quote_volume": 4_280_000_000.0, "open_interest_usd": 1_920_000_000.0},
+    "SOLUSDT": {"last_price": 80.06, "quote_volume": 1_280_000_000.0, "open_interest_usd": 987_000_000.0},
+    "XRPUSDT": {"last_price": 0.642, "quote_volume": 1_140_000_000.0, "open_interest_usd": 602_000_000.0},
+    "BNBUSDT": {"last_price": 587.2, "quote_volume": 734_000_000.0, "open_interest_usd": 511_000_000.0},
+    "ADAUSDT": {"last_price": 0.714, "quote_volume": 598_000_000.0, "open_interest_usd": 318_000_000.0},
+    "DOGEUSDT": {"last_price": 0.1834, "quote_volume": 836_000_000.0, "open_interest_usd": 402_000_000.0},
+    "SUIUSDT": {"last_price": 1.64, "quote_volume": 326_000_000.0, "open_interest_usd": 145_000_000.0},
+    "LINKUSDT": {"last_price": 18.28, "quote_volume": 281_000_000.0, "open_interest_usd": 176_000_000.0},
+    "AVAXUSDT": {"last_price": 38.14, "quote_volume": 254_000_000.0, "open_interest_usd": 164_000_000.0},
+}
 
 
 def _now_iso() -> str:
@@ -66,6 +82,21 @@ def _slugify(value: str) -> str:
 
 def _page_filename(page_key: str, *, universe_key: str, timeframe: str) -> str:
     return f"{page_key.replace('_', '-')}-{universe_key}-{timeframe}.json"
+
+
+def _parse_iso_datetime(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = datetime.now(timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _stable_seed(*parts: str) -> int:
+    digest = sha1("|".join(parts).encode("utf-8")).hexdigest()
+    return int(digest[:12], 16)
 
 
 async def _fetch_json(
@@ -229,6 +260,147 @@ def _build_preview_candles(result: dict[str, Any]) -> list[dict[str, Any]]:
             )
             current_time += timedelta(minutes=5)
     return candles
+
+
+def _build_synthetic_candles(
+    *,
+    symbol: str,
+    timeframe: str,
+    generated_at: str,
+    last_price: float,
+    change_24h: float,
+) -> list[dict[str, Any]]:
+    count = KLINE_LIMIT
+    interval_minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
+    end_time = _parse_iso_datetime(generated_at)
+    seed = _stable_seed(symbol, timeframe, generated_at)
+    phase = (seed % 360) * math.pi / 180.0
+    wave_primary = 0.004 + ((seed % 7) * 0.0007)
+    wave_secondary = 0.0014 + (((seed >> 3) % 5) * 0.0004)
+    drift_bias = ((seed % 17) - 8) / 3000
+    baseline_close = max(last_price, 0.0001)
+    if abs(change_24h) >= 0.01:
+        start_close = baseline_close / max(1 + (change_24h / 100), 0.2)
+    else:
+        start_close = baseline_close * (0.992 + (((seed >> 5) % 20) / 1000))
+    current_time = end_time - timedelta(minutes=interval_minutes * (count - 1))
+
+    candles: list[dict[str, Any]] = []
+    previous_close = start_close
+    volume_base = max(baseline_close * (200 + (seed % 120)), 1.0)
+    for index in range(count):
+        progress = index / max(count - 1, 1)
+        linear = start_close + ((baseline_close - start_close) * progress)
+        seasonal = math.sin((progress * 7.2) + phase) * wave_primary
+        micro = math.cos((progress * 18.0) + (phase / 3)) * wave_secondary
+        drift = progress * drift_bias
+        close_price = max(linear * (1 + seasonal + micro + drift), baseline_close * 0.55, 0.0001)
+        open_price = previous_close
+        spread_ratio = 0.0016 + ((seed + index) % 9) * 0.00023
+        high_price = max(open_price, close_price) * (1 + spread_ratio)
+        low_price = max(min(open_price, close_price) * (1 - spread_ratio), 0.00001)
+        volume = volume_base * (0.88 + (abs(math.sin(index / 5.0 + phase)) * 0.42))
+        candles.append(
+            {
+                "timestamp": current_time.replace(microsecond=0).isoformat(),
+                "open": round(open_price, 8),
+                "high": round(high_price, 8),
+                "low": round(low_price, 8),
+                "close": round(close_price, 8),
+                "volume": round(volume, 2),
+            }
+        )
+        previous_close = close_price
+        current_time += timedelta(minutes=interval_minutes)
+
+    if candles:
+        candles[-1]["close"] = round(baseline_close, 8)
+        candles[-1]["high"] = round(max(candles[-1]["high"], baseline_close), 8)
+        candles[-1]["low"] = round(min(candles[-1]["low"], baseline_close), 8)
+    return candles
+
+
+def _fallback_ticker(symbol: str, *, position: int) -> dict[str, Any]:
+    baseline = FALLBACK_SYMBOL_BASELINES.get(symbol, {})
+    last_price = _safe_float(baseline.get("last_price"), fallback=max(1.0 / (position + 1), 0.01))
+    direction = 1 if position % 2 == 0 else -1
+    change_24h = round(direction * (1.8 + ((position % 5) * 0.9)), 2)
+    quote_volume = _safe_float(
+        baseline.get("quote_volume"),
+        fallback=max(40_000_000.0, last_price * (120_000_000 / max(position + 1, 1))),
+    )
+    return {
+        "symbol": symbol,
+        "last_price": last_price,
+        "change_24h": change_24h,
+        "quote_volume": quote_volume,
+    }
+
+
+def _fallback_symbol_context(symbol: str, *, position: int, ticker: dict[str, Any]) -> dict[str, float]:
+    baseline = FALLBACK_SYMBOL_BASELINES.get(symbol, {})
+    open_interest_usd = _safe_float(
+        baseline.get("open_interest_usd"),
+        fallback=max(_safe_float(ticker.get("quote_volume")) * 0.34, 25_000_000.0),
+    )
+    long_short_ratio = round(0.9 + ((position % 7) * 0.055), 3)
+    if position % 3 == 0:
+        long_short_ratio = round(max(long_short_ratio - 0.16, 0.72), 3)
+    funding_rate = round((((position % 9) - 4) * 0.0024), 4)
+    return {
+        "open_interest_usd": open_interest_usd,
+        "long_short_ratio": long_short_ratio,
+        "funding_rate": funding_rate,
+    }
+
+
+def _build_fallback_analyses(
+    *,
+    timeframe: str,
+    generated_at: str,
+    snapshot: dict[str, Any],
+    symbols: list[str],
+    ticker_lookup: dict[str, dict[str, Any]],
+    premium_lookup: dict[str, float],
+    symbol_contexts: dict[str, dict[str, float | None]],
+) -> list[dict[str, Any]]:
+    pattern_lookup = {str(result.get("symbol") or "").upper(): result for result in snapshot.get("results", [])}
+    analyses: list[dict[str, Any]] = []
+    for position, symbol in enumerate(symbols):
+        ticker = ticker_lookup.get(symbol) or _fallback_ticker(symbol, position=position)
+        if _safe_float(ticker.get("last_price")) <= 0:
+            continue
+        fallback_context = _fallback_symbol_context(symbol, position=position, ticker=ticker)
+        funding_rate = premium_lookup.get(symbol)
+        if funding_rate is None:
+            funding_rate = _safe_float(fallback_context.get("funding_rate"))
+        context = symbol_contexts.get(symbol, {})
+        open_interest_usd = context.get("open_interest_usd")
+        if open_interest_usd is None:
+            open_interest_usd = _safe_float(fallback_context.get("open_interest_usd"))
+        long_short_ratio = context.get("long_short_ratio")
+        if long_short_ratio is None:
+            long_short_ratio = _safe_float(fallback_context.get("long_short_ratio"))
+        candles = _build_synthetic_candles(
+            symbol=symbol,
+            timeframe=timeframe,
+            generated_at=generated_at,
+            last_price=_safe_float(ticker.get("last_price")),
+            change_24h=_safe_float(ticker.get("change_24h")),
+        )
+        analysis = build_symbol_analysis(
+            symbol=symbol,
+            timeframe=timeframe,
+            candles=candles,
+            ticker=ticker,
+            funding_rate=funding_rate,
+            open_interest_usd=open_interest_usd,
+            long_short_ratio=long_short_ratio,
+            pattern_result=pattern_lookup.get(symbol),
+        )
+        analysis["data_origin"] = "fallback_synthetic"
+        analyses.append(analysis)
+    return analyses
 
 
 def _clean_output_directories() -> None:
@@ -690,14 +862,27 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
         try:
             symbols, ticker_lookup, premium_lookup = await _load_universe(client)
             symbol_contexts = await _load_symbol_contexts(client, symbols, ticker_lookup)
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
             snapshots = [
-                build_fallback_snapshot(timeframe=timeframe, generated_at=generated_at)
+                build_fallback_snapshot(
+                    timeframe=timeframe,
+                    generated_at=generated_at,
+                    failures=[{"scope": "universe", "message": str(exc)}],
+                )
                 for timeframe in TIMEFRAMES
             ]
+            analyses = {}
             for snapshot in snapshots:
                 _decorate_results(snapshot=snapshot, candles_by_symbol={})
-            analyses = {timeframe: [] for timeframe in TIMEFRAMES}
+                analyses[snapshot["timeframe"]] = _build_fallback_analyses(
+                    timeframe=snapshot["timeframe"],
+                    generated_at=generated_at,
+                    snapshot=snapshot,
+                    symbols=list(FALLBACK_SYMBOLS),
+                    ticker_lookup={},
+                    premium_lookup={},
+                    symbol_contexts={},
+                )
             return snapshots, analyses
 
         snapshots: list[dict[str, Any]] = []
@@ -723,7 +908,12 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
                     results.append(result)
 
             snapshot = (
-                build_fallback_snapshot(timeframe=timeframe, universe_key=UNIVERSE_KEY, generated_at=generated_at)
+                build_fallback_snapshot(
+                    timeframe=timeframe,
+                    universe_key=UNIVERSE_KEY,
+                    generated_at=generated_at,
+                    failures=failures,
+                )
                 if not results
                 else build_snapshot(
                     generated_at=generated_at,
@@ -739,7 +929,7 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
                 pattern_lookup[result["symbol"]] = result
             snapshots.append(snapshot)
 
-            analyses_by_timeframe[timeframe] = [
+            analyses = [
                 build_symbol_analysis(
                     symbol=symbol,
                     timeframe=timeframe,
@@ -753,6 +943,19 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
                 for symbol in symbols
                 if candles_by_symbol.get(symbol)
             ]
+            existing_symbols = {row["symbol"] for row in analyses}
+            if len(existing_symbols) < len(symbols):
+                fallback_analyses = _build_fallback_analyses(
+                    timeframe=timeframe,
+                    generated_at=generated_at,
+                    snapshot=snapshot,
+                    symbols=[symbol for symbol in symbols if symbol not in existing_symbols],
+                    ticker_lookup=ticker_lookup,
+                    premium_lookup=premium_lookup,
+                    symbol_contexts=symbol_contexts,
+                )
+                analyses.extend(fallback_analyses)
+            analyses_by_timeframe[timeframe] = analyses
         return snapshots, analyses_by_timeframe
 
 

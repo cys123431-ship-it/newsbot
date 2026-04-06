@@ -54,7 +54,11 @@ def test_find_pivots_extracts_alternating_extremes():
 
 def test_build_manifest_collects_snapshot_metadata():
     snapshots = [
-        build_fallback_snapshot(timeframe="5m", generated_at="2026-04-05T12:00:00+00:00"),
+        build_fallback_snapshot(
+            timeframe="5m",
+            generated_at="2026-04-05T12:00:00+00:00",
+            failures=[{"scope": "klines", "message": "timeout"}],
+        ),
         build_fallback_snapshot(timeframe="1h", generated_at="2026-04-05T12:00:00+00:00"),
     ]
 
@@ -72,6 +76,7 @@ def test_build_manifest_collects_snapshot_metadata():
     assert manifest["page_data"]["overview"]["top100"]["5m"] == "overview-top100-5m.json"
     assert manifest["page_data"]["patterns"]["top100"]["5m"] == "scan-top100-5m.json"
     assert any(page["key"] == "technical_ratings" for page in manifest["crypto_pages"])
+    assert snapshots[0]["failures"][0]["scope"] == "klines"
 
 
 def test_build_symbol_analysis_exposes_scores_and_labels():

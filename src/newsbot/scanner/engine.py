@@ -1313,6 +1313,7 @@ def build_fallback_snapshot(
     timeframe: str,
     universe_key: str = "top100",
     generated_at: str | None = None,
+    failures: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     stamp = generated_at or _utc_now_iso()
     score_adjustment = {"5m": 0.0, "15m": 0.8, "1h": 1.6, "4h": 2.4}.get(timeframe, 0.0)
@@ -1415,5 +1416,5 @@ def build_fallback_snapshot(
         timeframe=timeframe,
         symbols_scanned=UNIVERSE_PRESETS[universe_key]["limit"],
         results=sample_results,
-        failures=[],
+        failures=failures or [],
     )
