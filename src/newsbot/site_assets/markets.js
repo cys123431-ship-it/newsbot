@@ -2,13 +2,6 @@ const bootstrapElement = document.getElementById("markets-bootstrap");
 const marketsBootstrap = bootstrapElement ? JSON.parse(bootstrapElement.textContent || "{}") : {};
 
 const refs = {
-  mainTabs: document.getElementById("markets-main-tabs"),
-  subTabs: document.getElementById("markets-subfilter-tabs"),
-  benchmarkStrip: document.getElementById("markets-benchmark-strip"),
-  selectionSummary: document.getElementById("markets-selection-summary"),
-  board: document.getElementById("markets-treemap-board"),
-  legend: document.getElementById("markets-legend"),
-  statusLine: document.getElementById("markets-status-line"),
   cryptoUniverseSelect: document.getElementById("crypto-universe-select"),
   cryptoTimeframeSelect: document.getElementById("crypto-timeframe-select"),
   cryptoRefreshButton: document.getElementById("crypto-refresh-button"),
@@ -21,33 +14,6 @@ const refs = {
   cryptoPageHighlights: document.getElementById("crypto-page-highlights"),
   cryptoPageControls: document.getElementById("crypto-page-controls"),
   cryptoPageContent: document.getElementById("crypto-page-content"),
-};
-
-const MARKET_TABS = [
-  { key: "us", label: "미국주식" },
-  { key: "korea", label: "한국주식" },
-  { key: "crypto", label: "코인" },
-];
-
-const SUBFILTERS = {
-  korea: [
-    { key: "kospi", label: "KOSPI" },
-    { key: "kosdaq", label: "KOSDAQ" },
-  ],
-  us: [
-    { key: "sp500", label: "S&P 500" },
-    { key: "nasdaq", label: "NASDAQ" },
-    { key: "dow", label: "Dow Jones" },
-    { key: "russell", label: "Russell 2000" },
-  ],
-};
-
-const US_INDEX_PROXY_SYMBOLS = { sp500: "SPY", nasdaq: "QQQ", dow: "DIA", russell: "IWM" };
-const US_INDEX_HEADLINES = {
-  sp500: "S&P 500 시가총액 비중",
-  nasdaq: "NASDAQ 시가총액 비중",
-  dow: "Dow 30 구성 종목 비중",
-  russell: "Russell 2000 구성 종목 비중",
 };
 
 const CRYPTO_PATTERN_FILTERS = [
@@ -63,31 +29,33 @@ const CRYPTO_COOLDOWN_STORAGE_KEY = "newsbot-crypto-refresh-cooldown";
 const CRYPTO_LAST_LOADED_STORAGE_KEY = "newsbot-crypto-last-loaded-at";
 const SEOUL_TIMEZONE = "Asia/Seoul";
 const ROOT_PREFIX = (() => {
-  const overviewUrl = String(marketsBootstrap.overview_url || "");
-  const marker = "data/";
-  const index = overviewUrl.indexOf(marker);
-  return index >= 0 ? overviewUrl.slice(0, index) : "";
+  const path = window.location.pathname || "/";
+  const marker = "/markets/";
+  const index = path.indexOf(marker);
+  if (index >= 0) return path.slice(0, index + 1);
+  const analysisMarker = "/analysis/";
+  const analysisIndex = path.indexOf(analysisMarker);
+  if (analysisIndex >= 0) return path.slice(0, analysisIndex + 1);
+  return path.endsWith("/") ? path : `${path}/`;
 })();
 
 const state = {
-  surface: MARKET_TABS.some((tab) => tab.key === marketsBootstrap.initial_surface)
-    ? marketsBootstrap.initial_surface
-    : "korea",
-  filters: { korea: "kospi", us: "sp500" },
-  chart: null,
+  surface: "crypto",
   crypto: {
     pageKey: String(marketsBootstrap.crypto_page_key || "overview"),
     manifest: null,
+    manifestUrl: "",
     pagePayload: null,
     universeKey: "top100",
     timeframe: "5m",
     filter: "all",
     cooldownUntil: Number.parseInt(localStorage.getItem(CRYPTO_COOLDOWN_STORAGE_KEY) || "0", 10) || 0,
     lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
+    errorMessage: "",
+    notice: "최근 배치 스냅샷 기준으로 표시 중입니다.",
+    isLoading: false,
   },
 };
-
-const payloads = { status: null, us: null, korea: null };
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -129,6 +97,43 @@ function formatSeoulDateTime(value) {
     second: "2-digit",
     hour12: false,
   }).format(date)} KST`;
+}
+
+function parseTimestamp(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildFreshnessState(value) {
+  const timestamp = parseTimestamp(value);
+  if (!timestamp) {
+    return { label: "확인 불가", className: "is-neutral", elapsedLabel: "경과 시간 확인 불가" };
+  }
+  const elapsedMs = Math.max(Date.now() - timestamp.getTime(), 0);
+  const elapsedMinutes = elapsedMs / 60_000;
+  let label = "최신";
+  let className = "is-positive";
+  if (elapsedMinutes > 45) {
+    label = "심각한 지연";
+    className = "is-negative";
+  } else if (elapsedMinutes > 25) {
+    label = "지연";
+    className = "is-neutral";
+  }
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  let elapsedLabel = "";
+  if (hours > 0) {
+    elapsedLabel = `${hours}시간 ${minutes}분 경과`;
+  } else if (minutes > 0) {
+    elapsedLabel = `${minutes}분 경과`;
+  } else {
+    elapsedLabel = `${seconds}초 경과`;
+  }
+  return { label, className, elapsedLabel };
 }
 
 function formatPercent(value, digits = 2) {
@@ -203,15 +208,11 @@ function resolveMarketUrl(relativePath) {
 }
 
 function resolveScannerDataUrl(relativePath) {
-  return String(marketsBootstrap.scanner_manifest_url || "").replace(/manifest\.json(?:\?.*)?$/, normalizePath(relativePath));
-}
-
-function activeSubfilters() {
-  return SUBFILTERS[state.surface] || [];
-}
-
-function currentPayload() {
-  return state.surface === "us" ? payloads.us : payloads.korea;
+  const manifestUrl = state.crypto.manifestUrl || String(marketsBootstrap.scanner_manifest_url || "");
+  if (manifestUrl) {
+    return manifestUrl.replace(/manifest\.json(?:\?.*)?$/, normalizePath(relativePath));
+  }
+  return resolveSiteUrl(`data/scanner/${normalizePath(relativePath)}`);
 }
 
 // EQUITY_RENDERERS
@@ -499,6 +500,35 @@ function renderCryptoSkeleton() {
   }
 }
 
+function renderCryptoErrorState() {
+  const message = state.crypto.errorMessage || "코인 데이터를 불러오지 못했습니다.";
+  if (refs.cryptoPageHighlights) {
+    refs.cryptoPageHighlights.innerHTML = `
+      <div class="crypto-stat-grid">
+        <article class="crypto-stat-card scanner-detail-card">
+          <span class="crypto-card-label">배포 상태</span>
+          <strong class="crypto-card-value">확인 필요</strong>
+          <p class="crypto-card-note">${escapeHtml(message)}</p>
+        </article>
+      </div>
+    `;
+  }
+  if (refs.cryptoPageControls) {
+    refs.cryptoPageControls.innerHTML = `
+      <article class="crypto-panel crypto-panel-controls">
+        <div class="crypto-panel-head">
+          <strong>데이터 상태</strong>
+          <span>최근 배치 스냅샷 기준</span>
+        </div>
+        <div class="analysis-empty">${escapeHtml(message)}</div>
+      </article>
+    `;
+  }
+  if (refs.cryptoPageContent) {
+    refs.cryptoPageContent.innerHTML = `<div class="analysis-empty">${escapeHtml(message)}</div>`;
+  }
+}
+
 function populateCryptoControls() {
   const manifest = state.crypto.manifest;
   if (!manifest || !refs.cryptoUniverseSelect || !refs.cryptoTimeframeSelect) return;
@@ -516,26 +546,67 @@ function resolveCryptoPageDatasetUrl() {
   return snapshot ? resolveScannerDataUrl(snapshot.path) : null;
 }
 
+function cryptoManifestCandidates() {
+  const candidates = [
+    String(marketsBootstrap.scanner_manifest_url || "").trim(),
+    resolveSiteUrl("data/scanner/manifest.json"),
+  ].filter(Boolean);
+  return [...new Set(candidates)];
+}
+
 async function loadCryptoManifest({ bust = false } = {}) {
-  if (!marketsBootstrap.scanner_manifest_url) return;
-  state.crypto.manifest = await loadJson(marketsBootstrap.scanner_manifest_url, { bust });
-  const manifest = state.crypto.manifest;
-  const firstUniverse = manifest?.universe_presets?.[0]?.key;
-  const firstTimeframe = manifest?.timeframes?.[0]?.key;
-  if (firstUniverse && !asArray(manifest.universe_presets).some((item) => item.key === state.crypto.universeKey)) state.crypto.universeKey = firstUniverse;
-  if (firstTimeframe && !asArray(manifest.timeframes).some((item) => item.key === state.crypto.timeframe)) state.crypto.timeframe = firstTimeframe;
+  let lastError = null;
+  for (const candidate of cryptoManifestCandidates()) {
+    try {
+      state.crypto.manifest = await loadJson(candidate, { bust });
+      state.crypto.manifestUrl = candidate;
+      state.crypto.errorMessage = "";
+      const manifest = state.crypto.manifest;
+      const firstUniverse = manifest?.universe_presets?.[0]?.key;
+      const firstTimeframe = manifest?.timeframes?.[0]?.key;
+      if (firstUniverse && !asArray(manifest.universe_presets).some((item) => item.key === state.crypto.universeKey)) state.crypto.universeKey = firstUniverse;
+      if (firstTimeframe && !asArray(manifest.timeframes).some((item) => item.key === state.crypto.timeframe)) state.crypto.timeframe = firstTimeframe;
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  state.crypto.errorMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
+  throw lastError || new Error(state.crypto.errorMessage);
 }
 
 async function loadCryptoPagePayload({ bust = false } = {}) {
+  const previousTimestamp = currentCryptoDataTimestamp();
   const datasetUrl = resolveCryptoPageDatasetUrl();
   if (!datasetUrl) {
+    state.crypto.errorMessage = "선택한 조건의 스냅샷 파일을 찾지 못했습니다.";
     state.crypto.pagePayload = null;
+    state.crypto.isLoading = false;
     renderCryptoPage();
     return;
   }
-  state.crypto.pagePayload = await loadJson(datasetUrl, { bust });
-  setCryptoLoadedAt();
-  renderCryptoPage();
+  try {
+    state.crypto.pagePayload = await loadJson(datasetUrl, { bust });
+    setCryptoLoadedAt();
+    state.crypto.errorMessage = "";
+    const nextTimestamp = currentCryptoDataTimestamp();
+    if (bust) {
+      state.crypto.notice = previousTimestamp && previousTimestamp === nextTimestamp
+        ? "새로 불러왔지만 최신 스냅샷 시각은 동일합니다."
+        : "최신 정적 스냅샷을 다시 불러왔습니다.";
+    } else if (!state.crypto.notice) {
+      state.crypto.notice = "최근 배치 스냅샷 기준으로 표시 중입니다.";
+    }
+  } catch (error) {
+    state.crypto.notice = "선택한 스냅샷을 불러오지 못했습니다.";
+    if (!state.crypto.pagePayload) {
+      state.crypto.errorMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
+    }
+    throw error;
+  } finally {
+    state.crypto.isLoading = false;
+    renderCryptoPage();
+  }
 }
 
 function renderCryptoSummaryMeta() {
@@ -543,11 +614,14 @@ function renderCryptoSummaryMeta() {
   const dataTimestamp = currentCryptoDataTimestamp();
   const loadedTimestamp = state.crypto.lastLoadedAt;
   const universeLabel = asArray(state.crypto.manifest?.universe_presets).find((item) => item.key === state.crypto.universeKey)?.label || state.crypto.universeKey;
+  const freshness = buildFreshnessState(dataTimestamp);
 
   if (refs.cryptoSummaryMeta) {
     refs.cryptoSummaryMeta.innerHTML = `
       <span class="scanner-summary-pill">데이터 기준(한국시간) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
       <span class="scanner-summary-pill">불러온 시각(한국시간) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
+      <span class="scanner-summary-pill ${freshness.className}">경과 시간 ${escapeHtml(freshness.elapsedLabel)}</span>
+      <span class="scanner-summary-pill ${freshness.className}">상태 ${escapeHtml(freshness.label)}</span>
       <span class="scanner-summary-pill">${escapeHtml(universeLabel)}</span>
       <span class="scanner-summary-pill">${escapeHtml(currentCryptoPageLabel())}</span>
     `;
@@ -555,14 +629,18 @@ function renderCryptoSummaryMeta() {
 
   if (refs.cryptoActiveScan) {
     refs.cryptoActiveScan.innerHTML = snapshot
-      ? `<span class="scanner-active-pill">상태: [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.crypto.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
+      ? `<span class="scanner-active-pill ${freshness.className}">최근 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.crypto.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
       : '<span class="scanner-active-pill">선택한 조건의 스냅샷을 준비 중입니다.</span>';
   }
 
   if (refs.cryptoStatusLine) {
-    refs.cryptoStatusLine.textContent = snapshot
-      ? `상태: [${snapshot.symbols_scanned || 0}/${currentUniverseLimit() || snapshot.symbols_scanned || 0}] 데이터 기준 ${formatSeoulDateTime(dataTimestamp)}, 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔습니다.`
-      : "최신 스캐너 데이터를 불러오는 중입니다.";
+    if (state.crypto.errorMessage) {
+      refs.cryptoStatusLine.textContent = state.crypto.notice || state.crypto.errorMessage;
+    } else if (snapshot) {
+      refs.cryptoStatusLine.textContent = `${state.crypto.notice} 데이터 기준 ${formatSeoulDateTime(dataTimestamp)}, 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔고 ${freshness.elapsedLabel}.`;
+    } else {
+      refs.cryptoStatusLine.textContent = state.crypto.notice || "최신 스캐너 데이터를 불러오는 중입니다.";
+    }
   }
 
   if (refs.cryptoProgressBar) {
@@ -861,8 +939,13 @@ function renderCryptoPage() {
   updateCryptoCooldownUI();
   renderCryptoSummaryMeta();
 
-  if (!state.crypto.pagePayload) {
+  if (state.crypto.isLoading) {
     renderCryptoSkeleton();
+    return;
+  }
+
+  if (state.crypto.errorMessage && !state.crypto.pagePayload) {
+    renderCryptoErrorState();
     return;
   }
 
@@ -901,14 +984,18 @@ function bindCryptoEvents() {
   if (refs.cryptoUniverseSelect) {
     refs.cryptoUniverseSelect.addEventListener("change", async (event) => {
       state.crypto.universeKey = event.target.value;
-      renderCryptoSkeleton();
+      state.crypto.isLoading = true;
+      state.crypto.notice = "선택한 조건의 최신 배치 스냅샷을 불러오는 중입니다.";
+      renderCryptoPage();
       await loadCryptoPagePayload();
     });
   }
   if (refs.cryptoTimeframeSelect) {
     refs.cryptoTimeframeSelect.addEventListener("change", async (event) => {
       state.crypto.timeframe = event.target.value;
-      renderCryptoSkeleton();
+      state.crypto.isLoading = true;
+      state.crypto.notice = "선택한 조건의 최신 배치 스냅샷을 불러오는 중입니다.";
+      renderCryptoPage();
       await loadCryptoPagePayload();
     });
   }
@@ -920,46 +1007,37 @@ function bindCryptoEvents() {
       }
       setCryptoCooldown();
       updateCryptoCooldownUI();
-      renderCryptoSkeleton();
+      state.crypto.isLoading = true;
+      state.crypto.notice = "최신 정적 스냅샷을 확인하는 중입니다.";
+      renderCryptoPage();
       try {
         await loadCryptoManifest({ bust: true });
         await loadCryptoPagePayload({ bust: true });
       } catch (error) {
-        if (refs.cryptoStatusLine) refs.cryptoStatusLine.textContent = error?.message || "코인 데이터를 불러오지 못했습니다.";
+        state.crypto.isLoading = false;
+        if (!state.crypto.errorMessage) {
+          state.crypto.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+        }
+        state.crypto.notice = state.crypto.errorMessage;
+        renderCryptoPage();
       }
     });
   }
-  window.setInterval(updateCryptoCooldownUI, 1000);
+  window.setInterval(() => {
+    updateCryptoCooldownUI();
+    if (!state.crypto.isLoading) {
+      renderCryptoSummaryMeta();
+    }
+  }, 1000);
 }
 
 function renderMarkets() {
-  renderMainTabs();
-  if (state.surface === "crypto") {
-    renderCryptoPage();
-    return;
-  }
-  renderMarketsStatus();
-  renderSubTabs();
-  const model = resolveSurfaceModel();
-  renderBenchmarkStrip(model);
-  renderSelectionSummary(model);
-  renderLegend(model);
-  renderTreemapSurface(model);
-}
-
-async function initEquityMarkets() {
-  const [statusPayload, stocksPayload, koreaPayload] = await Promise.all([
-    loadJson(marketsBootstrap.status_url),
-    loadJson(marketsBootstrap.stocks_url),
-    loadJson(marketsBootstrap.korea_url),
-  ]);
-  payloads.status = statusPayload;
-  payloads.us = stocksPayload;
-  payloads.korea = koreaPayload;
+  renderCryptoPage();
 }
 
 async function initCryptoMarkets() {
-  renderCryptoSkeleton();
+  state.crypto.isLoading = true;
+  renderCryptoPage();
   bindCryptoEvents();
   await loadCryptoManifest();
   await loadCryptoPagePayload();
@@ -968,16 +1046,14 @@ async function initCryptoMarkets() {
 async function initMarkets() {
   renderMarkets();
   try {
-    if (state.surface === "crypto") {
-      await initCryptoMarkets();
-    } else {
-      await initEquityMarkets();
-      renderMarkets();
-    }
+    await initCryptoMarkets();
   } catch (error) {
-    if (refs.statusLine) refs.statusLine.textContent = "시장 데이터를 불러오지 못했습니다.";
-    if (refs.cryptoStatusLine) refs.cryptoStatusLine.textContent = error?.message || "코인 데이터를 불러오지 못했습니다.";
-    if (refs.board) refs.board.innerHTML = `<div class="analysis-empty">${escapeHtml(error?.message || "Unknown error")}</div>`;
+    state.crypto.isLoading = false;
+    if (!state.crypto.errorMessage) {
+      state.crypto.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+    }
+    state.crypto.notice = state.crypto.errorMessage;
+    renderCryptoPage();
   }
 }
 

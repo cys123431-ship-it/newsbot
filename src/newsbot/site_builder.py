@@ -157,31 +157,13 @@ def _build_market_nav_links(
     *,
     news_href: str,
     analysis_href: str,
-    us_href: str,
-    korea_href: str,
     crypto_href: str,
 ) -> list[dict[str, str]]:
     return [
         {"key": "news", "label": "News", "href": news_href},
         {"key": "analysis", "label": "Analysis", "href": analysis_href},
-        {"key": "us", "label": "미국주식", "href": us_href},
-        {"key": "korea", "label": "한국주식", "href": korea_href},
         {"key": "crypto", "label": "코인", "href": crypto_href},
     ]
-
-
-def _build_market_surface_links(
-    *,
-    us_href: str,
-    korea_href: str,
-    crypto_href: str,
-) -> list[dict[str, str]]:
-    return [
-        {"key": "us", "label": "미국주식", "href": us_href},
-        {"key": "korea", "label": "한국주식", "href": korea_href},
-        {"key": "crypto", "label": "코인", "href": crypto_href},
-    ]
-
 
 def _build_crypto_page_links(
     *,
@@ -246,66 +228,14 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             nav_links=_build_market_nav_links(
                 news_href="../",
                 analysis_href="../analysis/",
-                us_href="us/",
-                korea_href="korea/",
                 crypto_href="crypto/",
             ),
-            surface_links=_build_market_surface_links(
-                us_href="us/",
-                korea_href="korea/",
-                crypto_href="crypto/",
-            ),
+            surface_links=[],
             crypto_page_key="overview",
             crypto_page_label="오버뷰",
             crypto_page_links=_build_crypto_page_links(
                 overview_href="crypto/",
                 child_prefix="crypto/",
-            ),
-        ),
-        _build_market_page_spec(
-            surface="us",
-            surface_label="미국주식",
-            output_dir=f"{MARKETS_DIRECTORY_NAME}/us",
-            asset_prefix="../../assets",
-            data_prefix="../../data",
-            page_title="newsbot markets | 미국주식",
-            page_description="newsbot US stock market map",
-            body_class="market-map-page",
-            show_market_map=True,
-            nav_links=_build_market_nav_links(
-                news_href="../../",
-                analysis_href="../../analysis/",
-                us_href="./",
-                korea_href="../korea/",
-                crypto_href="../crypto/",
-            ),
-            surface_links=_build_market_surface_links(
-                us_href="./",
-                korea_href="../korea/",
-                crypto_href="../crypto/",
-            ),
-        ),
-        _build_market_page_spec(
-            surface="korea",
-            surface_label="한국주식",
-            output_dir=f"{MARKETS_DIRECTORY_NAME}/korea",
-            asset_prefix="../../assets",
-            data_prefix="../../data",
-            page_title="newsbot markets | 한국주식",
-            page_description="newsbot Korean stock market map",
-            body_class="market-map-page",
-            show_market_map=True,
-            nav_links=_build_market_nav_links(
-                news_href="../../",
-                analysis_href="../../analysis/",
-                us_href="../us/",
-                korea_href="./",
-                crypto_href="../crypto/",
-            ),
-            surface_links=_build_market_surface_links(
-                us_href="../us/",
-                korea_href="./",
-                crypto_href="../crypto/",
             ),
         ),
         _build_market_page_spec(
@@ -321,15 +251,9 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             nav_links=_build_market_nav_links(
                 news_href="../../",
                 analysis_href="../../analysis/",
-                us_href="../us/",
-                korea_href="../korea/",
                 crypto_href="./",
             ),
-            surface_links=_build_market_surface_links(
-                us_href="../us/",
-                korea_href="../korea/",
-                crypto_href="./",
-            ),
+            surface_links=[],
             crypto_page_key="overview",
             crypto_page_label="오버뷰",
             crypto_page_links=_build_crypto_page_links(
@@ -357,15 +281,9 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
                 nav_links=_build_market_nav_links(
                     news_href="../../../",
                     analysis_href="../../../analysis/",
-                    us_href="../../us/",
-                    korea_href="../../korea/",
                     crypto_href="../",
                 ),
-                surface_links=_build_market_surface_links(
-                    us_href="../../us/",
-                    korea_href="../../korea/",
-                    crypto_href="../",
-                ),
+                surface_links=[],
                 crypto_page_key=page["key"],
                 crypto_page_label=page["label"],
                 crypto_page_links=_build_crypto_page_links(
@@ -463,6 +381,77 @@ def _copy_directory_contents(source_dir: Path, destination_dir: Path) -> None:
         target_path = destination_dir / relative_path
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_path, target_path)
+
+
+def _validate_scanner_manifest_tree(base_dir: Path) -> dict[str, Any]:
+    manifest_path = base_dir / SCANNER_MANIFEST_FILENAME
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Missing scanner manifest: {manifest_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid scanner manifest JSON: {manifest_path}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Scanner manifest must be a JSON object: {manifest_path}")
+
+    missing_paths: list[str] = []
+    for snapshot in manifest.get("snapshots", []):
+        if not isinstance(snapshot, dict):
+            continue
+        relative_path = str(snapshot.get("path") or "").strip()
+        if relative_path and not (base_dir / relative_path).exists():
+            missing_paths.append(relative_path)
+
+    page_data = manifest.get("page_data", {})
+    if isinstance(page_data, dict):
+        for by_page in page_data.values():
+            if not isinstance(by_page, dict):
+                continue
+            for by_universe in by_page.values():
+                if not isinstance(by_universe, dict):
+                    continue
+                for relative_path in by_universe.values():
+                    candidate = str(relative_path or "").strip()
+                    if candidate and not (base_dir / candidate).exists():
+                        missing_paths.append(candidate)
+
+    if missing_paths:
+        sample = ", ".join(sorted(set(missing_paths))[:5])
+        raise FileNotFoundError(
+            f"Scanner manifest references missing files under {base_dir}: {sample}"
+        )
+    return manifest
+
+
+def _assert_scanner_site_output(output_dir: Path) -> None:
+    scanner_dir = output_dir / "data" / SCANNER_DIRECTORY_NAME
+    _validate_scanner_manifest_tree(scanner_dir)
+
+    generated_dir = output_dir / "generated" / SCANNER_DIRECTORY_NAME
+    if not generated_dir.exists() or not any(path.is_file() for path in generated_dir.rglob("*")):
+        raise FileNotFoundError(f"Missing generated scanner assets in {generated_dir}")
+
+    crypto_index = output_dir / MARKETS_DIRECTORY_NAME / "crypto" / "index.html"
+    if not crypto_index.exists():
+        raise FileNotFoundError(f"Missing crypto landing page: {crypto_index}")
+
+
+def _build_market_redirect_html(*, title: str, target_href: str) -> str:
+    escaped_target = target_href.replace('"', "&quot;")
+    return (
+        "<!doctype html>\n"
+        '<html lang="ko">\n'
+        "  <head>\n"
+        '    <meta charset="utf-8" />\n'
+        '    <meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+        f"    <title>{title}</title>\n"
+        f'    <meta http-equiv="refresh" content="0; url={escaped_target}" />\n'
+        "  </head>\n"
+        "  <body>\n"
+        f'    <p>Redirecting to <a href="{escaped_target}">{escaped_target}</a>...</p>\n'
+        "  </body>\n"
+        "</html>\n"
+    )
 
 
 def _get_featured_priority_map(scope: str) -> dict[str, int]:
@@ -2145,6 +2134,7 @@ def _write_static_site(
 ) -> None:
     market_page_specs = _build_market_page_specs()
     crypto_page_spec = _resolve_crypto_page_spec(market_page_specs)
+    _validate_scanner_manifest_tree(PUBLIC_SCANNER_DATA_DIR)
     scanner_manifest = _load_public_scanner_manifest()
     scanner_snapshots = _load_public_scanner_snapshots(scanner_manifest)
 
@@ -2156,6 +2146,8 @@ def _write_static_site(
     (output_dir / "data" / SCANNER_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / ANALYSIS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / MARKETS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
+    (output_dir / MARKETS_DIRECTORY_NAME / "us").mkdir(parents=True, exist_ok=True)
+    (output_dir / MARKETS_DIRECTORY_NAME / "korea").mkdir(parents=True, exist_ok=True)
     (output_dir / "generated" / SCANNER_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     for page_spec in market_page_specs:
         (output_dir / page_spec["output_dir"]).mkdir(parents=True, exist_ok=True)
@@ -2214,17 +2206,11 @@ def _write_static_site(
     for page_spec in market_page_specs:
         markets_bootstrap_json = json.dumps(
             {
-                "initial_surface": page_spec["surface"],
-                "surface_links": page_spec["surface_links"],
+                "initial_surface": "crypto",
                 "crypto_page_key": page_spec["crypto_page_key"],
                 "crypto_page_label": page_spec["crypto_page_label"],
                 "crypto_page_links": page_spec["crypto_page_links"],
                 "scanner_manifest_url": page_spec["data_prefix"] + f"/{SCANNER_DIRECTORY_NAME}/{SCANNER_MANIFEST_FILENAME}",
-                "overview_url": page_spec["data_prefix"] + "/" + MARKETS_OVERVIEW_FILENAME,
-                "stocks_url": page_spec["data_prefix"] + "/" + MARKETS_STOCKS_FILENAME,
-                "korea_url": page_spec["data_prefix"] + "/" + MARKETS_KOREA_FILENAME,
-                "crypto_url": page_spec["data_prefix"] + "/" + MARKETS_CRYPTO_FILENAME,
-                "status_url": page_spec["data_prefix"] + "/" + MARKETS_STATUS_FILENAME,
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -2244,6 +2230,21 @@ def _write_static_site(
         )
         (output_dir / page_spec["output_dir"] / "index.html").write_text(
             markets_html,
+            encoding="utf-8",
+        )
+    redirect_pages = {
+        "us": _build_market_redirect_html(
+            title="newsbot markets | 미국주식",
+            target_href="../crypto/",
+        ),
+        "korea": _build_market_redirect_html(
+            title="newsbot markets | 한국주식",
+            target_href="../crypto/",
+        ),
+    }
+    for directory_name, redirect_html in redirect_pages.items():
+        (output_dir / MARKETS_DIRECTORY_NAME / directory_name / "index.html").write_text(
+            redirect_html,
             encoding="utf-8",
         )
     _write_scanner_detail_pages(
@@ -2290,6 +2291,7 @@ def _write_static_site(
         encoding="utf-8",
     )
     (output_dir / ".nojekyll").write_text("", encoding="utf-8")
+    _assert_scanner_site_output(output_dir)
 
 
 def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticArticle]:
@@ -2552,8 +2554,6 @@ def _write_scanner_detail_pages(
                     nav_links=[
                         {"key": "news", "label": "News", "href": prefix_root},
                         {"key": "analysis", "label": "Analysis", "href": prefix_root + "analysis/"},
-                        {"key": "us", "label": "미국주식", "href": prefix_root + "markets/us/"},
-                        {"key": "korea", "label": "한국주식", "href": prefix_root + "markets/korea/"},
                         {"key": "crypto", "label": "코인", "href": prefix_root + "markets/crypto/"},
                     ],
                     back_href=prefix_root + "markets/crypto/patterns/",

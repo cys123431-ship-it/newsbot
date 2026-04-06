@@ -268,9 +268,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'class="headline-stack"' in html
     assert 'class="news-side-rail"' in html
     assert 'href="analysis/"' in html
-    assert 'href="markets/us/"' in html
-    assert 'href="markets/korea/"' in html
     assert 'href="markets/crypto/"' in html
+    assert 'href="markets/us/"' not in html
+    assert 'href="markets/korea/"' not in html
 
     analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
     assert 'id="analysis-window-tabs"' in analysis_html
@@ -281,9 +281,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="analysis-repeated"' in analysis_html
     assert 'id="analysis-samples"' in analysis_html
     assert "../assets/analysis.js" in analysis_html
-    assert 'href="../markets/us/"' in analysis_html
-    assert 'href="../markets/korea/"' in analysis_html
     assert 'href="../markets/crypto/"' in analysis_html
+    assert 'href="../markets/us/"' not in analysis_html
+    assert 'href="../markets/korea/"' not in analysis_html
 
     markets_alias_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
     assert 'id="crypto-app"' in markets_alias_html
@@ -294,25 +294,18 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="crypto-page-content"' in markets_alias_html
     assert '"initial_surface":"crypto"' in markets_alias_html
     assert '"crypto_page_key":"overview"' in markets_alias_html
-    assert '"surface_links":' in markets_alias_html
     assert '"scanner_manifest_url":"' in markets_alias_html
     assert "../assets/markets.js" in markets_alias_html
+    assert '미국주식' not in markets_alias_html
+    assert '한국주식' not in markets_alias_html
 
     us_markets_html = (output_dir / "markets" / "us" / "index.html").read_text(encoding="utf-8")
-    assert 'id="markets-main-tabs"' in us_markets_html
-    assert 'id="markets-subfilter-tabs"' in us_markets_html
-    assert 'id="markets-treemap-board"' in us_markets_html
-    assert '"initial_surface":"us"' in us_markets_html
-    assert '"korea_url":"' in us_markets_html
-    assert "echarts.min.js" in us_markets_html
-    assert "../../assets/markets.js" in us_markets_html
+    assert 'http-equiv="refresh"' in us_markets_html
+    assert '../crypto/' in us_markets_html
 
     korea_markets_html = (output_dir / "markets" / "korea" / "index.html").read_text(encoding="utf-8")
-    assert 'id="markets-main-tabs"' in korea_markets_html
-    assert 'id="markets-subfilter-tabs"' in korea_markets_html
-    assert 'id="markets-treemap-board"' in korea_markets_html
-    assert '"initial_surface":"korea"' in korea_markets_html
-    assert "../../assets/markets.js" in korea_markets_html
+    assert 'http-equiv="refresh"' in korea_markets_html
+    assert '../crypto/' in korea_markets_html
 
     crypto_markets_html = (output_dir / "markets" / "crypto" / "index.html").read_text(encoding="utf-8")
     assert 'id="crypto-app"' in crypto_markets_html
@@ -327,6 +320,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert '"crypto_page_links":' in crypto_markets_html
     assert '"scanner_manifest_url":"' in crypto_markets_html
     assert "../../assets/markets.js" in crypto_markets_html
+    assert "echarts.min.js" not in crypto_markets_html
+    assert 'href="../us/"' not in crypto_markets_html
+    assert 'href="../korea/"' not in crypto_markets_html
 
     for slug, key in (
         ("signals", "signals"),
@@ -345,12 +341,12 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
         assert '../../../assets/markets.js' in nested_html
 
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
-    assert "buildTreemapOption" in markets_js
-    assert "buildTreemapHierarchy" in markets_js
     assert "loadCryptoManifest" in markets_js
     assert "renderSignalsPage" in markets_js
     assert "renderPatternsPage" in markets_js
     assert "renderMultiTimeframePage" in markets_js
+    assert "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다." in markets_js
+    assert "심각한 지연" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -392,6 +388,32 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert legacy_detail_html_path.exists()
     detail_json_path = output_dir / "data" / "scanner" / first_result["detail_data_path"]
     assert detail_json_path.exists()
+
+
+def test_build_static_site_fails_when_scanner_manifest_is_missing(tmp_path, monkeypatch):
+    empty_scanner_dir = tmp_path / "scanner-empty"
+    empty_scanner_dir.mkdir()
+    monkeypatch.setattr("newsbot.site_builder.PUBLIC_SCANNER_DATA_DIR", empty_scanner_dir)
+    source_definitions = [
+        SourceDefinition(
+            source_key="coindesk-rss",
+            name="CoinDesk",
+            adapter_type="rss",
+            category="crypto",
+            poll_interval_sec=300,
+            base_url="https://www.coindesk.com",
+            trust_level=90,
+        )
+    ]
+    adapters = {"rss": FakeCryptoAdapter()}
+
+    with pytest.raises(FileNotFoundError):
+        build_static_site(
+            _settings(tmp_path),
+            output_dir=tmp_path / "site-dist",
+            source_definitions=source_definitions,
+            adapters=adapters,
+        )
 
 
 def test_allow_static_candidate_blocks_pressian_urls():

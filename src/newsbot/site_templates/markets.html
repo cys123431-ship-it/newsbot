@@ -10,64 +10,25 @@
   <body class="public-app {{ body_class }}">
     <nav class="surface-switcher" aria-label="View switcher">
       {% for item in nav_links %}
-      <a class="surface-link {% if item.key == surface %}is-active{% endif %}" href="{{ item.href }}">
+      <a class="surface-link {% if item.key == 'crypto' %}is-active{% endif %}" href="{{ item.href }}">
         {{ item.label }}
       </a>
       {% endfor %}
     </nav>
 
-    {% if show_market_map %}
-    <header class="markets-header">
-      <div class="analysis-header-copy">
-        <p class="analysis-eyebrow">newsbot markets</p>
-        <h1>{{ surface_label }} 마켓맵</h1>
-        <p>시가총액 비중과 등락률을 한 번에 훑어보는 대형 트리맵입니다.</p>
-      </div>
-      <div class="analysis-header-meta">
-        <span class="summary-pill">{{ surface_label }}</span>
-        <span class="summary-pill">Squarified treemap</span>
-        <span class="summary-pill">업데이트 <time datetime="{{ generated_at }}">{{ generated_at }}</time></span>
-      </div>
-      <div id="markets-status-line" class="markets-status-line">시장 데이터를 불러오는 중입니다.</div>
-    </header>
-
-    <main class="markets-shell">
-      <section class="market-map-panel">
-        <div class="market-map-toolbar">
-          <div class="market-map-copy">
-            <p class="analysis-kicker">Market map</p>
-            <h2>국가와 지수를 고르면 주요 종목 비중을 바로 비교할 수 있습니다.</h2>
-            <p>미국과 한국 주식은 기존 트리맵 구조를 유지하고, 코인은 별도 정적 분석 섹션으로 분리했습니다.</p>
-          </div>
-          <div id="markets-main-tabs" class="market-main-tabs" aria-label="시장 메인 탭"></div>
-          <div id="markets-subfilter-tabs" class="market-subfilter-tabs" aria-label="시장 하위 필터"></div>
-        </div>
-
-        <div id="markets-benchmark-strip" class="market-benchmark-strip"></div>
-        <div id="markets-selection-summary" class="market-selection-summary"></div>
-
-        <section class="market-map-stage" aria-label="시장 트리맵">
-          <div id="markets-treemap-board" class="market-treemap-board"></div>
-        </section>
-
-        <div id="markets-legend" class="market-map-legend"></div>
-      </section>
-
-      <noscript class="noscript-note">JavaScript가 있어야 시장 대시보드를 렌더링할 수 있습니다.</noscript>
-    </main>
-    {% else %}
     <main class="markets-shell crypto-shell-page">
       <section id="crypto-app" class="crypto-app-shell" aria-label="코인 분석 허브">
         <header class="crypto-page-hero">
           <div class="crypto-page-copy">
             <p class="analysis-eyebrow">Crypto Analysis</p>
             <h1>{{ crypto_page_label or "오버뷰" }}</h1>
-            <p>패턴, 파생 지표, 추세, 모멘텀, 변동성을 한 묶음으로 보는 정적 분석 제품입니다. 스캔 버튼은 최신 배치 스냅샷을 다시 불러옵니다.</p>
+            <p>패턴, 파생 지표, 추세, 모멘텀, 변동성을 한 묶음으로 보는 정적 분석 제품입니다. 스캔 버튼은 최근 배치 스냅샷을 다시 불러옵니다.</p>
           </div>
           <div class="crypto-hero-pills">
             <span class="summary-pill">Binance USDT Perpetual</span>
             <span class="summary-pill">상위 100개 스캔</span>
             <span class="summary-pill">한국시간 표기</span>
+            <span class="summary-pill">최근 배치 스냅샷 기준</span>
           </div>
         </header>
 
@@ -104,11 +65,7 @@
 
       <noscript class="noscript-note">JavaScript가 있어야 코인 분석 허브를 렌더링할 수 있습니다.</noscript>
     </main>
-    {% endif %}
 
-    {% if show_market_map %}
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
-    {% endif %}
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>
     <script src="{{ asset_prefix }}/markets.js"></script>
   </body>
