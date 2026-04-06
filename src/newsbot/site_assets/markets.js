@@ -17,11 +17,11 @@ const refs = {
 };
 
 const CRYPTO_PATTERN_FILTERS = [
-  { key: "all", label: "전체" },
-  { key: "forming", label: "실시간 진입" },
-  { key: "touch", label: "실시간 터치" },
-  { key: "tbar_complete", label: "T-Bar 완성" },
-  { key: "complete", label: "일반 완성" },
+  { key: "all", label: "??" },
+  { key: "forming", label: "??? ??" },
+  { key: "touch", label: "??? ??" },
+  { key: "tbar_complete", label: "T-Bar ??" },
+  { key: "complete", label: "?? ??" },
 ];
 
 const CRYPTO_COOLDOWN_MS = 45_000;
@@ -52,7 +52,7 @@ const state = {
     cooldownUntil: Number.parseInt(localStorage.getItem(CRYPTO_COOLDOWN_STORAGE_KEY) || "0", 10) || 0,
     lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
     errorMessage: "",
-    notice: "최근 배치 스냅샷 기준으로 표시 중입니다.",
+    notice: "?? ?? ??? ???? ?? ????.",
     isLoading: false,
   },
 };
@@ -108,17 +108,17 @@ function parseTimestamp(value) {
 function buildFreshnessState(value) {
   const timestamp = parseTimestamp(value);
   if (!timestamp) {
-    return { label: "확인 불가", className: "is-neutral", elapsedLabel: "경과 시간 확인 불가" };
+    return { label: "?? ??", className: "is-neutral", elapsedLabel: "?? ?? ?? ??" };
   }
   const elapsedMs = Math.max(Date.now() - timestamp.getTime(), 0);
   const elapsedMinutes = elapsedMs / 60_000;
-  let label = "최신";
+  let label = "??";
   let className = "is-positive";
   if (elapsedMinutes > 45) {
-    label = "심각한 지연";
+    label = "??? ??";
     className = "is-negative";
   } else if (elapsedMinutes > 25) {
-    label = "지연";
+    label = "??";
     className = "is-neutral";
   }
   const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -127,11 +127,11 @@ function buildFreshnessState(value) {
   const seconds = totalSeconds % 60;
   let elapsedLabel = "";
   if (hours > 0) {
-    elapsedLabel = `${hours}시간 ${minutes}분 경과`;
+    elapsedLabel = `${hours}?? ${minutes}? ??`;
   } else if (minutes > 0) {
-    elapsedLabel = `${minutes}분 경과`;
+    elapsedLabel = `${minutes}? ??`;
   } else {
-    elapsedLabel = `${seconds}초 경과`;
+    elapsedLabel = `${seconds}? ??`;
   }
   return { label, className, elapsedLabel };
 }
@@ -158,7 +158,7 @@ function formatMarketPrice(value, surface) {
   const numeric = toNumber(value);
   if (numeric <= 0) return "-";
   return surface === "korea"
-    ? `₩${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(numeric)}`
+    ? `?${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(numeric)}`
     : formatTickerPrice(numeric);
 }
 
@@ -168,7 +168,7 @@ function formatUsdCompact(value) {
 }
 
 function formatCap(value, surface) {
-  return `${surface === "korea" ? "₩" : "$"}${formatCompact(value)}`;
+  return `${surface === "korea" ? "?" : "$"}${formatCompact(value)}`;
 }
 
 function formatCardValue(value, format) {
@@ -246,12 +246,12 @@ function renderMarketsStatus() {
   if (!refs.statusLine) return;
   const providers = payloads.status?.providers || {};
   const parts = [
-    `미국 ${providers.stocks?.status || "-"}`,
-    `한국 ${providers.korea?.status || "-"}`,
-    `코인 ${providers.crypto?.status || "-"}`,
+    `?? ${providers.stocks?.status || "-"}`,
+    `?? ${providers.korea?.status || "-"}`,
+    `?? ${providers.crypto?.status || "-"}`,
   ];
-  if (payloads.status?.generated_at) parts.push(`업데이트 ${payloads.status.generated_at}`);
-  refs.statusLine.textContent = parts.join(" · ");
+  if (payloads.status?.generated_at) parts.push(`???? ${payloads.status.generated_at}`);
+  refs.statusLine.textContent = parts.join(" ? ");
 }
 
 function resolveSurfaceModel() {
@@ -264,9 +264,9 @@ function resolveSurfaceModel() {
     const exchange = filterKey === "kosdaq" ? "KOSDAQ" : "KOSPI";
     return {
       surface: "korea",
-      title: `한국주식 · ${subfilter?.label || "KOSPI"}`,
-      subtitle: `${subfilter?.label || "KOSPI"} 종목 시가총액 비중`,
-      groupLabel: "섹터",
+      title: `???? ? ${subfilter?.label || "KOSPI"}`,
+      subtitle: `${subfilter?.label || "KOSPI"} ?? ???? ??`,
+      groupLabel: "??",
       rows: rows
         .filter((row) => String(row.exchange || "").toUpperCase().includes(exchange))
         .sort((left, right) => toNumber(right.market_cap) - toNumber(left.market_cap))
@@ -284,9 +284,9 @@ function resolveSurfaceModel() {
 
   return {
     surface: "us",
-    title: `미국주식 · ${subfilter?.label || "S&P 500"}`,
-    subtitle: US_INDEX_HEADLINES[filterKey] || `${subfilter?.label || "S&P 500"} 구성 종목 비중`,
-    groupLabel: "섹터",
+    title: `???? ? ${subfilter?.label || "S&P 500"}`,
+    subtitle: US_INDEX_HEADLINES[filterKey] || `${subfilter?.label || "S&P 500"} ?? ?? ??`,
+    groupLabel: "??",
     rows: filteredRows.length ? filteredRows : rows.slice(0, 120),
     benchmarks: asArray(payload?.benchmarks).filter((row) => String(row.symbol || "").toUpperCase() === US_INDEX_PROXY_SYMBOLS[filterKey]),
     asOf: payload?.as_of || payload?.generated_at || "",
@@ -309,7 +309,7 @@ function buildTreemapHierarchy(model) {
   const total = model.rows.reduce((sum, row) => sum + toNumber(row.market_cap), 0) || 1;
   const grouped = new Map();
   model.rows.forEach((row) => {
-    const categoryLabel = String(row.sector_or_category || row.industry || "기타").trim() || "기타";
+    const categoryLabel = String(row.sector_or_category || row.industry || "??").trim() || "??";
     if (!grouped.has(categoryLabel)) grouped.set(categoryLabel, { name: categoryLabel, value: 0, children: [] });
     const group = grouped.get(categoryLabel);
     const cap = toNumber(row.market_cap);
@@ -343,9 +343,9 @@ function buildTreemapOption(model) {
       formatter: (params) => {
         const data = params.data || {};
         if (Array.isArray(data.children)) {
-          return `<div class="market-tooltip"><strong>${escapeHtml(data.name)}</strong><div>시가총액 ${escapeHtml(formatCap(data.value, model.surface))}</div></div>`;
+          return `<div class="market-tooltip"><strong>${escapeHtml(data.name)}</strong><div>???? ${escapeHtml(formatCap(data.value, model.surface))}</div></div>`;
         }
-        return `<div class="market-tooltip"><strong>${escapeHtml(data.fullName || data.name)}</strong><div>현재가 ${escapeHtml(formatMarketPrice(data.last, model.surface))}</div><div>등락률 ${escapeHtml(formatPercent(data.changePct))}</div><div>시가총액 ${escapeHtml(formatCap(data.marketCap, model.surface))}</div></div>`;
+        return `<div class="market-tooltip"><strong>${escapeHtml(data.fullName || data.name)}</strong><div>??? ${escapeHtml(formatMarketPrice(data.last, model.surface))}</div><div>??? ${escapeHtml(formatPercent(data.changePct))}</div><div>???? ${escapeHtml(formatCap(data.marketCap, model.surface))}</div></div>`;
       },
     },
     series: [
@@ -388,7 +388,7 @@ function renderBenchmarkStrip(model) {
           </article>
         `,
       )
-      .join("") || '<div class="analysis-empty">표시할 벤치마크가 없습니다.</div>';
+      .join("") || '<div class="analysis-empty">??? ????? ????.</div>';
 }
 
 function renderSelectionSummary(model) {
@@ -397,21 +397,21 @@ function renderSelectionSummary(model) {
   const advancers = model.rows.filter((row) => toNumber(row.change_pct) > 0).length;
   const decliners = model.rows.filter((row) => toNumber(row.change_pct) < 0).length;
   const cards = [
-    { label: "선택 시장", value: model.title, detail: model.asOf || "-" },
-    { label: "추적 종목", value: `${model.rows.length}개`, detail: `${model.groupLabel} 기준` },
-    { label: "전체 시총", value: formatCap(totalCap, model.surface), detail: "선택 종목 합계" },
-    { label: "상승 / 하락", value: `${advancers} / ${decliners}`, detail: `보합 ${model.rows.length - advancers - decliners}` },
+    { label: "?? ??", value: model.title, detail: model.asOf || "-" },
+    { label: "?? ??", value: `${model.rows.length}?`, detail: `${model.groupLabel} ??` },
+    { label: "?? ??", value: formatCap(totalCap, model.surface), detail: "?? ?? ??" },
+    { label: "?? / ??", value: `${advancers} / ${decliners}`, detail: `?? ${model.rows.length - advancers - decliners}` },
   ];
   refs.selectionSummary.innerHTML = cards.map((card) => `<article class="market-summary-card"><span>${escapeHtml(card.label)}</span><strong>${escapeHtml(card.value)}</strong><small>${escapeHtml(card.detail)}</small></article>`).join("");
 }
 
 function renderLegend(model) {
   if (!refs.legend) return;
-  const toneText = model.surface === "korea" ? "상승은 붉은색, 하락은 푸른색" : "상승은 초록색, 하락은 빨간색";
+  const toneText = model.surface === "korea" ? "??? ???, ??? ???" : "??? ???, ??? ???";
   refs.legend.innerHTML = `
-    <div class="market-legend-item"><span class="market-legend-swatch size"></span><strong>크기</strong><small>시가총액 비중</small></div>
-    <div class="market-legend-item"><span class="market-legend-swatch tone"></span><strong>색상</strong><small>${escapeHtml(toneText)}</small></div>
-    <div class="market-legend-item"><span class="market-legend-swatch group"></span><strong>${escapeHtml(model.groupLabel)} 묶음</strong><small>상단 영역으로 그룹 구분</small></div>
+    <div class="market-legend-item"><span class="market-legend-swatch size"></span><strong>??</strong><small>???? ??</small></div>
+    <div class="market-legend-item"><span class="market-legend-swatch tone"></span><strong>??</strong><small>${escapeHtml(toneText)}</small></div>
+    <div class="market-legend-item"><span class="market-legend-swatch group"></span><strong>${escapeHtml(model.groupLabel)} ??</strong><small>?? ???? ?? ??</small></div>
   `;
 }
 
@@ -432,7 +432,7 @@ function renderTreemapSurface(model) {
   if (!chart) return;
   if (!model.rows.length) {
     chart.clear();
-    chart.setOption({ graphic: [{ type: "text", left: "center", top: "middle", style: { text: "표시할 종목 데이터가 없습니다.", fill: "#b8c4d6", font: '600 15px "Segoe UI", "Noto Sans KR", sans-serif' } }] }, true);
+    chart.setOption({ graphic: [{ type: "text", left: "center", top: "middle", style: { text: "??? ?? ???? ????.", fill: "#b8c4d6", font: '600 15px "Segoe UI", "Noto Sans KR", sans-serif' } }] }, true);
     return;
   }
   chart.setOption(buildTreemapOption(model), true);
@@ -451,7 +451,7 @@ function renderCryptoPageTabs() {
 
 function currentCryptoPageLabel() {
   const links = Array.isArray(marketsBootstrap.crypto_page_links) ? marketsBootstrap.crypto_page_links : [];
-  return links.find((link) => link.key === state.crypto.pageKey)?.label || String(marketsBootstrap.crypto_page_label || "오버뷰");
+  return links.find((link) => link.key === state.crypto.pageKey)?.label || String(marketsBootstrap.crypto_page_label || "???");
 }
 
 function currentCryptoSnapshotMeta() {
@@ -481,11 +481,11 @@ function updateCryptoCooldownUI() {
   const remaining = state.crypto.cooldownUntil - Date.now();
   if (remaining <= 0) {
     refs.cryptoRefreshButton.disabled = false;
-    refs.cryptoCooldownText.textContent = "최신 스냅샷을 다시 불러올 수 있습니다.";
+    refs.cryptoCooldownText.textContent = "?? ???? ?? ??? ? ????.";
     return;
   }
   refs.cryptoRefreshButton.disabled = true;
-  refs.cryptoCooldownText.textContent = `다음 새로고침까지 ${Math.ceil(remaining / 1000)}초`;
+  refs.cryptoCooldownText.textContent = `?? ?????? ${Math.ceil(remaining / 1000)}?`;
 }
 
 function renderCryptoSkeleton() {
@@ -501,13 +501,13 @@ function renderCryptoSkeleton() {
 }
 
 function renderCryptoErrorState() {
-  const message = state.crypto.errorMessage || "코인 데이터를 불러오지 못했습니다.";
+  const message = state.crypto.errorMessage || "?? ???? ???? ?????.";
   if (refs.cryptoPageHighlights) {
     refs.cryptoPageHighlights.innerHTML = `
       <div class="crypto-stat-grid">
         <article class="crypto-stat-card scanner-detail-card">
-          <span class="crypto-card-label">배포 상태</span>
-          <strong class="crypto-card-value">확인 필요</strong>
+          <span class="crypto-card-label">?? ??</span>
+          <strong class="crypto-card-value">?? ??</strong>
           <p class="crypto-card-note">${escapeHtml(message)}</p>
         </article>
       </div>
@@ -517,8 +517,8 @@ function renderCryptoErrorState() {
     refs.cryptoPageControls.innerHTML = `
       <article class="crypto-panel crypto-panel-controls">
         <div class="crypto-panel-head">
-          <strong>데이터 상태</strong>
-          <span>최근 배치 스냅샷 기준</span>
+          <strong>??? ??</strong>
+          <span>?? ?? ??? ??</span>
         </div>
         <div class="analysis-empty">${escapeHtml(message)}</div>
       </article>
@@ -536,14 +536,29 @@ function populateCryptoControls() {
   refs.cryptoTimeframeSelect.innerHTML = asArray(manifest.timeframes).map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.crypto.timeframe ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("");
 }
 
-function resolveCryptoPageDatasetUrl() {
+function cryptoDataMissingMessage() {
+  const baseMessage = "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????.";
+  if (state.crypto.pageKey === "patterns") {
+    return `??? ??? ?? ??? ??? ?? ?????. ${baseMessage}`;
+  }
+  return `${currentCryptoPageLabel()} ??? ???? ?? ???? ?????. ${baseMessage}`;
+}
+
+function resolveCryptoPageDatasetPath() {
   const manifest = state.crypto.manifest;
   if (!manifest) return null;
   const pageFiles = manifest.page_data?.[state.crypto.pageKey]?.[state.crypto.universeKey] || {};
-  const relativePath = pageFiles[state.crypto.timeframe];
-  if (relativePath) return resolveScannerDataUrl(relativePath);
-  const snapshot = currentCryptoSnapshotMeta();
-  return snapshot ? resolveScannerDataUrl(snapshot.path) : null;
+  return pageFiles[state.crypto.timeframe] || null;
+}
+
+function resolveCryptoPageDatasetUrl() {
+  const datasetPath = resolveCryptoPageDatasetPath();
+  if (datasetPath) return resolveScannerDataUrl(datasetPath);
+  if (state.crypto.pageKey === "patterns") {
+    const snapshot = currentCryptoSnapshotMeta();
+    return snapshot ? resolveScannerDataUrl(snapshot.path) : null;
+  }
+  return null;
 }
 
 function cryptoManifestCandidates() {
@@ -571,7 +586,7 @@ async function loadCryptoManifest({ bust = false } = {}) {
       lastError = error;
     }
   }
-  state.crypto.errorMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
+  state.crypto.errorMessage = "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????.";
   throw lastError || new Error(state.crypto.errorMessage);
 }
 
@@ -579,7 +594,10 @@ async function loadCryptoPagePayload({ bust = false } = {}) {
   const previousTimestamp = currentCryptoDataTimestamp();
   const datasetUrl = resolveCryptoPageDatasetUrl();
   if (!datasetUrl) {
-    state.crypto.errorMessage = "선택한 조건의 스냅샷 파일을 찾지 못했습니다.";
+    state.crypto.notice = state.crypto.pageKey === "patterns"
+      ? "??? ??? ?? ???? ???? ?????."
+      : `${currentCryptoPageLabel()} ??? ??? ?? ??? ??? ???.`;
+    state.crypto.errorMessage = cryptoDataMissingMessage();
     state.crypto.pagePayload = null;
     state.crypto.isLoading = false;
     renderCryptoPage();
@@ -592,15 +610,17 @@ async function loadCryptoPagePayload({ bust = false } = {}) {
     const nextTimestamp = currentCryptoDataTimestamp();
     if (bust) {
       state.crypto.notice = previousTimestamp && previousTimestamp === nextTimestamp
-        ? "새로 불러왔지만 최신 스냅샷 시각은 동일합니다."
-        : "최신 정적 스냅샷을 다시 불러왔습니다.";
+        ? "?? ????? ?? ??? ??? ?????."
+        : "?? ?? ???? ?? ??????.";
     } else if (!state.crypto.notice) {
-      state.crypto.notice = "최근 배치 스냅샷 기준으로 표시 중입니다.";
+      state.crypto.notice = "?? ?? ??? ???? ?? ????.";
     }
   } catch (error) {
-    state.crypto.notice = "선택한 스냅샷을 불러오지 못했습니다.";
+    state.crypto.notice = state.crypto.pageKey === "patterns"
+      ? "??? ?? ???? ???? ?????."
+      : `${currentCryptoPageLabel()} ??? ???? ???? ?????.`;
     if (!state.crypto.pagePayload) {
-      state.crypto.errorMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
+      state.crypto.errorMessage = cryptoDataMissingMessage();
     }
     throw error;
   } finally {
@@ -618,10 +638,10 @@ function renderCryptoSummaryMeta() {
 
   if (refs.cryptoSummaryMeta) {
     refs.cryptoSummaryMeta.innerHTML = `
-      <span class="scanner-summary-pill">데이터 기준(한국시간) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
-      <span class="scanner-summary-pill">불러온 시각(한국시간) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
-      <span class="scanner-summary-pill ${freshness.className}">경과 시간 ${escapeHtml(freshness.elapsedLabel)}</span>
-      <span class="scanner-summary-pill ${freshness.className}">상태 ${escapeHtml(freshness.label)}</span>
+      <span class="scanner-summary-pill">??? ??(????) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
+      <span class="scanner-summary-pill">??? ??(????) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
+      <span class="scanner-summary-pill ${freshness.className}">?? ?? ${escapeHtml(freshness.elapsedLabel)}</span>
+      <span class="scanner-summary-pill ${freshness.className}">?? ${escapeHtml(freshness.label)}</span>
       <span class="scanner-summary-pill">${escapeHtml(universeLabel)}</span>
       <span class="scanner-summary-pill">${escapeHtml(currentCryptoPageLabel())}</span>
     `;
@@ -629,17 +649,17 @@ function renderCryptoSummaryMeta() {
 
   if (refs.cryptoActiveScan) {
     refs.cryptoActiveScan.innerHTML = snapshot
-      ? `<span class="scanner-active-pill ${freshness.className}">최근 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.crypto.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
-      : '<span class="scanner-active-pill">선택한 조건의 스냅샷을 준비 중입니다.</span>';
+      ? `<span class="scanner-active-pill ${freshness.className}">?? ?? ??? ?? ? ${escapeHtml(freshness.label)} ? [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.crypto.timeframe)} ??? ?? ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
+      : '<span class="scanner-active-pill">??? ??? ???? ?? ????.</span>';
   }
 
   if (refs.cryptoStatusLine) {
     if (state.crypto.errorMessage) {
       refs.cryptoStatusLine.textContent = state.crypto.notice || state.crypto.errorMessage;
     } else if (snapshot) {
-      refs.cryptoStatusLine.textContent = `${state.crypto.notice} 데이터 기준 ${formatSeoulDateTime(dataTimestamp)}, 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔고 ${freshness.elapsedLabel}.`;
+      refs.cryptoStatusLine.textContent = `${state.crypto.notice} ??? ?? ${formatSeoulDateTime(dataTimestamp)}, ??? ${formatSeoulDateTime(loadedTimestamp)}? ???? ${freshness.elapsedLabel}.`;
     } else {
-      refs.cryptoStatusLine.textContent = state.crypto.notice || "최신 스캐너 데이터를 불러오는 중입니다.";
+      refs.cryptoStatusLine.textContent = state.crypto.notice || "?? ??? ???? ???? ????.";
     }
   }
 
@@ -662,17 +682,17 @@ function renderBadge(label, extraClass = "") {
 }
 
 function renderPatternBadge(pattern) {
-  if (!pattern) return renderBadge("패턴 없음", "is-neutral");
+  if (!pattern) return renderBadge("?? ??", "is-neutral");
   return renderBadge(`${pattern.side_label} ${pattern.pattern}`, pattern.side === "bullish" ? "is-positive" : "is-negative");
 }
 
 function renderSetupLink(pattern) {
-  if (!pattern?.detail_page) return '<span class="crypto-inline-muted">상세 없음</span>';
-  return `<a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(pattern.detail_page))}">상세 보기</a>`;
+  if (!pattern?.detail_page) return '<span class="crypto-inline-muted">?? ??</span>';
+  return `<a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(pattern.detail_page))}">?? ??</a>`;
 }
 
 function renderFlags(flags) {
-  return flags?.length ? flags.map((flag) => renderBadge(flag)).join("") : '<span class="crypto-inline-muted">표시할 플래그 없음</span>';
+  return flags?.length ? flags.map((flag) => renderBadge(flag)).join("") : '<span class="crypto-inline-muted">??? ??? ??</span>';
 }
 
 function renderSection(title, subtitle, bodyHtml) {
@@ -689,23 +709,23 @@ function renderScoreStack(row) {
 }
 
 function renderOverviewControls(payload) {
-  const statusCards = asArray(payload.status_counts).map((entry) => ({ label: entry.label, count: entry.count, note: "패턴 상태 집계" }));
+  const statusCards = asArray(payload.status_counts).map((entry) => ({ label: entry.label, count: entry.count, note: "?? ?? ??" }));
   const previews = asArray(payload.page_previews).map((card) => `<article class="crypto-preview-card"><div class="crypto-preview-head"><strong>${escapeHtml(card.title)}</strong><span>${escapeHtml(card.symbol)}</span></div><p>${escapeHtml(card.description)}</p><span class="crypto-preview-score">Score ${escapeHtml(String(card.score ?? 0))}</span></article>`).join("");
-  return `<div class="crypto-control-grid"><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>상태별 카운트</strong><span>패턴 스캐너 요약</span></div>${renderCountCards(statusCards)}</article><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>페이지 미리보기</strong><span>각 분석 화면 대표 항목</span></div><div class="crypto-preview-grid">${previews}</div></article></div>`;
+  return `<div class="crypto-control-grid"><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>??? ???</strong><span>?? ??? ??</span></div>${renderCountCards(statusCards)}</article><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>??? ????</strong><span>? ?? ?? ?? ??</span></div><div class="crypto-preview-grid">${previews}</div></article></div>`;
 }
 
 function renderOverviewContent(payload) {
   const opportunities = asArray(payload.top_opportunities).slice(0, 6).map((row) => `
     <article class="crypto-opportunity-card scanner-card">
       <div class="scanner-card-head">
-        <div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.labels?.technical_rating || "Neutral")} · ${escapeHtml(row.labels?.trend_bias || "-")}</p></div>
-        <div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div>
+        <div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.labels?.technical_rating || "Neutral")} ? ${escapeHtml(row.labels?.trend_bias || "-")}</p></div>
+        <div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">???? ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div>
       </div>
       <div class="crypto-kpi-pair-grid">
-        <div class="scanner-point-card"><span>현재가</span><strong>${escapeHtml(formatTickerPrice(row.last_price))}</strong></div>
+        <div class="scanner-point-card"><span>???</span><strong>${escapeHtml(formatTickerPrice(row.last_price))}</strong></div>
         <div class="scanner-point-card"><span>24h</span><strong class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</strong></div>
-        <div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div>
-        <div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div>
+        <div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div>
+        <div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div>
       </div>
       <div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 4))}</div>
       <div class="scanner-card-footer"><span>${escapeHtml(row.timeframe_label || "-")}</span>${renderSetupLink(row.pattern)}</div>
@@ -714,11 +734,11 @@ function renderOverviewContent(payload) {
   const patterns = asArray(payload.top_patterns).slice(0, 4).map((row) => `
     <article class="crypto-compact-card scanner-detail-card">
       <div class="crypto-compact-head"><strong>${escapeHtml(row.symbol)}</strong>${renderPatternBadge(row.pattern)}</div>
-      <p>${escapeHtml(row.pattern?.summary || "패턴 설명 없음")}</p>
-      <div class="crypto-compact-meta"><span>점수 ${escapeHtml(String(row.pattern?.score ?? 0))}</span><span>기술 ${escapeHtml(String(row.scores?.technical ?? 0))}</span><span>모멘텀 ${escapeHtml(String(row.scores?.momentum ?? 0))}</span></div>
+      <p>${escapeHtml(row.pattern?.summary || "?? ?? ??")}</p>
+      <div class="crypto-compact-meta"><span>?? ${escapeHtml(String(row.pattern?.score ?? 0))}</span><span>?? ${escapeHtml(String(row.scores?.technical ?? 0))}</span><span>??? ${escapeHtml(String(row.scores?.momentum ?? 0))}</span></div>
     </article>
   `).join("");
-  return `${renderSection("Overview", "상위 기회 종목", `<div class="crypto-opportunity-grid">${opportunities}</div>`)}${renderSection("Patterns", "패턴 스냅샷", `<div class="crypto-compact-grid">${patterns}</div>`)}`;
+  return `${renderSection("Overview", "?? ?? ??", `<div class="crypto-opportunity-grid">${opportunities}</div>`)}${renderSection("Patterns", "?? ???", `<div class="crypto-compact-grid">${patterns}</div>`)}`;
 }
 
 function renderSignalsPage(payload) {
@@ -727,11 +747,11 @@ function renderSignalsPage(payload) {
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge(`Funding Hot ${anomaly.funding_hot || 0}`)}${renderBadge(`OI Heavy ${anomaly.oi_heavy || 0}`)}${renderBadge(`Squeeze ${anomaly.squeeze || 0}`)}${renderBadge(`Divergence ${anomaly.divergence || 0}`)}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Signals",
-    "파생 지표 + 기술 지표 이상치",
+    "?? ?? + ?? ?? ???",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
+        { label: "??", render: (row) => renderScoreStack(row) },
         { label: "24h", render: (row) => `<span class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</span>` },
         { label: "Funding", render: (row) => `<span class="${toneClass(row.funding_rate)}">${escapeHtml(formatPercent(row.funding_rate, 4))}</span>` },
         { label: "OI", render: (row) => escapeHtml(formatUsdCompact(row.open_interest_usd)) },
@@ -739,10 +759,10 @@ function renderSignalsPage(payload) {
         { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
         { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
         { label: "VWAP Gap", render: (row) => `<span class="${toneClass(row.indicators?.close_vs_vwap_pct)}">${escapeHtml(formatPercent(row.indicators?.close_vs_vwap_pct))}</span>` },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
       ],
       asArray(payload.rows).slice(0, 40),
-      "이상치 신호가 없습니다.",
+      "??? ??? ????.",
     ),
   );
 }
@@ -750,11 +770,11 @@ function renderSignalsPage(payload) {
 function buildPatternSummaryCards(snapshot) {
   const counts = snapshot?.status_counts || {};
   return [
-    { label: "전체 결과", count: snapshot?.result_count || 0, note: "현재 조건의 패턴 수" },
-    { label: "실시간 진입", count: counts.forming || 0, note: "PRZ 접근 진행형" },
-    { label: "실시간 터치", count: counts.touch || 0, note: "PRZ 접촉" },
-    { label: "T-Bar 완성", count: counts.tbar_complete || 0, note: "확인 캔들 포함" },
-    { label: "일반 완성", count: counts.complete || 0, note: "완성 상태" },
+    { label: "?? ??", count: snapshot?.result_count || 0, note: "?? ??? ?? ?" },
+    { label: "??? ??", count: counts.forming || 0, note: "PRZ ?? ???" },
+    { label: "??? ??", count: counts.touch || 0, note: "PRZ ??" },
+    { label: "T-Bar ??", count: counts.tbar_complete || 0, note: "?? ?? ??" },
+    { label: "?? ??", count: counts.complete || 0, note: "?? ??" },
   ];
 }
 
@@ -771,15 +791,15 @@ function renderPatternFilters(snapshot) {
 
 function renderPatternCards(snapshot) {
   const results = filteredPatternResults(snapshot);
-  if (!results.length) return '<div class="analysis-empty">현재 조건에서 표시할 패턴이 없습니다.</div>';
+  if (!results.length) return '<div class="analysis-empty">?? ???? ??? ??? ????.</div>';
   return `<div class="scanner-results-grid">${results.map((result) => {
     const pointCells = ["X", "A", "B", "C", "D"].map((label) => {
       const point = result.points?.[label] || {};
       return `<div class="scanner-point-card"><span>${label}</span><strong>${escapeHtml(String(point.price ?? "-"))}</strong><small>${escapeHtml(String(point.timestamp || "").replace("T", " ").slice(5, 16))}</small></div>`;
     }).join("");
     const ratioCells = Object.entries(result.ratios || {}).map(([label, value]) => `<div class="scanner-ratio-card"><span>${escapeHtml(label.toUpperCase())}</span><strong>${escapeHtml(String(value))}</strong></div>`).join("");
-    const flags = asArray(result.indicator_flags).slice(0, 4).map((flag) => `<span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">${escapeHtml(flag.label)} · ${escapeHtml(flag.value)}</span>`).join("");
-    return `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(result.symbol)}</h3><p>${escapeHtml(result.summary || "")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span><span class="scanner-badge is-score">신뢰도 ${escapeHtml(String(result.score))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" /></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>좌표</span><strong>${escapeHtml(result.pattern)}</strong></div><div class="scanner-point-grid">${pointCells}</div></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>비율</span><strong>${escapeHtml(result.status_label)}</strong></div><div class="scanner-ratio-grid">${ratioCells}</div></div><div class="scanner-prz-box"><div><span>PRZ</span><strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong></div><div><span>TP1 / TP2</span><strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong></div><div><span>SL</span><strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong></div></div><div class="scanner-card-flags">${flags || '<span class="crypto-inline-muted">확인 지표 없음</span>'}</div><div class="scanner-card-footer"><span>${escapeHtml(result.timeframe_label || "-")} · 24h ${escapeHtml(formatPercent(result.change_24h))}</span><a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(result.detail_page))}">상세 보기</a></div></article>`;
+    const flags = asArray(result.indicator_flags).slice(0, 4).map((flag) => `<span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">${escapeHtml(flag.label)} ? ${escapeHtml(flag.value)}</span>`).join("");
+    return `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(result.symbol)}</h3><p>${escapeHtml(result.summary || "")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span><span class="scanner-badge is-score">??? ${escapeHtml(String(result.score))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" /></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>??</span><strong>${escapeHtml(result.pattern)}</strong></div><div class="scanner-point-grid">${pointCells}</div></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>??</span><strong>${escapeHtml(result.status_label)}</strong></div><div class="scanner-ratio-grid">${ratioCells}</div></div><div class="scanner-prz-box"><div><span>PRZ</span><strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong></div><div><span>TP1 / TP2</span><strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong></div><div><span>SL</span><strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong></div></div><div class="scanner-card-flags">${flags || '<span class="crypto-inline-muted">?? ?? ??</span>'}</div><div class="scanner-card-footer"><span>${escapeHtml(result.timeframe_label || "-")} ? 24h ${escapeHtml(formatPercent(result.change_24h))}</span><a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(result.detail_page))}">?? ??</a></div></article>`;
   }).join("")}</div>`;
 }
 
@@ -803,122 +823,122 @@ function renderPatternsPage(snapshot) {
 
 function renderOpportunitiesPage(payload) {
   refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("패턴 점수 40")}${renderBadge("PRZ/구조 20")}${renderBadge("파생 지표 15")}${renderBadge("추세 10")}${renderBadge("모멘텀 10")}${renderBadge("변동성 5")}</div>`;
+  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("?? ?? 40")}${renderBadge("PRZ/?? 20")}${renderBadge("?? ?? 15")}${renderBadge("?? 10")}${renderBadge("??? 10")}${renderBadge("??? 5")}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Opportunities",
-    "지금 볼 만한 종목 랭킹",
+    "?? ? ?? ?? ??",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
-        { label: "우선순위", render: (row) => escapeHtml(String(row.scores?.opportunity ?? 0)) },
-        { label: "기술", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "파생", render: (row) => escapeHtml(String(row.scores?.derivatives ?? 0)) },
-        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "모멘텀", render: (row) => escapeHtml(row.labels?.momentum_bias || "-") },
-        { label: "상세", render: (row) => renderSetupLink(row.pattern) },
+        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "????", render: (row) => escapeHtml(String(row.scores?.opportunity ?? 0)) },
+        { label: "??", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
+        { label: "??", render: (row) => escapeHtml(String(row.scores?.derivatives ?? 0)) },
+        { label: "??", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
+        { label: "???", render: (row) => escapeHtml(row.labels?.momentum_bias || "-") },
+        { label: "??", render: (row) => renderSetupLink(row.pattern) },
       ],
       asArray(payload.rows),
-      "우선순위 랭킹이 비어 있습니다.",
+      "???? ??? ?? ????.",
     ),
   );
 }
 
 function renderSetupsPage(payload) {
   refs.cryptoPageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("상위 세트업만 확대 표시")}${renderBadge("상세 페이지에서 멀티 타임프레임 확인")}</div>`;
-  refs.cryptoPageContent.innerHTML = `<div class="crypto-opportunity-grid">${asArray(payload.rows).map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.pattern?.summary || "패턴 요약 없음")}</p></div><div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(row.pattern?.preview_image || ""))}" alt="${escapeHtml(row.symbol)} preview" loading="lazy" /></div><div class="crypto-kpi-pair-grid"><div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div><div class="scanner-point-card"><span>추세</span><strong>${escapeHtml(String(row.scores?.trend ?? 0))}</strong></div><div class="scanner-point-card"><span>모멘텀</span><strong>${escapeHtml(String(row.scores?.momentum ?? 0))}</strong></div><div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div></div><div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 5))}</div><div class="scanner-card-footer"><span>${escapeHtml(row.labels?.trend_bias || "-")} · ${escapeHtml(row.labels?.momentum_bias || "-")}</span>${renderSetupLink(row.pattern)}</div></article>`).join("")}</div>`;
+  refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("?? ???? ?? ??")}${renderBadge("?? ????? ?? ????? ??")}</div>`;
+  refs.cryptoPageContent.innerHTML = `<div class="crypto-opportunity-grid">${asArray(payload.rows).map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.pattern?.summary || "?? ?? ??")}</p></div><div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">???? ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(row.pattern?.preview_image || ""))}" alt="${escapeHtml(row.symbol)} preview" loading="lazy" /></div><div class="crypto-kpi-pair-grid"><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.trend ?? 0))}</strong></div><div class="scanner-point-card"><span>???</span><strong>${escapeHtml(String(row.scores?.momentum ?? 0))}</strong></div><div class="scanner-point-card"><span>??</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div></div><div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 5))}</div><div class="scanner-card-footer"><span>${escapeHtml(row.labels?.trend_bias || "-")} ? ${escapeHtml(row.labels?.momentum_bias || "-")}</span>${renderSetupLink(row.pattern)}</div></article>`).join("")}</div>`;
 }
 
 function renderTechnicalRatingsPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards(asArray(payload.distribution).map((entry) => ({ label: entry.label, count: entry.count, note: "기술 레이팅 분포" })));
+  refs.cryptoPageHighlights.innerHTML = renderCountCards(asArray(payload.distribution).map((entry) => ({ label: entry.label, count: entry.count, note: "?? ??? ??" })));
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA 20/50/200")}${renderBadge("Supertrend")}${renderBadge("Ichimoku")}${renderBadge("RSI / MACD / ROC")}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Technical Ratings",
-    "TradingView 감성의 종합 기술 점수",
+    "TradingView ??? ?? ?? ??",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
-        { label: "레이팅", render: (row) => renderBadge(row.labels?.technical_rating || "Neutral", ratingToneClass(row.labels?.technical_rating)) },
-        { label: "종합", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "이평", render: (row) => escapeHtml(String(row.scores?.moving_average ?? 0)) },
-        { label: "오실레이터", render: (row) => escapeHtml(String(row.scores?.oscillator ?? 0)) },
-        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
+        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "???", render: (row) => renderBadge(row.labels?.technical_rating || "Neutral", ratingToneClass(row.labels?.technical_rating)) },
+        { label: "??", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
+        { label: "??", render: (row) => escapeHtml(String(row.scores?.moving_average ?? 0)) },
+        { label: "?????", render: (row) => escapeHtml(String(row.scores?.oscillator ?? 0)) },
+        { label: "??", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
+        { label: "??", render: (row) => renderPatternBadge(row.pattern) },
       ],
       asArray(payload.rows),
-      "기술 레이팅 데이터가 없습니다.",
+      "?? ??? ???? ????.",
     ),
   );
 }
 
 function renderTrendPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "상승 추세", count: payload.counts?.bullish || 0, note: "강한 상승 정렬" }, { label: "하락 추세", count: payload.counts?.bearish || 0, note: "강한 하락 정렬" }, { label: "혼조", count: payload.counts?.mixed || 0, note: "추세 혼재" }]);
+  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "?? ??", count: payload.counts?.bullish || 0, note: "?? ?? ??" }, { label: "?? ??", count: payload.counts?.bearish || 0, note: "?? ?? ??" }, { label: "??", count: payload.counts?.mixed || 0, note: "?? ??" }]);
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA Cross")}${renderBadge("Supertrend")}${renderBadge("ADX / DMI")}${renderBadge("Ichimoku")}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Trend",
-    "추세 강도와 전환 후보",
+    "?? ??? ?? ??",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
-        { label: "추세", render: (row) => renderBadge(row.labels?.trend_bias || "-", toneClass(row.scores?.trend_bias)) },
-        { label: "강도", render: (row) => escapeHtml(String(row.scores?.trend ?? 0)) },
+        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "??", render: (row) => renderBadge(row.labels?.trend_bias || "-", toneClass(row.scores?.trend_bias)) },
+        { label: "??", render: (row) => escapeHtml(String(row.scores?.trend ?? 0)) },
         { label: "ADX", render: (row) => escapeHtml(String(row.indicators?.adx14 ?? "-")) },
         { label: "+DI / -DI", render: (row) => `${escapeHtml(String(row.indicators?.plus_di ?? "-"))} / ${escapeHtml(String(row.indicators?.minus_di ?? "-"))}` },
         { label: "Supertrend", render: (row) => escapeHtml(row.signals?.supertrend || "-") },
         { label: "Ichimoku", render: (row) => escapeHtml(row.signals?.ichimoku_bias || "-") },
       ],
       asArray(payload.rows),
-      "추세 데이터가 없습니다.",
+      "?? ???? ????.",
     ),
   );
 }
 
 function renderMomentumPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "과매수", count: payload.counts?.overbought || 0, note: "상단 과열 구간" }, { label: "과매도", count: payload.counts?.oversold || 0, note: "하단 과열 구간" }, { label: "다이버전스", count: payload.counts?.divergence || 0, note: "후보 종목" }]);
+  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "???", count: payload.counts?.overbought || 0, note: "?? ?? ??" }, { label: "???", count: payload.counts?.oversold || 0, note: "?? ?? ??" }, { label: "?????", count: payload.counts?.divergence || 0, note: "?? ??" }]);
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("RSI 14")}${renderBadge("Stoch RSI")}${renderBadge("MACD")}${renderBadge("ROC")}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Momentum",
-    "과매수·과매도와 모멘텀 강화",
+    "???????? ??? ??",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
-        { label: "모멘텀", render: (row) => renderBadge(row.labels?.momentum_bias || "-", toneClass(row.scores?.momentum_bias)) },
+        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "???", render: (row) => renderBadge(row.labels?.momentum_bias || "-", toneClass(row.scores?.momentum_bias)) },
         { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
         { label: "Stoch RSI", render: (row) => escapeHtml(String(row.indicators?.stoch_rsi ?? "-")) },
         { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
         { label: "ROC", render: (row) => `<span class="${toneClass(row.indicators?.roc12)}">${escapeHtml(formatPercent(row.indicators?.roc12))}</span>` },
-        { label: "다이버전스", render: (row) => escapeHtml(row.signals?.divergence_candidate ? "후보" : "-") },
+        { label: "?????", render: (row) => escapeHtml(row.signals?.divergence_candidate ? "??" : "-") },
       ],
       asArray(payload.rows),
-      "모멘텀 데이터가 없습니다.",
+      "??? ???? ????.",
     ),
   );
 }
 
 function renderVolatilityPage(payload) {
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "Squeeze", count: payload.counts?.squeeze || 0, note: "압축 구간" }, { label: "상방 돌파", count: payload.counts?.breakout_up || 0, note: "상방 브레이크" }, { label: "하방 돌파", count: payload.counts?.breakout_down || 0, note: "하방 브레이크" }, { label: "확장", count: payload.counts?.expansion || 0, note: "변동성 확대" }]);
+  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "Squeeze", count: payload.counts?.squeeze || 0, note: "?? ??" }, { label: "?? ??", count: payload.counts?.breakout_up || 0, note: "?? ????" }, { label: "?? ??", count: payload.counts?.breakout_down || 0, note: "?? ????" }, { label: "??", count: payload.counts?.expansion || 0, note: "??? ??" }]);
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("Bollinger Bands")}${renderBadge("BBWidth")}${renderBadge("ATR 14")}${renderBadge("Breakout State")}</div>`;
   refs.cryptoPageContent.innerHTML = renderSection(
     "Volatility",
-    "압축 · 확장 · 돌파 준비 구간",
+    "?? ? ?? ? ?? ?? ??",
     renderTable(
       [
         { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "심볼", render: (row) => renderScoreStack(row) },
-        { label: "상태", render: (row) => renderBadge(row.labels?.volatility_state || "중립", row.labels?.volatility_state === "상방 돌파" ? "is-positive" : row.labels?.volatility_state === "하방 돌파" ? "is-negative" : "is-neutral") },
+        { label: "??", render: (row) => renderScoreStack(row) },
+        { label: "??", render: (row) => renderBadge(row.labels?.volatility_state || "??", row.labels?.volatility_state === "?? ??" ? "is-positive" : row.labels?.volatility_state === "?? ??" ? "is-negative" : "is-neutral") },
         { label: "BB Width", render: (row) => escapeHtml(String(row.indicators?.bb_width ?? "-")) },
         { label: "ATR%", render: (row) => escapeHtml(formatPercent(row.indicators?.atr_pct)) },
-        { label: "Squeeze", render: (row) => escapeHtml(row.signals?.squeeze ? "예" : "-") },
-        { label: "상방", render: (row) => escapeHtml(row.signals?.breakout_up ? "예" : "-") },
-        { label: "하방", render: (row) => escapeHtml(row.signals?.breakout_down ? "예" : "-") },
+        { label: "Squeeze", render: (row) => escapeHtml(row.signals?.squeeze ? "?" : "-") },
+        { label: "??", render: (row) => escapeHtml(row.signals?.breakout_up ? "?" : "-") },
+        { label: "??", render: (row) => escapeHtml(row.signals?.breakout_down ? "?" : "-") },
       ],
       asArray(payload.rows),
-      "변동성 데이터가 없습니다.",
+      "??? ???? ????.",
     ),
   );
 }
@@ -927,10 +947,10 @@ function renderMultiTimeframePage(payload) {
   const rows = asArray(payload.rows).slice(0, 24);
   const cards = rows.length
     ? `<div class="crypto-mtf-grid">${rows.map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.consensus_label || "-")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${toNumber(row.agreement_score) > 0 ? "is-bullish" : toNumber(row.agreement_score) < 0 ? "is-bearish" : ""}">${escapeHtml(String(row.agreement_score ?? 0))}</span></div></div><div class="crypto-mtf-table">${Object.entries(row.timeframes || {}).map(([timeframe, details]) => `<div class="crypto-mtf-row"><strong>${escapeHtml(timeframe)}</strong><span>${escapeHtml(details.technical_rating || "-")}</span><span>${escapeHtml(details.trend_bias || "-")}</span><span>${escapeHtml(details.momentum_bias || "-")}</span><span>${escapeHtml(String(details.opportunity ?? "-"))}</span></div>`).join("")}</div></article>`).join("")}</div>`
-    : '<div class="analysis-empty">멀티 타임프레임 데이터가 없습니다.</div>';
-  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "상승 합의", count: payload.counts?.bullish || 0, note: "3개 이상 프레임 정렬" }, { label: "하락 합의", count: payload.counts?.bearish || 0, note: "3개 이상 프레임 정렬" }, { label: "혼합", count: payload.counts?.mixed || 0, note: "방향 충돌" }]);
+    : '<div class="analysis-empty">?? ????? ???? ????.</div>';
+  refs.cryptoPageHighlights.innerHTML = renderCountCards([{ label: "?? ??", count: payload.counts?.bullish || 0, note: "3? ?? ??? ??" }, { label: "?? ??", count: payload.counts?.bearish || 0, note: "3? ?? ??? ??" }, { label: "??", count: payload.counts?.mixed || 0, note: "?? ??" }]);
   refs.cryptoPageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("5m")}${renderBadge("15m")}${renderBadge("1h")}${renderBadge("4h")}</div>`;
-  refs.cryptoPageContent.innerHTML = renderSection("Multi-Timeframe", "단기·중기 합의 매트릭스", cards);
+  refs.cryptoPageContent.innerHTML = renderSection("Multi-Timeframe", "????? ?? ????", cards);
 }
 
 function renderCryptoPage() {
@@ -974,7 +994,7 @@ function renderCryptoPage() {
   } else {
     refs.cryptoPageHighlights.innerHTML = "";
     refs.cryptoPageControls.innerHTML = "";
-    refs.cryptoPageContent.innerHTML = '<div class="analysis-empty">알 수 없는 코인 페이지입니다.</div>';
+    refs.cryptoPageContent.innerHTML = '<div class="analysis-empty">? ? ?? ?? ??????.</div>';
   }
 }
 
@@ -985,7 +1005,7 @@ function bindCryptoEvents() {
     refs.cryptoUniverseSelect.addEventListener("change", async (event) => {
       state.crypto.universeKey = event.target.value;
       state.crypto.isLoading = true;
-      state.crypto.notice = "선택한 조건의 최신 배치 스냅샷을 불러오는 중입니다.";
+      state.crypto.notice = "??? ??? ?? ?? ???? ???? ????.";
       renderCryptoPage();
       await loadCryptoPagePayload();
     });
@@ -994,7 +1014,7 @@ function bindCryptoEvents() {
     refs.cryptoTimeframeSelect.addEventListener("change", async (event) => {
       state.crypto.timeframe = event.target.value;
       state.crypto.isLoading = true;
-      state.crypto.notice = "선택한 조건의 최신 배치 스냅샷을 불러오는 중입니다.";
+      state.crypto.notice = "??? ??? ?? ?? ???? ???? ????.";
       renderCryptoPage();
       await loadCryptoPagePayload();
     });
@@ -1008,7 +1028,7 @@ function bindCryptoEvents() {
       setCryptoCooldown();
       updateCryptoCooldownUI();
       state.crypto.isLoading = true;
-      state.crypto.notice = "최신 정적 스냅샷을 확인하는 중입니다.";
+      state.crypto.notice = "?? ?? ???? ???? ????.";
       renderCryptoPage();
       try {
         await loadCryptoManifest({ bust: true });
@@ -1016,7 +1036,7 @@ function bindCryptoEvents() {
       } catch (error) {
         state.crypto.isLoading = false;
         if (!state.crypto.errorMessage) {
-          state.crypto.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+          state.crypto.errorMessage = error?.message || "?? ???? ???? ?????.";
         }
         state.crypto.notice = state.crypto.errorMessage;
         renderCryptoPage();
@@ -1050,7 +1070,7 @@ async function initMarkets() {
   } catch (error) {
     state.crypto.isLoading = false;
     if (!state.crypto.errorMessage) {
-      state.crypto.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
+      state.crypto.errorMessage = error?.message || "?? ???? ???? ?????.";
     }
     state.crypto.notice = state.crypto.errorMessage;
     renderCryptoPage();

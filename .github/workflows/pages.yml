@@ -9,12 +9,19 @@ on:
       - "public/generated/scanner/**"
   workflow_dispatch:
 
+concurrency:
+  group: static-site-deploy
+  cancel-in-progress: true
+
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build-and-sync:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       NEWSBOT_ENABLE_SCHEDULER: "false"
       NEWSBOT_BOOTSTRAP_ON_STARTUP: "false"
@@ -27,7 +34,6 @@ jobs:
       NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH: "20"
       NEWSBOT_STATIC_MAX_TOTAL_ARTICLES: "2000"
       NEWSBOT_STATIC_ARCHIVE_URL: "https://cys123431-ship-it.github.io/newsbot/data/site-data.json"
-      PUBLIC_SITE_REPO: "cys123431-ship-it/cys123431-ship-it.github.io"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -37,52 +43,35 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install .
+          pip install . -r scripts/requirements.txt
 
       - name: Build static site
         run: python -m newsbot.site_builder
 
-      - name: Check out public site repository
-        env:
-          DEPLOY_TOKEN: ${{ secrets.PUBLIC_SITE_DEPLOY_TOKEN }}
-        run: |
-          git clone "https://x-access-token:${DEPLOY_TOKEN}@github.com/${PUBLIC_SITE_REPO}.git" public-site
-          cd public-site
-          git checkout -B main
+      - name: Validate built site
+        run: python scripts/validate_site_dist.py
 
-      - name: Sync static artifacts
-        run: |
-          mkdir -p public-site/newsbot
-          rsync -a --delete site-dist/ public-site/newsbot/
-          test -f public-site/newsbot/data/scanner/manifest.json
-          touch public-site/.nojekyll
-          cat > public-site/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8" />
-              <meta http-equiv="refresh" content="0; url=/newsbot/" />
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>newsbot</title>
-            </head>
-            <body>
-              <p>Redirecting to <a href="/newsbot/">/newsbot/</a>...</p>
-            </body>
-          </html>
-          HTML
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site-dist
 
-      - name: Commit and push site update
-        run: |
-          cd public-site
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          if git diff --cached --quiet; then
-            echo "No site changes to publish."
-            exit 0
-          fi
-          git commit -m "Deploy newsbot site"
-          git push origin main
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

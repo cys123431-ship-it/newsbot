@@ -15,6 +15,7 @@ from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import collect_site_payload
 from newsbot.site_builder import build_static_site
+from newsbot.site_builder import validate_site_output
 from newsbot.source_registry import SourceDefinition
 
 
@@ -52,23 +53,23 @@ class FakeNaverAdapter:
             ArticleCandidate(
                 source_key="naver-kr-society",
                 source_name="NAVER News Search",
-                title="서울 지하철 안전 대책 강화 발표",
+                title="?? ??? ?? ?? ?? ??",
                 url="https://www.yna.co.kr/view/AKR20260321000100004",
                 published_at=datetime(2026, 3, 21, 9, 0, tzinfo=timezone.utc),
-                summary="정부가 안전 대책을 강화했다.",
+                summary="??? ?? ??? ????.",
                 language="ko",
-                tags=["교통 안전"],
+                tags=["?? ??"],
                 trust_level=70,
             ),
             ArticleCandidate(
                 source_key="naver-kr-society",
                 source_name="NAVER News Search",
-                title="여야, 교육 정책 두고 국회 공방",
+                title="??, ?? ?? ?? ?? ??",
                 url="https://www.yna.co.kr/view/AKR20260321000100005",
                 published_at=datetime(2026, 3, 21, 8, 0, tzinfo=timezone.utc),
-                summary="정치권 충돌이 이어졌다.",
+                summary="??? ??? ????.",
                 language="ko",
-                tags=["교육 현장"],
+                tags=["?? ??"],
                 trust_level=70,
             ),
         ]
@@ -119,7 +120,7 @@ def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(
     archive_articles = [
         StaticArticle.from_public_dict(
             {
-                "title": '중단 거부 박상용에 민주당 &quot;법적 조치&quot;',
+                "title": '?? ?? ???? ??? &quot;?? ??&quot;',
                 "canonical_url": "https://example.com/visible",
                 "source_key": "coindesk-rss",
                 "source_name": "CoinDesk",
@@ -132,7 +133,7 @@ def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(
         ),
         StaticArticle.from_public_dict(
             {
-                "title": "프레시안 아카이브 항목",
+                "title": "???? ???? ??",
                 "canonical_url": "https://example.com/pressian-hidden",
                 "source_key": "pressian-politics-rss",
                 "source_name": "Pressian Politics",
@@ -154,7 +155,7 @@ def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(
     )
 
     assert [article["source_key"] for article in payload["articles"]] == ["coindesk-rss"]
-    assert payload["articles"][0]["title"] == '중단 거부 박상용에 민주당 "법적 조치"'
+    assert payload["articles"][0]["title"] == '?? ?? ???? ??? "?? ??"'
     assert payload["articles"][0]["thumbnail_url"] == "https://img.example.com/thumb.jpg?x=1&y=2"
 
 
@@ -228,6 +229,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert payload["sources"][0]["hub"] in {"global", "kr"}
 
     output_dir = tmp_path / "site-dist"
+    validate_site_output(output_dir)
     assert (output_dir / "index.html").exists()
     assert (output_dir / "analysis" / "index.html").exists()
     assert (output_dir / "markets" / "index.html").exists()
@@ -296,8 +298,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert '"crypto_page_key":"overview"' in markets_alias_html
     assert '"scanner_manifest_url":"' in markets_alias_html
     assert "../assets/markets.js" in markets_alias_html
-    assert '미국주식' not in markets_alias_html
-    assert '한국주식' not in markets_alias_html
+    assert '????' not in markets_alias_html
+    assert '????' not in markets_alias_html
 
     us_markets_html = (output_dir / "markets" / "us" / "index.html").read_text(encoding="utf-8")
     assert 'http-equiv="refresh"' in us_markets_html
@@ -342,11 +344,13 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
     assert "loadCryptoManifest" in markets_js
+    assert "resolveCryptoPageDatasetPath" in markets_js
+    assert "cryptoDataMissingMessage" in markets_js
     assert "renderSignalsPage" in markets_js
     assert "renderPatternsPage" in markets_js
     assert "renderMultiTimeframePage" in markets_js
-    assert "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다." in markets_js
-    assert "심각한 지연" in markets_js
+    assert "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????." in markets_js
+    assert "??? ??" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -370,7 +374,19 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     scanner_manifest = _read_json(output_dir / "data" / "scanner" / "manifest.json")
     assert scanner_manifest["snapshots"]
-    assert scanner_manifest["page_data"]["overview"]["top100"]["5m"]
+    for page_key in (
+        "overview",
+        "signals",
+        "patterns",
+        "opportunities",
+        "setups",
+        "technical_ratings",
+        "trend",
+        "momentum",
+        "volatility",
+        "multi_timeframe",
+    ):
+        assert scanner_manifest["page_data"][page_key]["top100"]["5m"]
     assert scanner_manifest["page_data"]["patterns"]["top100"]["5m"].startswith("scan-top100-")
     assert any(page["key"] == "technical_ratings" for page in scanner_manifest["crypto_pages"])
     first_snapshot_path = (
@@ -430,7 +446,7 @@ def test_allow_static_candidate_blocks_pressian_urls():
 def test_static_article_from_public_dict_unescapes_html_entities():
     article = StaticArticle.from_public_dict(
         {
-            "title": '장동혁 &quot;이진숙&quot; 보궐선거 공천 시사&hellip;',
+            "title": '??? &quot;???&quot; ???? ?? ??&hellip;',
             "canonical_url": "https://example.com/story",
             "source_key": "example",
             "source_name": "Example News",
@@ -747,15 +763,15 @@ def test_build_static_site_refuses_to_publish_when_article_floor_not_met(tmp_pat
 
 def test_extract_analysis_keywords_filters_noise_and_builds_bigrams():
     keywords = _extract_analysis_keywords(
-        "속보 AI 반도체 투자 update",
-        ["사진", "반도체"],
+        "?? AI ??? ?? update",
+        ["??", "???"],
     )
 
-    assert "속보" not in keywords
+    assert "??" not in keywords
     assert "update" not in keywords
-    assert "반도체" in keywords
-    assert "투자" in keywords
-    assert "ai 반도체" in keywords
+    assert "???" in keywords
+    assert "??" in keywords
+    assert "ai ???" in keywords
     assert len(keywords) <= 6
 
 
@@ -891,9 +907,9 @@ def test_allow_static_candidate_keeps_naver_section_articles_for_naver_source():
     candidate = ArticleCandidate(
         source_key="naver-kr-society",
         source_name="NAVER News Search",
-        title="장모 살해 캐리어 유기…20대 부부 구속",
+        title="?? ?? ??? ???20? ?? ??",
         url="https://n.news.naver.com/mnews/article/277/0005744333",
-        summary="사회면 기사",
+        summary="??? ??",
         language="ko",
         trust_level=70,
     )
@@ -905,9 +921,9 @@ def test_allow_static_candidate_still_blocks_naver_wrapper_urls_for_other_source
     candidate = ArticleCandidate(
         source_key="telegram-dada-news2",
         source_name="Telegram @dada_news2",
-        title="장모 살해 캐리어 유기…20대 부부 구속",
+        title="?? ?? ??? ???20? ?? ??",
         url="https://n.news.naver.com/mnews/article/277/0005744333",
-        summary="사회면 기사",
+        summary="??? ??",
         language="ko",
         trust_level=55,
     )

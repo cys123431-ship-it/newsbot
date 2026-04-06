@@ -162,7 +162,7 @@ def _build_market_nav_links(
     return [
         {"key": "news", "label": "News", "href": news_href},
         {"key": "analysis", "label": "Analysis", "href": analysis_href},
-        {"key": "crypto", "label": "코인", "href": crypto_href},
+        {"key": "crypto", "label": "??", "href": crypto_href},
     ]
 
 def _build_crypto_page_links(
@@ -217,11 +217,11 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
     page_specs: list[MarketPageSpec] = [
         _build_market_page_spec(
             surface="crypto",
-            surface_label="코인",
+            surface_label="??",
             output_dir=MARKETS_DIRECTORY_NAME,
             asset_prefix="../assets",
             data_prefix="../data",
-            page_title="newsbot crypto | 오버뷰",
+            page_title="newsbot crypto | ???",
             page_description="newsbot static crypto overview",
             body_class="market-crypto-page crypto-page-overview",
             show_market_map=False,
@@ -232,7 +232,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             ),
             surface_links=[],
             crypto_page_key="overview",
-            crypto_page_label="오버뷰",
+            crypto_page_label="???",
             crypto_page_links=_build_crypto_page_links(
                 overview_href="crypto/",
                 child_prefix="crypto/",
@@ -240,11 +240,11 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
         ),
         _build_market_page_spec(
             surface="crypto",
-            surface_label="코인",
+            surface_label="??",
             output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto",
             asset_prefix="../../assets",
             data_prefix="../../data",
-            page_title="newsbot crypto | 오버뷰",
+            page_title="newsbot crypto | ???",
             page_description="newsbot static crypto overview",
             body_class="market-crypto-page crypto-page-overview",
             show_market_map=False,
@@ -255,7 +255,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             ),
             surface_links=[],
             crypto_page_key="overview",
-            crypto_page_label="오버뷰",
+            crypto_page_label="???",
             crypto_page_links=_build_crypto_page_links(
                 overview_href="./",
                 child_prefix="",
@@ -270,7 +270,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
         page_specs.append(
             _build_market_page_spec(
                 surface="crypto",
-                surface_label="코인",
+                surface_label="??",
                 output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto/{slug}",
                 asset_prefix="../../../assets",
                 data_prefix="../../../data",
@@ -423,17 +423,74 @@ def _validate_scanner_manifest_tree(base_dir: Path) -> dict[str, Any]:
     return manifest
 
 
-def _assert_scanner_site_output(output_dir: Path) -> None:
+def validate_site_output(output_dir: Path) -> None:
+    site_data_path = output_dir / "data" / "site-data.json"
+    if not site_data_path.exists():
+        raise FileNotFoundError(f"Missing site data payload: {site_data_path}")
+
     scanner_dir = output_dir / "data" / SCANNER_DIRECTORY_NAME
-    _validate_scanner_manifest_tree(scanner_dir)
+    manifest = _validate_scanner_manifest_tree(scanner_dir)
 
     generated_dir = output_dir / "generated" / SCANNER_DIRECTORY_NAME
     if not generated_dir.exists() or not any(path.is_file() for path in generated_dir.rglob("*")):
         raise FileNotFoundError(f"Missing generated scanner assets in {generated_dir}")
 
-    crypto_index = output_dir / MARKETS_DIRECTORY_NAME / "crypto" / "index.html"
-    if not crypto_index.exists():
-        raise FileNotFoundError(f"Missing crypto landing page: {crypto_index}")
+    crypto_page_paths = [output_dir / MARKETS_DIRECTORY_NAME / "crypto" / "index.html"]
+    for page in CRYPTO_PAGE_DEFINITIONS:
+        if page["key"] == "overview":
+            continue
+        slug = page["key"].replace("_", "-")
+        crypto_page_paths.append(
+            output_dir / MARKETS_DIRECTORY_NAME / "crypto" / slug / "index.html"
+        )
+    missing_crypto_pages = [path for path in crypto_page_paths if not path.exists()]
+    if missing_crypto_pages:
+        sample = ", ".join(str(path) for path in missing_crypto_pages[:3])
+        raise FileNotFoundError(f"Missing crypto analysis page output: {sample}")
+
+    for snapshot_meta in manifest.get("snapshots", []):
+        if not isinstance(snapshot_meta, dict):
+            continue
+        snapshot_relative = str(snapshot_meta.get("path") or "").strip()
+        if not snapshot_relative:
+            continue
+        snapshot_payload = json.loads((scanner_dir / snapshot_relative).read_text(encoding="utf-8"))
+        for result in snapshot_payload.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            preview_relative = str(result.get("preview_image") or "").strip()
+            if preview_relative and not (output_dir / "generated" / normalize_public_path(preview_relative)).exists():
+                raise FileNotFoundError(
+                    f"Missing scanner preview asset referenced by {snapshot_relative}: {preview_relative}"
+                )
+
+            detail_relative = str(result.get("detail_page") or "").strip()
+            if detail_relative and not (
+                output_dir / MARKETS_DIRECTORY_NAME / normalize_public_path(detail_relative) / "index.html"
+            ).exists():
+                raise FileNotFoundError(
+                    f"Missing scanner detail page referenced by {snapshot_relative}: {detail_relative}"
+                )
+
+            legacy_relative = str(result.get("legacy_detail_page") or "").strip()
+            if legacy_relative and not (
+                output_dir / MARKETS_DIRECTORY_NAME / normalize_public_path(legacy_relative) / "index.html"
+            ).exists():
+                raise FileNotFoundError(
+                    f"Missing legacy scanner detail page referenced by {snapshot_relative}: {legacy_relative}"
+                )
+
+            detail_data_relative = str(result.get("detail_data_path") or "").strip()
+            if detail_data_relative and not (
+                scanner_dir / normalize_public_path(detail_data_relative)
+            ).exists():
+                raise FileNotFoundError(
+                    f"Missing scanner detail data referenced by {snapshot_relative}: {detail_data_relative}"
+                )
+
+
+def _assert_scanner_site_output(output_dir: Path) -> None:
+    validate_site_output(output_dir)
 
 
 def _build_market_redirect_html(*, title: str, target_href: str) -> str:
@@ -740,7 +797,7 @@ async def collect_site_payload(
             "count": status.published_count,
             "hub": _resolve_source_hub(status),
             "section": status.category,
-            "section_label": _get_category_payload_entry(status.category)["label"] if status.category else "자동 분류",
+            "section_label": _get_category_payload_entry(status.category)["label"] if status.category else "?? ??",
             "publisher_group": _resolve_publisher_group(status.source_key, source_definitions),
         }
         for status in sorted(
@@ -1043,7 +1100,7 @@ def _allow_static_candidate(candidate: ArticleCandidate) -> bool:
         and not candidate.source_key.startswith("naver-")
     ):
         return False
-    blocked_title_fragments = ("포토", "[속보]", "속보:")
+    blocked_title_fragments = ("??", "[??]", "??:")
     normalized_title = candidate.title.strip()
     if any(fragment in normalized_title for fragment in blocked_title_fragments):
         return False
@@ -1625,25 +1682,25 @@ def _augment_analysis_window_payload(
     payload["kpi_series"] = [
         {
             "key": "articles",
-            "label": "기사 수",
+            "label": "?? ?",
             "value": int(payload.get("article_count") or 0),
             "series": sparkline,
         },
         {
             "key": "sources",
-            "label": "활성 소스",
+            "label": "?? ??",
             "value": int(payload.get("active_source_count") or 0),
             "series": sparkline,
         },
         {
             "key": "repeats",
-            "label": "반복 기사",
+            "label": "?? ??",
             "value": int(payload.get("repeated_title_count") or 0),
             "series": sparkline,
         },
         {
             "key": "unknown",
-            "label": "시간 미상",
+            "label": "?? ??",
             "value": int(payload.get("unknown_time_count") or 0),
             "series": sparkline,
         },
@@ -1651,18 +1708,18 @@ def _augment_analysis_window_payload(
     payload["distribution_panels"] = [
         {
             "key": "sources",
-            "label": "소스 분포",
+            "label": "?? ??",
             "items": list(payload.get("top_sources") or [])[:8],
         },
         {
             "key": "sections",
-            "label": "섹션 비중",
+            "label": "?? ??",
             "items": list(payload.get("top_sections") or [])[:8],
             "chart": "donut",
         },
         {
             "key": "keywords",
-            "label": "반복 키워드",
+            "label": "?? ???",
             "items": [
                 {
                     "key": item.get("keyword"),
@@ -1676,20 +1733,20 @@ def _augment_analysis_window_payload(
     payload["trend_panels"] = [
         {
             "key": "volume",
-            "label": "일자별 기사량 추이",
+            "label": "??? ??? ??",
             "series": timeline,
             "summary_items": [
-                {"label": "최근 집계", "value": int(latest_point.get("count") or 0)},
-                {"label": "일 평균", "value": average_count},
+                {"label": "?? ??", "value": int(latest_point.get("count") or 0)},
+                {"label": "? ??", "value": average_count},
                 {
-                    "label": "최대 일자",
+                    "label": "?? ??",
                     "value": f"{peak_point.get('date')} / {int(peak_point.get('count') or 0)}",
                 },
             ],
         },
         {
             "key": "hubs",
-            "label": "허브 비중 추이",
+            "label": "?? ?? ??",
             "series_groups": hub_series,
             "summary_items": [
                 {
@@ -1701,7 +1758,7 @@ def _augment_analysis_window_payload(
         },
         {
             "key": "sections",
-            "label": "주요 섹션 추이",
+            "label": "?? ?? ??",
             "series_groups": section_series,
             "summary_items": [
                 {
@@ -1831,20 +1888,20 @@ def _default_hub_definition(hub_key: str) -> dict[str, Any]:
     defaults = {
         "kr": {
             "key": "kr",
-            "label": "대한민국",
-            "description": "국내 언론과 방송 보도를 분야별로 묶어 빠르게 훑는 허브입니다.",
+            "label": "????",
+            "description": "?? ??? ?? ??? ???? ?? ??? ?? ?????.",
             "order": 10,
         },
         "us": {
             "key": "us",
-            "label": "미국",
-            "description": "미국 주요 신문과 방송 네트워크 기사를 분야별로 정리한 허브입니다.",
+            "label": "??",
+            "description": "?? ?? ??? ?? ???? ??? ???? ??? ?????.",
             "order": 20,
         },
         "global": {
             "key": "global",
-            "label": "글로벌 전문",
-            "description": "코인, 기술, 군사처럼 주제 중심 전문 소스를 모아 둔 허브입니다.",
+            "label": "??? ??",
+            "description": "??, ??, ???? ?? ?? ?? ??? ?? ? ?????.",
             "order": 30,
         },
     }
@@ -2234,11 +2291,11 @@ def _write_static_site(
         )
     redirect_pages = {
         "us": _build_market_redirect_html(
-            title="newsbot markets | 미국주식",
+            title="newsbot markets | ????",
             target_href="../crypto/",
         ),
         "korea": _build_market_redirect_html(
-            title="newsbot markets | 한국주식",
+            title="newsbot markets | ????",
             target_href="../crypto/",
         ),
     }
@@ -2554,7 +2611,7 @@ def _write_scanner_detail_pages(
                     nav_links=[
                         {"key": "news", "label": "News", "href": prefix_root},
                         {"key": "analysis", "label": "Analysis", "href": prefix_root + "analysis/"},
-                        {"key": "crypto", "label": "코인", "href": prefix_root + "markets/crypto/"},
+                        {"key": "crypto", "label": "??", "href": prefix_root + "markets/crypto/"},
                     ],
                     back_href=prefix_root + "markets/crypto/patterns/",
                     detail=detail_payload.get("result") or result,
