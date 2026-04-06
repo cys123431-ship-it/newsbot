@@ -654,6 +654,28 @@ def _build_page_payloads(
                 "related_timeframes": related_timeframes,
             }
 
+        # Fallback snapshots can exist without analysis rows when upstream market
+        # requests fail. We still need detail JSON for every referenced setup so
+        # the static site can render detail pages and validate output paths.
+        for result in snapshot.get("results", []):
+            if not isinstance(result, dict):
+                continue
+            detail_data_path = str(result.get("detail_data_path") or "").strip()
+            if not detail_data_path or detail_data_path in detail_payloads:
+                continue
+            detail_payloads[detail_data_path] = {
+                "generated_at": generated_at,
+                "scan_id": snapshot["scan_id"],
+                "market": "binance-usdt-perpetual",
+                "universe_key": universe_key,
+                "universe_label": universe_label,
+                "timeframe": timeframe,
+                "timeframe_label": TIMEFRAME_LABELS[timeframe],
+                "result": json.loads(json.dumps(result, ensure_ascii=False)),
+                "analysis": {},
+                "related_timeframes": {},
+            }
+
     return page_data, page_payloads, detail_payloads
 
 
@@ -673,6 +695,8 @@ async def _scan_all() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
                 build_fallback_snapshot(timeframe=timeframe, generated_at=generated_at)
                 for timeframe in TIMEFRAMES
             ]
+            for snapshot in snapshots:
+                _decorate_results(snapshot=snapshot, candles_by_symbol={})
             analyses = {timeframe: [] for timeframe in TIMEFRAMES}
             return snapshots, analyses
 
