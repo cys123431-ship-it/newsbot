@@ -1,0 +1,55 @@
+name: Watch News Freshness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "8,18,28,38,48,58 * * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live news freshness and trigger refresh when stale
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const siteDataUrl = 'https://cys123431-ship-it.github.io/newsbot/data/site-data.json';
+            const response = await fetch(siteDataUrl, { cache: 'no-store' });
+            if (!response.ok) {
+              core.setFailed(`Failed to fetch site-data.json: ${response.status}`);
+              return;
+            }
+            const payload = await response.json();
+            const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
+            if (!generatedAt || Number.isNaN(generatedAt.getTime())) {
+              core.setFailed('site-data.json is missing generated_at');
+              return;
+            }
+            const ageMinutes = (Date.now() - generatedAt.getTime()) / 60000;
+            core.info(`site-data generated_at=${payload.generated_at} ageMinutes=${ageMinutes.toFixed(1)}`);
+            if (ageMinutes <= 20) {
+              core.info('News feed freshness is healthy.');
+              return;
+            }
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'news-refresh.yml',
+              per_page: 10,
+            });
+            const activeRun = runs.workflow_runs.find((run) => ['queued', 'in_progress'].includes(run.status));
+            if (activeRun) {
+              core.info(`Refresh already active: ${activeRun.html_url}`);
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'news-refresh.yml',
+              ref: context.ref.replace('refs/heads/', ''),
+            });
+            core.info('Triggered news-refresh.yml because live news data is stale.');
