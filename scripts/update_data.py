@@ -734,9 +734,63 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in signals_rows[:60]],
         }
 
+        derivatives_rows = sorted(
+            analyses,
+            key=lambda row: (
+                -_safe_float(row.get("scores", {}).get("derivatives")),
+                -abs(_safe_float(row.get("funding_rate"))),
+                -_safe_float(row.get("open_interest_usd")),
+                row["symbol"],
+            ),
+        )
+        derivatives_payload = {
+            "page_key": "derivatives",
+            "page_label": "파생지표",
+            "generated_at": generated_at,
+            "universe_key": universe_key,
+            "universe_label": universe_label,
+            "timeframe": timeframe,
+            "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "summary_cards": _summary_cards(derivatives_rows),
+            "counts": {
+                "funding_hot": sum(1 for row in analyses if abs(_safe_float(row.get("funding_rate"))) >= 0.015),
+                "oi_heavy": sum(1 for row in analyses if _safe_float(row.get("open_interest_usd")) >= 500_000_000),
+                "ls_skewed": sum(1 for row in analyses if abs(_safe_float(row.get("long_short_ratio")) - 1.0) >= 0.12),
+                "liq_hot": sum(1 for row in analyses if _safe_float(row.get("liquidation_pressure_usd")) >= 100_000),
+            },
+            "rows": [_analysis_row(row) for row in derivatives_rows[:60]],
+        }
+
+        movers_rows = sorted(
+            analyses,
+            key=lambda row: (
+                -abs(_safe_float(row.get("change_24h"))),
+                -_safe_float(row.get("quote_volume")),
+                -_safe_float(row.get("scores", {}).get("volatility")),
+                row["symbol"],
+            ),
+        )
+        movers_payload = {
+            "page_key": "movers",
+            "page_label": "급등락",
+            "generated_at": generated_at,
+            "universe_key": universe_key,
+            "universe_label": universe_label,
+            "timeframe": timeframe,
+            "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "summary_cards": _summary_cards(movers_rows),
+            "counts": {
+                "breakout_up": sum(1 for row in analyses if row["signals"]["breakout_up"]),
+                "breakout_down": sum(1 for row in analyses if row["signals"]["breakout_down"]),
+                "squeeze": sum(1 for row in analyses if row["signals"]["squeeze"]),
+                "high_volume": sum(1 for row in analyses if _safe_float(row.get("quote_volume")) >= 500_000_000),
+            },
+            "rows": [_analysis_row(row) for row in movers_rows[:60]],
+        }
+
         opportunities_payload = {
             "page_key": "opportunities",
-            "page_label": "우선순위",
+            "page_label": "기회 랭킹",
             "generated_at": generated_at,
             "universe_key": universe_key,
             "universe_label": universe_label,
@@ -748,7 +802,7 @@ def _build_page_payloads(
 
         setups_payload = {
             "page_key": "setups",
-            "page_label": "세트업 랩",
+            "page_label": "워치리스트",
             "generated_at": generated_at,
             "universe_key": universe_key,
             "universe_label": universe_label,
@@ -905,6 +959,8 @@ def _build_page_payloads(
         payload_by_page = {
             "overview": overview_payload,
             "signals": signals_payload,
+            "derivatives": derivatives_payload,
+            "movers": movers_payload,
             "patterns": snapshot,
             "opportunities": opportunities_payload,
             "setups": setups_payload,

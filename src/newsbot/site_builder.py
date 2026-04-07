@@ -172,6 +172,8 @@ def _build_crypto_page_links(
 ) -> list[dict[str, str]]:
     links: list[dict[str, str]] = []
     for page in CRYPTO_PAGE_DEFINITIONS:
+        if not bool(page.get("nav", True)):
+            continue
         slug = page["key"].replace("_", "-")
         href = overview_href if page["key"] == "overview" else f"{child_prefix}{slug}/"
         links.append({"key": page["key"], "label": page["label"], "href": href})
@@ -2233,6 +2235,10 @@ def _write_static_site(
     shutil.copy2(SITE_ASSET_DIR / "app.js", output_dir / "assets" / "app.js")
     shutil.copy2(SITE_ASSET_DIR / "analysis.js", output_dir / "assets" / "analysis.js")
     shutil.copy2(SITE_ASSET_DIR / "markets.js", output_dir / "assets" / "markets.js")
+    shutil.copy2(
+        SITE_ASSET_DIR / "crypto-live-worker.js",
+        output_dir / "assets" / "crypto-live-worker.js",
+    )
 
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace(
         "</", "<\\/"
@@ -2297,6 +2303,7 @@ def _write_static_site(
                 "crypto_page_key": page_spec["crypto_page_key"],
                 "crypto_page_label": page_spec["crypto_page_label"],
                 "crypto_page_links": page_spec["crypto_page_links"],
+                "live_worker_url": page_spec["asset_prefix"] + f"/crypto-live-worker.js?v={asset_version}",
                 "scanner_manifest_url": page_spec["data_prefix"] + f"/{SCANNER_DIRECTORY_NAME}/{SCANNER_MANIFEST_FILENAME}",
             },
             ensure_ascii=False,

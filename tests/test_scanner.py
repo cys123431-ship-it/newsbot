@@ -67,6 +67,7 @@ def test_build_manifest_collects_snapshot_metadata():
         page_data={
             "overview": {"top100": {"5m": "overview-top100-5m.json"}},
             "patterns": {"top100": {"5m": "scan-top100-5m.json"}},
+            "derivatives": {"top100": {"5m": "derivatives-top100-5m.json"}},
         },
     )
 
@@ -75,6 +76,7 @@ def test_build_manifest_collects_snapshot_metadata():
     assert manifest["symbols_scanned"] == 100
     assert manifest["page_data"]["overview"]["top100"]["5m"] == "overview-top100-5m.json"
     assert manifest["page_data"]["patterns"]["top100"]["5m"] == "scan-top100-5m.json"
+    assert manifest["page_data"]["derivatives"]["top100"]["5m"] == "derivatives-top100-5m.json"
     assert any(page["key"] == "technical_ratings" for page in manifest["crypto_pages"])
     assert snapshots[0]["failures"][0]["scope"] == "klines"
 

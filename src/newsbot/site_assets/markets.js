@@ -1,7 +1,7 @@
-const bootstrapElement = document.getElementById("markets-bootstrap");
-const marketsBootstrap = bootstrapElement ? JSON.parse(bootstrapElement.textContent || "{}") : {};
+const bootstrap = JSON.parse(document.getElementById("markets-bootstrap")?.textContent || "{}");
 
 const refs = {
+  app: document.getElementById("crypto-app"),
   universeSelect: document.getElementById("crypto-universe-select"),
   timeframeSelect: document.getElementById("crypto-timeframe-select"),
   refreshButton: document.getElementById("crypto-refresh-button"),
@@ -16,44 +16,980 @@ const refs = {
   pageContent: document.getElementById("crypto-page-content"),
 };
 
-const CRYPTO_PATTERN_FILTERS = [
-  { key: "all", label: "전체" },
-  { key: "forming", label: "실시간 진입" },
-  { key: "touch", label: "실시간 터치" },
-  { key: "tbar_complete", label: "T-Bar 완성" },
-  { key: "complete", label: "일반 완성" },
+const TIMEFRAMES = [
+  { key: "5m", label: "5분 (5m)" },
+  { key: "15m", label: "15분 (15m)" },
+  { key: "1h", label: "1시간 (1h)" },
+  { key: "4h", label: "4시간 (4h)" },
 ];
-
-const CRYPTO_COOLDOWN_MS = 45_000;
-const CRYPTO_COOLDOWN_STORAGE_KEY = "newsbot-crypto-refresh-cooldown";
-const CRYPTO_LAST_LOADED_STORAGE_KEY = "newsbot-crypto-last-loaded-at";
-const SEOUL_TIMEZONE = "Asia/Seoul";
-
-const ROOT_PREFIX = (() => {
-  const path = window.location.pathname || "/";
-  const marker = "/markets/";
-  const index = path.indexOf(marker);
-  if (index >= 0) return path.slice(0, index + 1);
-  const analysisMarker = "/analysis/";
-  const analysisIndex = path.indexOf(analysisMarker);
-  if (analysisIndex >= 0) return path.slice(0, analysisIndex + 1);
-  return path.endsWith("/") ? path : `${path}/`;
-})();
+const UNIVERSE_OPTIONS = [{ key: "top100", label: "상위 100개 종목" }];
+const LOCAL_CACHE_PREFIX = "newsbot:crypto-live:";
+const LIVE_CACHE_TTL_MS = 90 * 1000;
+const REFRESH_COOLDOWN_MS = 45 * 1000;
+const ROOT_FALLBACK_MANIFEST = "/newsbot/data/scanner/manifest.json";
 
 const state = {
+  pageKey: String(bootstrap.crypto_page_key || "overview"),
+  pageLabel: String(bootstrap.crypto_page_label || "오버뷰"),
+  universeKey: localStorage.getItem(`${LOCAL_CACHE_PREFIX}universe`) || "top100",
+  timeframe: localStorage.getItem(`${LOCAL_CACHE_PREFIX}timeframe`) || "5m",
+  loading: false,
+  source: "loading",
   manifest: null,
-  manifestUrl: "",
-  pagePayload: null,
-  pageKey: String(marketsBootstrap.crypto_page_key || "overview"),
-  universeKey: "top100",
-  timeframe: "5m",
-  filter: "all",
-  cooldownUntil: Number.parseInt(localStorage.getItem(CRYPTO_COOLDOWN_STORAGE_KEY) || "0", 10) || 0,
-  lastLoadedAt: Number.parseInt(localStorage.getItem(CRYPTO_LAST_LOADED_STORAGE_KEY) || "0", 10) || 0,
-  isLoading: false,
-  errorMessage: "",
-  notice: "최근 5분 배치 스냅샷을 준비하고 있습니다.",
+  manifestPromise: null,
+  worker: null,
+  workerRequestId: 0,
+  cooldownUntil: 0,
+  lastLoadedAt: null,
+  generatedAt: null,
+  liveCoverageNote: "",
 };
+
+init();
+
+function init() {
+  populateSelect(refs.universeSelect, UNIVERSE_OPTIONS, state.universeKey);
+  populateSelect(refs.timeframeSelect, TIMEFRAMES, state.timeframe);
+  renderPageTabs();
+  bindEvents();
+  renderLoadingState();
+  void loadPage(false);
+}
+
+function bindEvents() {
+  refs.universeSelect?.addEventListener("change", () => {
+    state.universeKey = refs.universeSelect.value || "top100";
+    localStorage.setItem(`${LOCAL_CACHE_PREFIX}universe`, state.universeKey);
+    void loadPage(false);
+  });
+
+  refs.timeframeSelect?.addEventListener("change", () => {
+    state.timeframe = refs.timeframeSelect.value || "5m";
+    localStorage.setItem(`${LOCAL_CACHE_PREFIX}timeframe`, state.timeframe);
+    void loadPage(false);
+  });
+
+  refs.refreshButton?.addEventListener("click", () => {
+    if (Date.now() < state.cooldownUntil || state.loading) {
+      updateCooldownText();
+      return;
+    }
+    state.cooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
+    updateCooldownText();
+    void loadPage(true);
+  });
+
+  window.setInterval(updateCooldownText, 1000);
+  window.setInterval(() => {
+    if (!state.loading && state.source === "live") {
+      renderMetaSummary();
+    }
+  }, 30 * 1000);
+}
+
+async function loadPage(force) {
+  state.loading = true;
+  renderLoadingState();
+
+  try {
+    if (state.pageKey === "patterns") {
+      renderPatternsDeprecated();
+      return;
+    }
+
+    const livePayload = await loadLivePayload(force);
+    state.source = "live";
+    state.generatedAt = livePayload.generated_at || new Date().toISOString();
+    state.lastLoadedAt = new Date().toISOString();
+    state.liveCoverageNote = String(livePayload.coverage_note || "");
+    renderPayload(livePayload);
+  } catch (liveError) {
+    try {
+      const fallbackPayload = await loadFallbackPayload();
+      state.source = "fallback";
+      state.generatedAt = fallbackPayload.generated_at || null;
+      state.lastLoadedAt = new Date().toISOString();
+      state.liveCoverageNote = "";
+      renderPayload(fallbackPayload, {
+        warning:
+          "실시간 조회에 실패해 최근 배치 데이터를 표시 중입니다. 잠시 뒤 다시 시도하면 라이브 데이터로 복귀할 수 있습니다.",
+      });
+    } catch (fallbackError) {
+      state.source = "error";
+      state.generatedAt = null;
+      state.lastLoadedAt = new Date().toISOString();
+      renderErrorState(liveError, fallbackError);
+    }
+  } finally {
+    state.loading = false;
+    updateCooldownText();
+  }
+}
+
+async function loadLivePayload(force) {
+  const cacheKey = `${LOCAL_CACHE_PREFIX}${state.pageKey}:${state.universeKey}:${state.timeframe}`;
+  if (!force) {
+    const cached = readLocalCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const worker = ensureWorker();
+  const requestId = `req-${Date.now()}-${++state.workerRequestId}`;
+  const payload = await new Promise((resolve, reject) => {
+    const onMessage = (event) => {
+      const message = event.data || {};
+      if (message.id !== requestId) {
+        return;
+      }
+      worker.removeEventListener("message", onMessage);
+      if (message.ok) {
+        resolve(message.payload);
+      } else {
+        reject(new Error(message.error || "Worker failed to load live payload."));
+      }
+    };
+    worker.addEventListener("message", onMessage);
+    worker.postMessage({
+      id: requestId,
+      type: "load-page",
+      pageKey: state.pageKey,
+      timeframe: state.timeframe,
+      universeKey: state.universeKey,
+      force,
+    });
+  });
+  writeLocalCache(cacheKey, payload);
+  return payload;
+}
+
+async function loadFallbackPayload() {
+  const manifest = await loadManifest();
+  if (state.pageKey === "patterns") {
+    throw new Error("Patterns route is deprecated and no live fallback is rendered.");
+  }
+  const relativePath = manifest?.page_data?.[state.pageKey]?.[state.universeKey]?.[state.timeframe];
+  if (!relativePath) {
+    throw new Error("Selected page dataset is not present in the scanner manifest.");
+  }
+  const datasetUrl = new URL(relativePath, resolveManifestUrl()).toString();
+  const response = await fetch(datasetUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Fallback dataset request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function loadManifest() {
+  if (state.manifest) {
+    return state.manifest;
+  }
+  if (!state.manifestPromise) {
+    state.manifestPromise = (async () => {
+      const candidates = [
+        resolveManifestUrl(),
+        new URL(ROOT_FALLBACK_MANIFEST, window.location.origin).toString(),
+      ];
+      let lastError = null;
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(candidate, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`${response.status}`);
+          }
+          const payload = await response.json();
+          state.manifest = payload;
+          return payload;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("Failed to load scanner manifest.");
+    })();
+  }
+  return state.manifestPromise;
+}
+
+function resolveManifestUrl() {
+  return new URL(String(bootstrap.scanner_manifest_url || ROOT_FALLBACK_MANIFEST), window.location.href).toString();
+}
+
+function ensureWorker() {
+  if (!state.worker) {
+    const workerUrl = new URL(String(bootstrap.live_worker_url || "../assets/crypto-live-worker.js"), window.location.href);
+    state.worker = new Worker(workerUrl);
+  }
+  return state.worker;
+}
+
+function renderPageTabs() {
+  const tabs = Array.isArray(bootstrap.crypto_page_links) ? bootstrap.crypto_page_links : [];
+  refs.pageTabs.innerHTML = tabs
+    .map(
+      (tab) => `
+        <a class="crypto-page-tab ${tab.key === state.pageKey ? "is-active" : ""}" href="${escapeHtml(tab.href)}">
+          ${escapeHtml(tab.label)}
+        </a>
+      `,
+    )
+    .join("");
+}
+
+function renderLoadingState() {
+  refs.statusLine.textContent = "Preparing live market data.";
+  refs.progressBar.style.width = "18%";
+  refs.summaryMeta.innerHTML = chip("Preparing data");
+  refs.activeScan.innerHTML = chip("Loading live Binance market data.");
+  refs.pageHighlights.innerHTML = renderSkeletonGrid(4);
+  refs.pageControls.innerHTML = renderSkeletonGrid(2);
+  refs.pageContent.innerHTML = renderSkeletonGrid(3);
+}
+
+function renderPayload(payload, options = {}) {
+  state.pageLabel = payload.page_label || state.pageLabel;
+  refs.progressBar.style.width = "100%";
+  refs.statusLine.textContent = options.warning || buildStatusLine(payload);
+  renderMetaSummary();
+  renderActiveScan(payload, options.warning);
+
+  if (payload.deprecated) {
+    refs.pageHighlights.innerHTML = renderNoticeSection("패턴 보관함", payload.message);
+    refs.pageControls.innerHTML = "";
+    refs.pageContent.innerHTML = renderDeprecatedLinks();
+    return;
+  }
+
+  switch (payload.page_key) {
+    case "overview":
+      renderOverview(payload);
+      break;
+    case "signals":
+      renderSignals(payload);
+      break;
+    case "derivatives":
+      renderDerivatives(payload);
+      break;
+    case "movers":
+      renderMovers(payload);
+      break;
+    case "opportunities":
+      renderOpportunities(payload);
+      break;
+    case "setups":
+      renderSetups(payload);
+      break;
+    case "technical_ratings":
+      renderTechnicalRatings(payload);
+      break;
+    case "trend":
+      renderTrend(payload);
+      break;
+    case "momentum":
+      renderMomentum(payload);
+      break;
+    case "volatility":
+      renderVolatility(payload);
+      break;
+    case "multi_timeframe":
+      renderMultiTimeframe(payload);
+      break;
+    default:
+      refs.pageHighlights.innerHTML = "";
+      refs.pageControls.innerHTML = "";
+      refs.pageContent.innerHTML = renderNoticeSection("알 수 없는 페이지", "이 페이지를 렌더링할 수 없습니다.");
+      break;
+  }
+}
+
+function renderOverview(payload) {
+  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageControls.innerHTML = renderPreviewCards(payload.page_previews || []);
+  refs.pageContent.innerHTML = [
+    renderSection(
+      "기회 랭킹 상위 후보",
+      "실시간 종합 점수 기준 상위 종목",
+      renderOpportunityGrid(payload.top_opportunities || []),
+    ),
+    renderSection(
+      "실시간 시그널 상위 후보",
+      "파생 이상치와 모멘텀 가속도가 강한 순서",
+      renderCompactGrid(payload.top_signals || []),
+    ),
+  ].join("");
+}
+
+function renderSignals(payload) {
+  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.anomaly_counts);
+  refs.pageControls.innerHTML = renderSection(
+    "Signal Lens",
+    "RSI, MACD, Bollinger, VWAP, funding, open interest, and positioning in one screen.",
+    renderChipRow(["Funding", "Open Interest", "Long/Short", "Momentum"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "Symbol", render: (row) => renderSymbolCell(row) },
+    { label: "Price", render: (row) => formatPrice(row.last_price) },
+    { label: "24h", render: (row) => renderSignedBadge(row.change_24h, "%") },
+    { label: "Funding", render: (row) => renderSignedBadge(row.funding_rate, "%") },
+    { label: "OI", render: (row) => formatCurrencyCompact(row.open_interest_usd) },
+    { label: "RSI / MACD", render: (row) => `${formatNumber(row.indicators?.rsi14)} / ${formatSignedNumber(row.indicators?.macd_histogram)}` },
+    { label: "Flags", render: (row) => renderFlags(row.flags) },
+  ]);
+}
+
+function renderDerivatives(payload) {
+  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.counts);
+  refs.pageControls.innerHTML = renderSection(
+    "파생지표 포커스",
+    "Funding, OI, 롱/숏, 청산 압력 편차를 한 번에 봅니다.",
+    renderChipRow(["Funding", "Open Interest", "Long/Short", "Liquidation"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "Funding", render: (row) => renderSignedBadge(row.funding_rate, "%") },
+    { label: "OI", render: (row) => formatCurrencyCompact(row.open_interest_usd) },
+    { label: "롱/숏", render: (row) => formatRatio(row.long_short_ratio) },
+    { label: "청산 압력", render: (row) => formatCurrencyCompact(row.liquidation_pressure_usd) },
+    { label: "편향", render: (row) => badge(row.labels?.derivatives_bias || "중립", row.scores?.derivatives_bias) },
+    { label: "플래그", render: (row) => renderFlags(row.flags) },
+  ]);
+}
+
+function renderMovers(payload) {
+  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.counts);
+  refs.pageControls.innerHTML = renderSection(
+    "급등락/돌파 관찰",
+    "24시간 변동률, 거래량, 볼린저 압축/돌파 여부 중심으로 정렬합니다.",
+    renderChipRow(["상방 돌파", "하방 돌파", "압축", "고거래량"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "24h", render: (row) => renderSignedBadge(row.change_24h, "%") },
+    { label: "거래대금", render: (row) => formatCurrencyCompact(row.quote_volume) },
+    { label: "BB Width", render: (row) => `${formatNumber(row.indicators?.bb_width)}%` },
+    { label: "ATR%", render: (row) => `${formatNumber(row.indicators?.atr_pct)}%` },
+    { label: "상태", render: (row) => badge(row.labels?.volatility_state || "중립", stateScoreForLabel(row.labels?.volatility_state)) },
+    { label: "플래그", render: (row) => renderFlags(row.flags) },
+  ]);
+}
+
+function renderOpportunities(payload) {
+  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageControls.innerHTML = renderSection(
+    "랭킹 공식",
+    "기술·추세·모멘텀·파생·변동성을 조합한 실시간 우선순위입니다.",
+    renderChipRow(["기술 28%", "추세 20%", "모멘텀 16%", "파생 18%", "변동성 8%", "합의도 10%"]),
+  );
+  refs.pageContent.innerHTML = renderOpportunityGrid(payload.rows || []);
+}
+
+function renderSetups(payload) {
+  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageControls.innerHTML = renderSection(
+    "워치리스트 해석",
+    "지금 바로 체크할 만한 실시간 후보를 카드형으로 정리했습니다.",
+    renderChipRow(["롱/숏 우위", "기술 점수", "모멘텀", "파생 온도"]),
+  );
+  refs.pageContent.innerHTML = renderSetupCards(payload.rows || []);
+}
+
+function renderTechnicalRatings(payload) {
+  refs.pageHighlights.innerHTML = renderCountGrid(payload.distribution || []);
+  refs.pageControls.innerHTML = renderSection(
+    "테크니컬 분류",
+    "이동평균 계열과 오실레이터 계열을 합쳐 Strong Buy ~ Strong Sell 로 분류합니다.",
+    renderChipRow(["MA bias", "Oscillator bias", "VWAP gap"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "등급", render: (row) => badge(row.labels?.technical_rating || "Neutral", row.scores?.technical) },
+    { label: "기술 점수", render: (row) => formatSignedNumber(row.scores?.technical) },
+    { label: "MA", render: (row) => formatSignedNumber(row.scores?.moving_average) },
+    { label: "Osc", render: (row) => formatSignedNumber(row.scores?.oscillator) },
+    { label: "VWAP 갭", render: (row) => `${formatSignedNumber(row.indicators?.close_vs_vwap_pct)}%` },
+  ]);
+}
+
+function renderTrend(payload) {
+  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageControls.innerHTML = renderSection(
+    "추세 판정",
+    "EMA 크로스, Supertrend, ADX-DMI, Ichimoku 편향을 함께 봅니다.",
+    renderChipRow(["EMA20/50/200", "Supertrend", "ADX-DMI", "Ichimoku"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "추세", render: (row) => badge(row.labels?.trend_bias || "혼조", row.scores?.trend_bias) },
+    { label: "강도", render: (row) => formatNumber(row.scores?.trend) },
+    { label: "ADX", render: (row) => formatNumber(row.indicators?.adx14) },
+    { label: "+DI / -DI", render: (row) => `${formatNumber(row.indicators?.plus_di)} / ${formatNumber(row.indicators?.minus_di)}` },
+    { label: "Supertrend", render: (row) => row.signals?.supertrend || "-" },
+  ]);
+}
+
+function renderMomentum(payload) {
+  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageControls.innerHTML = renderSection(
+    "모멘텀 판정",
+    "RSI, Stoch RSI, MACD, ROC 중심으로 과매수·과매도와 다이버전스를 봅니다.",
+    renderChipRow(["RSI", "Stoch RSI", "MACD", "ROC"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "모멘텀", render: (row) => badge(row.labels?.momentum_bias || "중립", row.scores?.momentum_bias) },
+    { label: "RSI", render: (row) => formatNumber(row.indicators?.rsi14) },
+    { label: "Stoch RSI", render: (row) => formatNumber(row.indicators?.stoch_rsi) },
+    { label: "MACD Hist", render: (row) => formatSignedNumber(row.indicators?.macd_histogram) },
+    { label: "ROC", render: (row) => `${formatSignedNumber(row.indicators?.roc12)}%` },
+  ]);
+}
+
+function renderVolatility(payload) {
+  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageControls.innerHTML = renderSection(
+    "변동성 판정",
+    "볼린저 밴드 폭, ATR%, 압축, 확장, 돌파 신호를 중심으로 봅니다.",
+    renderChipRow(["BB Width", "ATR%", "압축", "돌파"]),
+  );
+  refs.pageContent.innerHTML = renderDataTable(payload.rows || [], [
+    { label: "심볼", render: (row) => renderSymbolCell(row) },
+    { label: "상태", render: (row) => badge(row.labels?.volatility_state || "중립", stateScoreForLabel(row.labels?.volatility_state)) },
+    { label: "BB Width", render: (row) => `${formatNumber(row.indicators?.bb_width)}%` },
+    { label: "ATR%", render: (row) => `${formatNumber(row.indicators?.atr_pct)}%` },
+    { label: "돌파", render: (row) => row.signals?.breakout_up ? "상방" : row.signals?.breakout_down ? "하방" : "-" },
+    { label: "플래그", render: (row) => renderFlags(row.flags) },
+  ]);
+}
+
+function renderMultiTimeframe(payload) {
+  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageControls.innerHTML = renderSection(
+    "프레임 합의도",
+    "5m / 15m / 1h / 4h의 추세·모멘텀·기회 점수를 한 번에 확인합니다.",
+    renderChipRow(["5m", "15m", "1h", "4h"]),
+  );
+  refs.pageContent.innerHTML = `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>멀티 타임프레임 매트릭스</strong>
+          <span>${escapeHtml(payload.coverage_note || "상위 프레임 합의")}</span>
+        </div>
+      </div>
+      <div class="crypto-mtf-grid">
+        ${(payload.rows || []).map((row) => renderMultiTimeframeCard(row)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderPatternsDeprecated() {
+  state.source = "deprecated";
+  state.generatedAt = null;
+  state.lastLoadedAt = new Date().toISOString();
+  refs.statusLine.textContent = "패턴은 보관함으로 이동했습니다.";
+  refs.progressBar.style.width = "100%";
+  renderMetaSummary();
+  refs.activeScan.innerHTML = chip("패턴은 주력 제품 흐름에서 제외됐습니다.");
+  refs.pageHighlights.innerHTML = renderNoticeSection(
+    "패턴 보관함",
+    "패턴은 주력 제품에서 제외했습니다. 실시간 파생지표, 급등락, 기회 랭킹 중심으로 사용해 주세요.",
+  );
+  refs.pageControls.innerHTML = renderDeprecatedLinks();
+  refs.pageContent.innerHTML = "";
+}
+
+function renderDeprecatedLinks() {
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>대체 페이지</strong>
+          <span>실시간 분석이 잘 맞는 세 축을 바로 열 수 있습니다.</span>
+        </div>
+      </div>
+      <div class="crypto-compact-grid">
+        ${renderRouteCard("../derivatives/", "파생지표", "Funding, OI, 롱/숏, 청산 압력을 실시간으로 확인")}
+        ${renderRouteCard("../movers/", "급등락", "변동률, 거래량, 볼린저 압축·돌파 위주로 탐색")}
+        ${renderRouteCard("../opportunities/", "기회 랭킹", "기술·추세·모멘텀·파생 종합 점수 순위")}
+      </div>
+    </section>
+  `;
+}
+
+function renderRouteCard(href, title, description) {
+  return `
+    <a class="crypto-compact-card" href="${escapeHtml(href)}">
+      <div class="crypto-compact-head">
+        <strong>${escapeHtml(title)}</strong>
+        <span>열기</span>
+      </div>
+      <p>${escapeHtml(description)}</p>
+    </a>
+  `;
+}
+
+function renderMetaSummary() {
+  const elapsedMinutes = state.lastLoadedAt
+    ? Math.max(0, Math.round((Date.now() - new Date(state.lastLoadedAt).getTime()) / 60000))
+    : null;
+  refs.summaryMeta.innerHTML = [
+    chip(`최근 불러온 시각(한국시간) ${formatSeoulDateTime(state.lastLoadedAt)}`),
+    chip(`데이터 소스 ${state.source === "live" ? "Binance 실시간" : state.source === "fallback" ? "배치 fallback" : state.source === "deprecated" ? "보관함" : "준비 중"}`),
+    chip(elapsedMinutes === null ? "경과 시간 계산 중" : `경과 시간 ${formatElapsed(elapsedMinutes)}`),
+    chip(state.universeKey),
+    chip(state.pageLabel),
+  ].join("");
+}
+
+function renderActiveScan(payload, warning) {
+  const line =
+    state.source === "live"
+      ? `실시간 조회 성공 · ${escapeHtml(payload.coverage_note || `${payload.symbols_scanned || 0}개 심볼 계산`)} · ${escapeHtml(payload.timeframe_label || state.timeframe)}`
+      : state.source === "fallback"
+        ? `실시간 조회 실패, 최근 배치 데이터 표시 중 · 배치 기준 ${escapeHtml(formatSeoulDateTime(payload.generated_at))}`
+        : "데이터 준비 중";
+  refs.activeScan.innerHTML = [chip(line), warning ? chip(warning) : ""].join("");
+}
+
+function renderCombinedHighlights(summaryCards, counts) {
+  return `${renderStatCards(summaryCards || [])}${renderCountGrid(counts || {})}`;
+}
+
+function renderStatCards(cards) {
+  if (!cards.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-stat-grid">
+      ${cards
+        .map(
+          (card) => `
+            <article class="crypto-stat-card">
+              <span class="crypto-card-label">${escapeHtml(card.label)}</span>
+              <strong class="crypto-card-value">${escapeHtml(formatSummaryValue(card.value, card.format))}</strong>
+              <p class="crypto-card-note">${escapeHtml(card.note || "")}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </section>
+  `;
+}
+
+function renderCountGrid(counts) {
+  const entries = Array.isArray(counts)
+    ? counts
+    : Object.entries(counts).map(([label, count]) => ({ label, count }));
+  if (!entries.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-stat-grid">
+      ${entries
+        .map(
+          (entry) => `
+            <article class="crypto-stat-card">
+              <span class="crypto-card-label">${escapeHtml(entry.label)}</span>
+              <strong class="crypto-card-value">${escapeHtml(String(entry.count ?? 0))}</strong>
+            </article>
+          `,
+        )
+        .join("")}
+    </section>
+  `;
+}
+
+function renderPreviewCards(cards) {
+  if (!cards.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>실시간 프리뷰</strong>
+          <span>각 화면에서 바로 확인할 대표 종목</span>
+        </div>
+      </div>
+      <div class="crypto-preview-grid">
+        ${cards
+          .map(
+            (card) => `
+              <article class="crypto-preview-card">
+                <div class="crypto-preview-head">
+                  <strong>${escapeHtml(card.title)}</strong>
+                  <span class="crypto-inline-badge">${escapeHtml(card.symbol)}</span>
+                </div>
+                <p>${escapeHtml(card.description)}</p>
+                <div class="crypto-preview-score"><span>점수 ${escapeHtml(formatNumber(card.score))}</span></div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSection(title, subtitle, body) {
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(subtitle)}</span>
+        </div>
+      </div>
+      ${body}
+    </section>
+  `;
+}
+
+function renderOpportunityGrid(rows) {
+  if (!rows.length) {
+    return '<div class="analysis-empty">표시할 실시간 후보가 없습니다.</div>';
+  }
+  return `<div class="crypto-opportunity-grid">${rows.map((row) => renderOpportunityCard(row)).join("")}</div>`;
+}
+
+function renderCompactGrid(rows) {
+  if (!rows.length) {
+    return '<div class="analysis-empty">표시할 항목이 없습니다.</div>';
+  }
+  return `<div class="crypto-compact-grid">${rows.map((row) => renderCompactCard(row)).join("")}</div>`;
+}
+
+function renderSetupCards(rows) {
+  if (!rows.length) {
+    return '<div class="analysis-empty">워치리스트 후보가 없습니다.</div>';
+  }
+  return `<div class="crypto-opportunity-grid">${rows.map((row) => renderSetupCard(row)).join("")}</div>`;
+}
+
+function renderOpportunityCard(row) {
+  return `
+    <article class="crypto-preview-card">
+      <div class="crypto-preview-head">
+        <strong>${escapeHtml(row.symbol)}</strong>
+        ${badge(row.labels?.setup_bias || "관망", row.scores?.setup_bias)}
+      </div>
+      <p>${escapeHtml(renderOpportunitySummary(row))}</p>
+      <div class="crypto-preview-score">
+        <span>기회 ${escapeHtml(formatNumber(row.scores?.opportunity))}</span>
+        <span>기술 ${escapeHtml(formatSignedNumber(row.scores?.technical))}</span>
+        <span>파생 ${escapeHtml(formatNumber(row.scores?.derivatives))}</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderSetupCard(row) {
+  return `
+    <article class="crypto-preview-card">
+      <div class="crypto-preview-head">
+        <strong>${escapeHtml(row.symbol)}</strong>
+        ${badge(row.labels?.setup_bias || "관망", row.scores?.setup_bias)}
+      </div>
+      <p>${escapeHtml(renderOpportunitySummary(row))}</p>
+      <div class="crypto-preview-score">
+        <span>가격 ${escapeHtml(formatPrice(row.last_price))}</span>
+        <span>24h ${escapeHtml(formatSignedNumber(row.change_24h))}%</span>
+        <span>Funding ${escapeHtml(formatSignedNumber(row.funding_rate))}%</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderCompactCard(row) {
+  return `
+    <article class="crypto-compact-card">
+      <div class="crypto-compact-head">
+        <strong>${escapeHtml(row.symbol)}</strong>
+        ${badge(row.labels?.technical_rating || "Neutral", row.scores?.technical)}
+      </div>
+      <p>${escapeHtml(renderOpportunitySummary(row))}</p>
+      <div class="crypto-compact-meta">
+        <span>RSI ${escapeHtml(formatNumber(row.indicators?.rsi14))}</span>
+        <span>ADX ${escapeHtml(formatNumber(row.indicators?.adx14))}</span>
+        <span>OI ${escapeHtml(formatCurrencyCompact(row.open_interest_usd))}</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderMultiTimeframeCard(row) {
+  return `
+    <article class="crypto-panel">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(row.symbol)}</strong>
+          <span>${escapeHtml(row.consensus_label)} · 합의도 ${escapeHtml(formatSignedNumber(row.agreement_score))}</span>
+        </div>
+      </div>
+      <div class="crypto-mtf-table">
+        ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame])).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderMultiTimeframeRow(frame, entry) {
+  return `
+    <div class="crypto-mtf-row">
+      <strong>${escapeHtml(frame)}</strong>
+      <span>${escapeHtml(entry?.technical_rating || "-")}</span>
+      <span>${escapeHtml(entry?.trend_bias || "-")}</span>
+      <span>${escapeHtml(entry?.momentum_bias || "-")}</span>
+      <span>${escapeHtml(entry ? formatNumber(entry.opportunity) : "-")}</span>
+    </div>
+  `;
+}
+
+function renderDataTable(rows, columns) {
+  if (!rows.length) {
+    return '<div class="analysis-empty">표시할 데이터가 없습니다.</div>';
+  }
+  return `
+    <section class="crypto-section">
+      <div class="crypto-table-wrap">
+        <table class="crypto-table">
+          <thead>
+            <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (row) => `
+                  <tr>${columns.map((column) => `<td>${column.render(row)}</td>`).join("")}</tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderNoticeSection(title, copy) {
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(copy)}</span>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderErrorState(liveError, fallbackError) {
+  refs.progressBar.style.width = "100%";
+  refs.statusLine.textContent = "실시간 데이터와 배치 fallback 모두 불러오지 못했습니다.";
+  renderMetaSummary();
+  refs.activeScan.innerHTML = chip("데이터 준비 중");
+  refs.pageHighlights.innerHTML = renderNoticeSection(
+    "데이터 파일을 찾지 못했습니다.",
+    "실시간 조회와 fallback 배치 데이터를 모두 읽지 못했습니다. 배포가 덜 끝났거나 네트워크에 문제가 있을 수 있습니다.",
+  );
+  refs.pageControls.innerHTML = "";
+  refs.pageContent.innerHTML = `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>진단 정보</strong>
+          <span>${escapeHtml(String(liveError?.message || "Live fetch failed"))}</span>
+        </div>
+      </div>
+      <p class="crypto-card-note">${escapeHtml(String(fallbackError?.message || "fallback failed"))}</p>
+    </section>
+  `;
+}
+
+function buildStatusLine(payload) {
+  if (state.source === "live") {
+    return "실시간 조회 성공";
+  }
+  if (state.source === "fallback") {
+    return "실시간 조회 실패, 최근 배치 데이터 표시 중";
+  }
+  if (payload?.deprecated) {
+    return "패턴은 보관함으로 이동했습니다.";
+  }
+  return "데이터 준비 중";
+}
+
+function renderSkeletonGrid(count) {
+  return `<div class="crypto-preview-grid">${Array.from({ length: count }, () => '<div class="crypto-preview-card"><div class="crypto-card-note">불러오는 중...</div></div>').join("")}</div>`;
+}
+
+function renderChipRow(labels) {
+  return `<div class="crypto-chip-row">${labels.map((label) => chip(label)).join("")}</div>`;
+}
+
+function chip(text) {
+  return `<span class="crypto-inline-badge is-neutral">${escapeHtml(String(text || ""))}</span>`;
+}
+
+function renderSignedBadge(value, suffix = "") {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return badge("-", 0);
+  }
+  const className = numeric > 0 ? "is-positive" : numeric < 0 ? "is-negative" : "is-neutral";
+  return `<span class="crypto-inline-badge ${className}">${escapeHtml(`${formatSignedNumber(numeric)}${suffix}`)}</span>`;
+}
+
+function badge(text, score) {
+  const numeric = Number(score);
+  const className = Number.isFinite(numeric)
+    ? numeric > 0
+      ? "is-positive"
+      : numeric < 0
+        ? "is-negative"
+        : "is-neutral"
+    : "is-neutral";
+  return `<span class="crypto-inline-badge ${className}">${escapeHtml(String(text || ""))}</span>`;
+}
+
+function renderFlags(flags) {
+  if (!Array.isArray(flags) || !flags.length) {
+    return "-";
+  }
+  return flags.map((flag) => chip(flag)).join("");
+}
+
+function renderSymbolCell(row) {
+  return `
+    <div class="crypto-score-stack">
+      <strong>${escapeHtml(row.symbol)}</strong>
+      <span class="crypto-inline-muted">${escapeHtml(row.labels?.setup_bias || row.labels?.trend_bias || "중립")}</span>
+    </div>
+  `;
+}
+
+function renderOpportunitySummary(row) {
+  return `${row.labels?.technical_rating || "Neutral"} · ${row.labels?.trend_bias || "혼조"} · ${row.labels?.momentum_bias || "중립"} · ${row.labels?.derivatives_bias || "중립"}`;
+}
+
+function stateScoreForLabel(label) {
+  if (label === "상방 돌파" || label === "확장") return 1;
+  if (label === "하방 돌파") return -1;
+  return 0;
+}
+
+function formatSummaryValue(value, format) {
+  if (format === "currency") return formatCurrencyCompact(value);
+  if (format === "percent") return `${formatSignedNumber(value)}%`;
+  if (format === "ratio") return formatRatio(value);
+  return formatNumber(value);
+}
+
+function formatCurrencyCompact(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(numeric);
+}
+
+function formatPrice(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: numeric >= 1000 ? 2 : numeric >= 1 ? 4 : 6,
+  }).format(numeric);
+}
+
+function formatNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(numeric);
+}
+
+function formatSignedNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  const formatted = formatNumber(Math.abs(numeric));
+  return numeric > 0 ? `+${formatted}` : numeric < 0 ? `-${formatted}` : formatted;
+}
+
+function formatRatio(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return numeric.toFixed(3);
+}
+
+function formatSeoulDateTime(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed).replace(",", "");
+}
+
+function formatElapsed(minutes) {
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
+}
+
+function updateCooldownText() {
+  const remaining = Math.max(0, Math.ceil((state.cooldownUntil - Date.now()) / 1000));
+  refs.refreshButton.disabled = state.loading || remaining > 0;
+  refs.cooldownText.textContent =
+    remaining > 0
+      ? `다음 라이브 새로고침까지 ${remaining}초`
+      : "실시간 Binance 조회 기준입니다. 버튼을 누르면 최신 시장 데이터를 다시 불러옵니다.";
+}
+
+function populateSelect(element, options, selected) {
+  if (!element) return;
+  element.innerHTML = options
+    .map(
+      (option) => `
+        <option value="${escapeHtml(option.key)}" ${option.key === selected ? "selected" : ""}>
+          ${escapeHtml(option.label)}
+        </option>
+      `,
+    )
+    .join("");
+}
+
+function writeLocalCache(key, payload) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ storedAt: Date.now(), payload }));
+  } catch (_) {
+    // Ignore quota/cache errors.
+  }
+}
+
+function readLocalCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.storedAt || Date.now() - parsed.storedAt > LIVE_CACHE_TTL_MS) {
+      return null;
+    }
+    return parsed.payload || null;
+  } catch (_) {
+    return null;
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -62,797 +998,4 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function normalizePath(value) {
-  return String(value || "").replace(/^\.?\/*/, "");
-}
-
-function toNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function parseTimestamp(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatSeoulDateTime(value) {
-  const date = parseTimestamp(value);
-  if (!date) return "-";
-  return `${new Intl.DateTimeFormat("ko-KR", {
-    timeZone: SEOUL_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date)} KST`;
-}
-
-function formatCompact(value) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(toNumber(value));
-}
-
-function formatUsdCompact(value) {
-  const numeric = toNumber(value);
-  return numeric ? `$${formatCompact(numeric)}` : "-";
-}
-
-function formatTickerPrice(value) {
-  const numeric = toNumber(value);
-  if (numeric <= 0) return "-";
-  if (numeric >= 1000) return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(numeric)}`;
-  if (numeric >= 1) return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(numeric)}`;
-  return `$${numeric.toFixed(5)}`;
-}
-
-function formatPercent(value, digits = 2) {
-  const numeric = toNumber(value);
-  return `${numeric > 0 ? "+" : ""}${numeric.toFixed(digits)}%`;
-}
-
-function formatRatio(value, digits = 3) {
-  const numeric = toNumber(value);
-  return numeric ? numeric.toFixed(digits) : "-";
-}
-
-function formatCardValue(value, format) {
-  if (format === "currency") return formatUsdCompact(value);
-  if (format === "percent") return formatPercent(value, 4);
-  if (format === "ratio") return `${formatRatio(value, 3)}x`;
-  return escapeHtml(String(value ?? "-"));
-}
-
-function toneClass(value) {
-  const numeric = toNumber(value);
-  if (numeric > 0) return "is-positive";
-  if (numeric < 0) return "is-negative";
-  return "is-neutral";
-}
-
-function ratingToneClass(label) {
-  if (label === "Strong Buy" || label === "Buy") return "is-positive";
-  if (label === "Strong Sell" || label === "Sell") return "is-negative";
-  return "is-neutral";
-}
-
-function loadJson(url, { bust = false } = {}) {
-  const target = `${url}${url.includes("?") ? "&" : "?"}ts=${Date.now()}`;
-  return fetch(target, { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error(`Failed to load ${url}: ${response.status}`);
-    return response.json();
-  });
-}
-
-function resolveSiteUrl(relativePath) {
-  return `${ROOT_PREFIX}${normalizePath(relativePath)}`;
-}
-
-function resolveMarketUrl(relativePath) {
-  return resolveSiteUrl(`markets/${normalizePath(relativePath)}`);
-}
-
-function resolveScannerDataUrl(relativePath) {
-  const manifestUrl = state.manifestUrl || String(marketsBootstrap.scanner_manifest_url || "");
-  if (manifestUrl) {
-    return manifestUrl.replace(/manifest\.json(?:\?.*)?$/, normalizePath(relativePath));
-  }
-  return resolveSiteUrl(`data/scanner/${normalizePath(relativePath)}`);
-}
-
-function currentPageLinks() {
-  return Array.isArray(marketsBootstrap.crypto_page_links) ? marketsBootstrap.crypto_page_links : [];
-}
-
-function currentPageLabel() {
-  return currentPageLinks().find((link) => link.key === state.pageKey)?.label || String(marketsBootstrap.crypto_page_label || "오버뷰");
-}
-
-function currentSnapshotMeta() {
-  return asArray(state.manifest?.snapshots).find((item) => item.universe_key === state.universeKey && item.timeframe === state.timeframe);
-}
-
-function currentDataTimestamp() {
-  return state.pagePayload?.generated_at || currentSnapshotMeta()?.generated_at || state.manifest?.generated_at || "";
-}
-
-function currentUniverseLimit() {
-  return Number(asArray(state.manifest?.universe_presets).find((item) => item.key === state.universeKey)?.limit || currentSnapshotMeta()?.symbols_scanned || 0);
-}
-
-function buildFreshnessState(value) {
-  const timestamp = parseTimestamp(value);
-  if (!timestamp) {
-    return { label: "확인 불가", className: "is-neutral", elapsedLabel: "경과 시간 확인 불가" };
-  }
-  const elapsedMs = Math.max(Date.now() - timestamp.getTime(), 0);
-  const elapsedMinutes = elapsedMs / 60_000;
-  let label = "최신";
-  let className = "is-positive";
-  if (elapsedMinutes > 20) {
-    label = "심각한 지연";
-    className = "is-negative";
-  } else if (elapsedMinutes > 10) {
-    label = "지연";
-    className = "is-neutral";
-  }
-  const totalSeconds = Math.floor(elapsedMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  let elapsedLabel = "";
-  if (hours > 0) {
-    elapsedLabel = `${hours}시간 ${minutes}분 경과`;
-  } else if (minutes > 0) {
-    elapsedLabel = `${minutes}분 ${seconds}초 경과`;
-  } else {
-    elapsedLabel = `${seconds}초 경과`;
-  }
-  return { label, className, elapsedLabel };
-}
-
-function setCooldown() {
-  state.cooldownUntil = Date.now() + CRYPTO_COOLDOWN_MS;
-  localStorage.setItem(CRYPTO_COOLDOWN_STORAGE_KEY, String(state.cooldownUntil));
-}
-
-function setLoadedAt(timestamp = Date.now()) {
-  state.lastLoadedAt = timestamp;
-  localStorage.setItem(CRYPTO_LAST_LOADED_STORAGE_KEY, String(timestamp));
-}
-
-function updateCooldownUI() {
-  if (!refs.refreshButton || !refs.cooldownText) return;
-  const remaining = state.cooldownUntil - Date.now();
-  if (remaining <= 0) {
-    refs.refreshButton.disabled = false;
-    refs.cooldownText.textContent = "5분 배치 기준 최신 스냅샷을 곧 다시 불러올 수 있습니다.";
-    return;
-  }
-  refs.refreshButton.disabled = true;
-  refs.cooldownText.textContent = `다음 새로고침까지 ${Math.ceil(remaining / 1000)}초`;
-}
-
-function renderSkeleton() {
-  if (refs.pageHighlights) {
-    refs.pageHighlights.innerHTML = Array.from({ length: 4 }, () => '<article class="crypto-stat-card scanner-detail-card"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div></article>').join("");
-  }
-  if (refs.pageControls) {
-    refs.pageControls.innerHTML = '<article class="crypto-panel crypto-panel-controls"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-grid"></div></article>';
-  }
-  if (refs.pageContent) {
-    refs.pageContent.innerHTML = Array.from({ length: 3 }, () => '<article class="scanner-card is-loading"><div class="scanner-skeleton scanner-skeleton-title"></div><div class="scanner-skeleton scanner-skeleton-chip-row"></div><div class="scanner-skeleton scanner-skeleton-preview"></div></article>').join("");
-  }
-}
-
-function renderErrorState() {
-  const message = state.errorMessage || "코인 데이터를 불러오지 못했습니다.";
-  if (refs.pageHighlights) {
-    refs.pageHighlights.innerHTML = `
-      <div class="crypto-stat-grid">
-        <article class="crypto-stat-card scanner-detail-card">
-          <span class="crypto-card-label">상태</span>
-          <strong class="crypto-card-value">배포 점검 필요</strong>
-          <p class="crypto-card-note">${escapeHtml(message)}</p>
-        </article>
-      </div>
-    `;
-  }
-  if (refs.pageControls) {
-    refs.pageControls.innerHTML = `
-      <article class="crypto-panel crypto-panel-controls">
-        <div class="crypto-panel-head">
-          <strong>데이터 상태</strong>
-          <span>배포 또는 데이터셋 점검이 필요합니다.</span>
-        </div>
-        <div class="analysis-empty">${escapeHtml(message)}</div>
-      </article>
-    `;
-  }
-  if (refs.pageContent) {
-    refs.pageContent.innerHTML = `<div class="analysis-empty">${escapeHtml(message)}</div>`;
-  }
-}
-
-function populateControls() {
-  const manifest = state.manifest;
-  if (!manifest || !refs.universeSelect || !refs.timeframeSelect) return;
-  refs.universeSelect.innerHTML = asArray(manifest.universe_presets)
-    .map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.universeKey ? "selected" : ""}>${escapeHtml(item.label)}</option>`)
-    .join("");
-  refs.timeframeSelect.innerHTML = asArray(manifest.timeframes)
-    .map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === state.timeframe ? "selected" : ""}>${escapeHtml(item.label)}</option>`)
-    .join("");
-}
-
-function dataMissingMessage() {
-  const baseMessage = "데이터 파일을 찾지 못했습니다. 배포가 덜 끝났거나 스캐너 데이터가 누락되었습니다.";
-  return state.pageKey === "patterns"
-    ? `패턴 스냅샷이 아직 준비되지 않았습니다. ${baseMessage}`
-    : `${currentPageLabel()} 데이터셋이 아직 준비되지 않았습니다. ${baseMessage}`;
-}
-
-function resolveDatasetPath() {
-  const manifest = state.manifest;
-  if (!manifest) return null;
-  const pageFiles = manifest.page_data?.[state.pageKey]?.[state.universeKey] || {};
-  return pageFiles[state.timeframe] || null;
-}
-
-function resolveDatasetUrl() {
-  const datasetPath = resolveDatasetPath();
-  if (datasetPath) return resolveScannerDataUrl(datasetPath);
-  if (state.pageKey === "patterns") {
-    const snapshot = currentSnapshotMeta();
-    return snapshot ? resolveScannerDataUrl(snapshot.path) : null;
-  }
-  return null;
-}
-
-function manifestCandidates() {
-  const candidates = [
-    String(marketsBootstrap.scanner_manifest_url || "").trim(),
-    resolveSiteUrl("data/scanner/manifest.json"),
-  ].filter(Boolean);
-  return [...new Set(candidates)];
-}
-
-async function loadManifest({ bust = false } = {}) {
-  let lastError = null;
-  for (const candidate of manifestCandidates()) {
-    try {
-      state.manifest = await loadJson(candidate, { bust });
-      state.manifestUrl = candidate;
-      state.errorMessage = "";
-      const firstUniverse = state.manifest?.universe_presets?.[0]?.key;
-      const firstTimeframe = state.manifest?.timeframes?.[0]?.key;
-      if (firstUniverse && !asArray(state.manifest.universe_presets).some((item) => item.key === state.universeKey)) {
-        state.universeKey = firstUniverse;
-      }
-      if (firstTimeframe && !asArray(state.manifest.timeframes).some((item) => item.key === state.timeframe)) {
-        state.timeframe = firstTimeframe;
-      }
-      return;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  state.errorMessage = "스캐너 manifest를 불러오지 못했습니다. 배포 경로를 확인해 주세요.";
-  throw lastError || new Error(state.errorMessage);
-}
-
-async function loadPagePayload({ bust = false } = {}) {
-  const previousTimestamp = currentDataTimestamp();
-  const datasetUrl = resolveDatasetUrl();
-  if (!datasetUrl) {
-    state.pagePayload = null;
-    state.isLoading = false;
-    state.errorMessage = dataMissingMessage();
-    state.notice = state.pageKey === "patterns"
-      ? "패턴 스냅샷 경로를 찾지 못했습니다."
-      : `${currentPageLabel()} 데이터 경로를 찾지 못했습니다.`;
-    renderPage();
-    return;
-  }
-
-  try {
-    state.pagePayload = await loadJson(datasetUrl, { bust });
-    setLoadedAt();
-    state.errorMessage = "";
-    const nextTimestamp = currentDataTimestamp();
-    if (bust) {
-      state.notice = previousTimestamp && previousTimestamp === nextTimestamp
-        ? "다시 불러왔지만 최신 스냅샷 시각은 동일합니다."
-        : "최신 스냅샷을 다시 불러왔습니다.";
-    } else if (!state.notice) {
-      state.notice = "최근 5분 배치 스냅샷 기준으로 화면을 표시합니다.";
-    }
-  } catch (error) {
-    state.notice = state.pageKey === "patterns"
-      ? "패턴 스냅샷을 불러오는 중 오류가 발생했습니다."
-      : `${currentPageLabel()} 데이터를 불러오는 중 오류가 발생했습니다.`;
-    if (!state.pagePayload) {
-      state.errorMessage = dataMissingMessage();
-    }
-    throw error;
-  } finally {
-    state.isLoading = false;
-    renderPage();
-  }
-}
-
-function renderPageTabs() {
-  if (!refs.pageTabs) return;
-  refs.pageTabs.innerHTML = currentPageLinks()
-    .map((link) => `<a class="crypto-page-tab ${link.key === state.pageKey ? "is-active" : ""}" href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
-    .join("");
-}
-
-function renderSummaryMeta() {
-  const snapshot = currentSnapshotMeta();
-  const dataTimestamp = currentDataTimestamp();
-  const loadedTimestamp = state.lastLoadedAt;
-  const freshness = buildFreshnessState(dataTimestamp);
-  const universeLabel = asArray(state.manifest?.universe_presets).find((item) => item.key === state.universeKey)?.label || state.universeKey;
-
-  if (refs.summaryMeta) {
-    refs.summaryMeta.innerHTML = `
-      <span class="scanner-summary-pill">데이터 기준(한국시간) ${escapeHtml(formatSeoulDateTime(dataTimestamp))}</span>
-      <span class="scanner-summary-pill">불러온 시각(한국시간) ${escapeHtml(formatSeoulDateTime(loadedTimestamp))}</span>
-      <span class="scanner-summary-pill ${freshness.className}">경과 시간 ${escapeHtml(freshness.elapsedLabel)}</span>
-      <span class="scanner-summary-pill ${freshness.className}">상태 ${escapeHtml(freshness.label)}</span>
-      <span class="scanner-summary-pill">${escapeHtml(universeLabel)}</span>
-      <span class="scanner-summary-pill">${escapeHtml(currentPageLabel())}</span>
-    `;
-  }
-
-  if (refs.activeScan) {
-    refs.activeScan.innerHTML = snapshot
-      ? `<span class="scanner-active-pill ${freshness.className}">최근 5분 배치 스냅샷 기준 · ${escapeHtml(freshness.label)} · [${escapeHtml(String(snapshot.symbols_scanned || 0))}/${escapeHtml(String(currentUniverseLimit() || snapshot.symbols_scanned || 0))}] ${escapeHtml(snapshot.timeframe_label || state.timeframe)} 데이터 기준 ${escapeHtml(formatSeoulDateTime(snapshot.generated_at))}</span>`
-      : '<span class="scanner-active-pill">선택한 조건의 스냅샷을 준비 중입니다.</span>';
-  }
-
-  if (refs.statusLine) {
-    if (state.errorMessage) {
-      refs.statusLine.textContent = state.notice || state.errorMessage;
-    } else if (snapshot) {
-      refs.statusLine.textContent = `${state.notice} 데이터 기준 ${formatSeoulDateTime(dataTimestamp)}, 이 화면은 ${formatSeoulDateTime(loadedTimestamp)}에 불러왔고 현재 ${freshness.elapsedLabel}입니다.`;
-    } else {
-      refs.statusLine.textContent = state.notice || "선택한 조건의 스냅샷을 준비하고 있습니다.";
-    }
-  }
-
-  if (refs.progressBar) {
-    const total = Math.max(currentUniverseLimit() || snapshot?.symbols_scanned || 1, 1);
-    refs.progressBar.style.width = `${Math.min(((snapshot?.symbols_scanned || 0) / total) * 100, 100)}%`;
-  }
-}
-
-function renderMetricCards(cards) {
-  return `<div class="crypto-stat-grid">${cards.map((card) => `<article class="crypto-stat-card scanner-detail-card"><span class="crypto-card-label">${escapeHtml(card.label)}</span><strong class="crypto-card-value">${formatCardValue(card.value, card.format)}</strong><p class="crypto-card-note">${escapeHtml(card.note || "")}</p></article>`).join("")}</div>`;
-}
-
-function renderCountCards(entries) {
-  return `<div class="crypto-stat-grid">${entries.map((entry) => `<article class="crypto-stat-card scanner-detail-card"><span class="crypto-card-label">${escapeHtml(entry.label)}</span><strong class="crypto-card-value">${escapeHtml(String(entry.count ?? entry.value ?? 0))}</strong><p class="crypto-card-note">${escapeHtml(entry.note || "")}</p></article>`).join("")}</div>`;
-}
-
-function renderBadge(label, extraClass = "") {
-  return `<span class="crypto-inline-badge ${extraClass}">${escapeHtml(label)}</span>`;
-}
-
-function renderPatternBadge(pattern) {
-  if (!pattern) return renderBadge("패턴 없음", "is-neutral");
-  return renderBadge(`${pattern.side_label} ${pattern.pattern}`, pattern.side === "bullish" ? "is-positive" : "is-negative");
-}
-
-function renderSetupLink(pattern) {
-  if (!pattern?.detail_page) return '<span class="crypto-inline-muted">상세 없음</span>';
-  return `<a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(pattern.detail_page))}">상세 보기</a>`;
-}
-
-function renderFlags(flags) {
-  return flags?.length ? flags.map((flag) => renderBadge(flag)).join("") : '<span class="crypto-inline-muted">표시할 플래그 없음</span>';
-}
-
-function renderSection(title, subtitle, bodyHtml) {
-  return `<section class="crypto-section scanner-detail-card"><div class="crypto-section-head"><div><p class="analysis-eyebrow">${escapeHtml(title)}</p><h2>${escapeHtml(subtitle)}</h2></div></div>${bodyHtml}</section>`;
-}
-
-function renderTable(columns, rows, emptyMessage) {
-  if (!rows.length) return `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
-  return `<div class="crypto-table-wrap"><table class="crypto-table"><thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${rows.map((row, index) => `<tr>${columns.map((column) => `<td>${column.render ? column.render(row, index) : escapeHtml(String(row[column.key] ?? "-"))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-}
-
-function renderScoreStack(row) {
-  return `<div class="crypto-score-stack"><strong>${escapeHtml(row.symbol)}</strong><span class="crypto-inline-muted">${escapeHtml(row.labels?.technical_rating || "-")}</span></div>`;
-}
-
-function renderOverviewControls(payload) {
-  const statusCards = asArray(payload.status_counts).map((entry) => ({ label: entry.label, count: entry.count, note: "패턴 상태 집계" }));
-  const previews = asArray(payload.page_previews)
-    .map((card) => `<article class="crypto-preview-card"><div class="crypto-preview-head"><strong>${escapeHtml(card.title)}</strong><span>${escapeHtml(card.symbol)}</span></div><p>${escapeHtml(card.description)}</p><span class="crypto-preview-score">Score ${escapeHtml(String(card.score ?? 0))}</span></article>`)
-    .join("");
-  return `<div class="crypto-control-grid"><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>상태 요약</strong><span>패턴 상태 집계</span></div>${renderCountCards(statusCards)}</article><article class="crypto-panel crypto-panel-controls"><div class="crypto-panel-head"><strong>페이지 미리보기</strong><span>각 분석 화면의 대표 후보</span></div><div class="crypto-preview-grid">${previews}</div></article></div>`;
-}
-
-function renderOverviewContent(payload) {
-  const opportunities = asArray(payload.top_opportunities).slice(0, 6).map((row) => `
-    <article class="crypto-opportunity-card scanner-card">
-      <div class="scanner-card-head">
-        <div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.labels?.technical_rating || "Neutral")} · ${escapeHtml(row.labels?.trend_bias || "-")}</p></div>
-        <div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div>
-      </div>
-      <div class="crypto-kpi-pair-grid">
-        <div class="scanner-point-card"><span>현재가</span><strong>${escapeHtml(formatTickerPrice(row.last_price))}</strong></div>
-        <div class="scanner-point-card"><span>24h</span><strong class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</strong></div>
-        <div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div>
-        <div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div>
-      </div>
-      <div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 4))}</div>
-      <div class="scanner-card-footer"><span>${escapeHtml(row.timeframe_label || "-")}</span>${renderSetupLink(row.pattern)}</div>
-    </article>
-  `).join("");
-  const patterns = asArray(payload.top_patterns).slice(0, 4).map((row) => `
-    <article class="crypto-compact-card scanner-detail-card">
-      <div class="crypto-compact-head"><strong>${escapeHtml(row.symbol)}</strong>${renderPatternBadge(row.pattern)}</div>
-      <p>${escapeHtml(row.pattern?.summary || "패턴 요약이 없습니다.")}</p>
-      <div class="crypto-compact-meta"><span>패턴 ${escapeHtml(String(row.pattern?.score ?? 0))}</span><span>기술 ${escapeHtml(String(row.scores?.technical ?? 0))}</span><span>모멘텀 ${escapeHtml(String(row.scores?.momentum ?? 0))}</span></div>
-    </article>
-  `).join("");
-  return `${renderSection("Overview", "지금 볼 만한 후보", `<div class="crypto-opportunity-grid">${opportunities}</div>`)}${renderSection("Patterns", "상위 패턴 후보", `<div class="crypto-compact-grid">${patterns}</div>`)}`;
-}
-
-function renderSignalsPage(payload) {
-  const anomaly = payload.anomaly_counts || {};
-  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge(`Funding Hot ${anomaly.funding_hot || 0}`)}${renderBadge(`OI Heavy ${anomaly.oi_heavy || 0}`)}${renderBadge(`Squeeze ${anomaly.squeeze || 0}`)}${renderBadge(`Divergence ${anomaly.divergence || 0}`)}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Signals",
-    "파생 지표와 기술 지표 이상치",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "24h", render: (row) => `<span class="${toneClass(row.change_24h)}">${escapeHtml(formatPercent(row.change_24h))}</span>` },
-        { label: "Funding", render: (row) => `<span class="${toneClass(row.funding_rate)}">${escapeHtml(formatPercent(row.funding_rate, 4))}</span>` },
-        { label: "OI", render: (row) => escapeHtml(formatUsdCompact(row.open_interest_usd)) },
-        { label: "L/S", render: (row) => escapeHtml(formatRatio(row.long_short_ratio, 3)) },
-        { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
-        { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
-        { label: "VWAP Gap", render: (row) => `<span class="${toneClass(row.indicators?.close_vs_vwap_pct)}">${escapeHtml(formatPercent(row.indicators?.close_vs_vwap_pct))}</span>` },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
-      ],
-      asArray(payload.rows).slice(0, 40),
-      "시그널 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function buildPatternSummaryCards(snapshot) {
-  const counts = snapshot?.status_counts || {};
-  return [
-    { label: "전체 결과", count: snapshot?.result_count || 0, note: "현재 스냅샷 기준" },
-    { label: "실시간 진입", count: counts.forming || 0, note: "PRZ 진입 대기" },
-    { label: "실시간 터치", count: counts.touch || 0, note: "PRZ 접촉" },
-    { label: "T-Bar 완성", count: counts.tbar_complete || 0, note: "반응 캔들 확인" },
-    { label: "일반 완성", count: counts.complete || 0, note: "패턴 완료" },
-  ];
-}
-
-function filteredPatternResults(snapshot) {
-  const results = asArray(snapshot?.results);
-  return state.filter === "all" ? results : results.filter((item) => item.status === state.filter);
-}
-
-function renderPatternFilters(snapshot) {
-  const counts = snapshot?.status_counts || {};
-  const total = asArray(snapshot?.results).length;
-  return `<div class="scanner-filter-tabs">${CRYPTO_PATTERN_FILTERS.map((filter) => `<button type="button" class="scanner-filter-button ${filter.key === state.filter ? "is-active" : ""}" data-pattern-filter="${filter.key}"><span>${escapeHtml(filter.label)}</span><strong>${escapeHtml(String(filter.key === "all" ? total : Number(counts[filter.key] || 0)))}</strong></button>`).join("")}</div>`;
-}
-
-function renderPatternCards(snapshot) {
-  const results = filteredPatternResults(snapshot);
-  if (!results.length) return '<div class="analysis-empty">선택한 패턴 결과가 없습니다.</div>';
-  return `<div class="scanner-results-grid">${results.map((result) => {
-    const pointCells = ["X", "A", "B", "C", "D"].map((label) => {
-      const point = result.points?.[label] || {};
-      return `<div class="scanner-point-card"><span>${label}</span><strong>${escapeHtml(String(point.price ?? "-"))}</strong><small>${escapeHtml(String(point.timestamp || "").replace("T", " ").slice(5, 16))}</small></div>`;
-    }).join("");
-    const ratioCells = Object.entries(result.ratios || {}).map(([label, value]) => `<div class="scanner-ratio-card"><span>${escapeHtml(label.toUpperCase())}</span><strong>${escapeHtml(String(value))}</strong></div>`).join("");
-    const flags = asArray(result.indicator_flags).slice(0, 4).map((flag) => `<span class="scanner-flag-pill ${flag.status === "pass" ? "is-pass" : ""}">${escapeHtml(flag.label)} · ${escapeHtml(flag.value)}</span>`).join("");
-    return `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(result.symbol)}</h3><p>${escapeHtml(result.summary || "")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${result.side === "bullish" ? "is-bullish" : "is-bearish"}">${escapeHtml(result.side_label)}</span><span class="scanner-badge is-score">점수 ${escapeHtml(String(result.score))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(result.preview_image))}" alt="${escapeHtml(result.symbol)} pattern preview" loading="lazy" /></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>좌표</span><strong>${escapeHtml(result.pattern)}</strong></div><div class="scanner-point-grid">${pointCells}</div></div><div class="scanner-card-section"><div class="scanner-card-section-head"><span>비율</span><strong>${escapeHtml(result.status_label)}</strong></div><div class="scanner-ratio-grid">${ratioCells}</div></div><div class="scanner-prz-box"><div><span>PRZ</span><strong>${escapeHtml(String(result.prz?.lower ?? "-"))} ~ ${escapeHtml(String(result.prz?.upper ?? "-"))}</strong></div><div><span>TP1 / TP2</span><strong>${escapeHtml(String(result.targets?.tp1 ?? "-"))} / ${escapeHtml(String(result.targets?.tp2 ?? "-"))}</strong></div><div><span>SL</span><strong>${escapeHtml(String(result.stop?.value ?? "-"))}</strong></div></div><div class="scanner-card-flags">${flags || '<span class="crypto-inline-muted">표시할 플래그 없음</span>'}</div><div class="scanner-card-footer"><span>${escapeHtml(result.timeframe_label || "-")} · 24h ${escapeHtml(formatPercent(result.change_24h))}</span><a class="scanner-link-button" href="${escapeHtml(resolveMarketUrl(result.detail_page))}">상세 보기</a></div></article>`;
-  }).join("")}</div>`;
-}
-
-function bindPatternFilterEvents() {
-  refs.pageControls.querySelectorAll("[data-pattern-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = button.dataset.patternFilter;
-      if (!next || next === state.filter) return;
-      state.filter = next;
-      renderPage();
-    });
-  });
-}
-
-function renderPatternsPage(snapshot) {
-  refs.pageHighlights.innerHTML = renderCountCards(buildPatternSummaryCards(snapshot));
-  refs.pageControls.innerHTML = renderPatternFilters(snapshot);
-  refs.pageContent.innerHTML = renderPatternCards(snapshot);
-  bindPatternFilterEvents();
-}
-
-function renderOpportunitiesPage(payload) {
-  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("패턴 적합도 40")}${renderBadge("PRZ/구조 20")}${renderBadge("파생 지표 15")}${renderBadge("추세 10")}${renderBadge("모멘텀 10")}${renderBadge("변동성 5")}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Opportunities",
-    "지금 볼 만한 종목 랭킹",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
-        { label: "우선순위", render: (row) => escapeHtml(String(row.scores?.opportunity ?? 0)) },
-        { label: "기술", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "파생", render: (row) => escapeHtml(String(row.scores?.derivatives ?? 0)) },
-        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "모멘텀", render: (row) => escapeHtml(row.labels?.momentum_bias || "-") },
-        { label: "상세", render: (row) => renderSetupLink(row.pattern) },
-      ],
-      asArray(payload.rows),
-      "우선순위 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function renderSetupsPage(payload) {
-  refs.pageHighlights.innerHTML = renderMetricCards(asArray(payload.summary_cards));
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("상위 세트업만 표시")}${renderBadge("상세 페이지에서 전체 해설 확인")}</div>`;
-  refs.pageContent.innerHTML = `<div class="crypto-opportunity-grid">${asArray(payload.rows).map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.pattern?.summary || "세트업 요약이 없습니다.")}</p></div><div class="scanner-card-badges">${renderPatternBadge(row.pattern)}<span class="scanner-badge is-score">우선순위 ${escapeHtml(String(row.scores?.opportunity ?? 0))}</span></div></div><div class="scanner-card-preview-wrap"><img class="scanner-card-preview" src="${escapeHtml(resolveSiteUrl(row.pattern?.preview_image || ""))}" alt="${escapeHtml(row.symbol)} preview" loading="lazy" /></div><div class="crypto-kpi-pair-grid"><div class="scanner-point-card"><span>기술</span><strong>${escapeHtml(String(row.scores?.technical ?? 0))}</strong></div><div class="scanner-point-card"><span>추세</span><strong>${escapeHtml(String(row.scores?.trend ?? 0))}</strong></div><div class="scanner-point-card"><span>모멘텀</span><strong>${escapeHtml(String(row.scores?.momentum ?? 0))}</strong></div><div class="scanner-point-card"><span>파생</span><strong>${escapeHtml(String(row.scores?.derivatives ?? 0))}</strong></div></div><div class="scanner-card-flags">${renderFlags(asArray(row.flags).slice(0, 5))}</div><div class="scanner-card-footer"><span>${escapeHtml(row.labels?.trend_bias || "-")} · ${escapeHtml(row.labels?.momentum_bias || "-")}</span>${renderSetupLink(row.pattern)}</div></article>`).join("")}</div>`;
-}
-
-function renderTechnicalRatingsPage(payload) {
-  refs.pageHighlights.innerHTML = renderCountCards(asArray(payload.distribution).map((entry) => ({ label: entry.label, count: entry.count, note: "기술 점수 분포" })));
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA 20/50/200")}${renderBadge("Supertrend")}${renderBadge("Ichimoku")}${renderBadge("RSI / MACD / ROC")}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Technical Ratings",
-    "TradingView 감성의 종합 기술 점수",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "등급", render: (row) => renderBadge(row.labels?.technical_rating || "Neutral", ratingToneClass(row.labels?.technical_rating)) },
-        { label: "기술", render: (row) => escapeHtml(String(row.scores?.technical ?? 0)) },
-        { label: "이평선", render: (row) => escapeHtml(String(row.scores?.moving_average ?? 0)) },
-        { label: "오실레이터", render: (row) => escapeHtml(String(row.scores?.oscillator ?? 0)) },
-        { label: "추세", render: (row) => escapeHtml(row.labels?.trend_bias || "-") },
-        { label: "패턴", render: (row) => renderPatternBadge(row.pattern) },
-      ],
-      asArray(payload.rows),
-      "테크니컬 레이팅 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function renderTrendPage(payload) {
-  refs.pageHighlights.innerHTML = renderCountCards([
-    { label: "상승 추세", count: payload.counts?.bullish || 0, note: "추세 정렬 종목" },
-    { label: "하락 추세", count: payload.counts?.bearish || 0, note: "추세 약세 종목" },
-    { label: "혼조", count: payload.counts?.mixed || 0, note: "방향성 혼재" },
-  ]);
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("EMA Cross")}${renderBadge("Supertrend")}${renderBadge("ADX / DMI")}${renderBadge("Ichimoku")}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Trend",
-    "추세 정렬과 전환 후보",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "추세", render: (row) => renderBadge(row.labels?.trend_bias || "-", toneClass(row.scores?.trend_bias)) },
-        { label: "점수", render: (row) => escapeHtml(String(row.scores?.trend ?? 0)) },
-        { label: "ADX", render: (row) => escapeHtml(String(row.indicators?.adx14 ?? "-")) },
-        { label: "+DI / -DI", render: (row) => `${escapeHtml(String(row.indicators?.plus_di ?? "-"))} / ${escapeHtml(String(row.indicators?.minus_di ?? "-"))}` },
-        { label: "Supertrend", render: (row) => escapeHtml(row.signals?.supertrend || "-") },
-        { label: "Ichimoku", render: (row) => escapeHtml(row.signals?.ichimoku_bias || "-") },
-      ],
-      asArray(payload.rows),
-      "추세 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function renderMomentumPage(payload) {
-  refs.pageHighlights.innerHTML = renderCountCards([
-    { label: "과매수", count: payload.counts?.overbought || 0, note: "상단 과열 후보" },
-    { label: "과매도", count: payload.counts?.oversold || 0, note: "하단 과열 후보" },
-    { label: "다이버전스", count: payload.counts?.divergence || 0, note: "반전 후보" },
-  ]);
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("RSI 14")}${renderBadge("Stoch RSI")}${renderBadge("MACD")}${renderBadge("ROC")}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Momentum",
-    "오실레이터 중심 모멘텀 체크",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "모멘텀", render: (row) => renderBadge(row.labels?.momentum_bias || "-", toneClass(row.scores?.momentum_bias)) },
-        { label: "RSI", render: (row) => escapeHtml(String(row.indicators?.rsi14 ?? "-")) },
-        { label: "Stoch RSI", render: (row) => escapeHtml(String(row.indicators?.stoch_rsi ?? "-")) },
-        { label: "MACD", render: (row) => `<span class="${toneClass(row.indicators?.macd_histogram)}">${escapeHtml(String(row.indicators?.macd_histogram ?? "-"))}</span>` },
-        { label: "ROC", render: (row) => `<span class="${toneClass(row.indicators?.roc12)}">${escapeHtml(formatPercent(row.indicators?.roc12))}</span>` },
-        { label: "다이버전스", render: (row) => escapeHtml(row.signals?.divergence_candidate ? "후보" : "-") },
-      ],
-      asArray(payload.rows),
-      "모멘텀 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function volatilityToneClass(label) {
-  if (label === "상방 돌파") return "is-positive";
-  if (label === "하방 돌파") return "is-negative";
-  return "is-neutral";
-}
-
-function renderVolatilityPage(payload) {
-  refs.pageHighlights.innerHTML = renderCountCards([
-    { label: "Squeeze", count: payload.counts?.squeeze || 0, note: "압축 상태" },
-    { label: "상방 돌파", count: payload.counts?.breakout_up || 0, note: "상승 돌파 후보" },
-    { label: "하방 돌파", count: payload.counts?.breakout_down || 0, note: "하락 돌파 후보" },
-    { label: "확장", count: payload.counts?.expansion || 0, note: "변동성 확장" },
-  ]);
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("Bollinger Bands")}${renderBadge("BBWidth")}${renderBadge("ATR 14")}${renderBadge("Breakout State")}</div>`;
-  refs.pageContent.innerHTML = renderSection(
-    "Volatility",
-    "압축과 돌파 준비 구간",
-    renderTable(
-      [
-        { label: "#", render: (_row, index) => escapeHtml(String(index + 1)) },
-        { label: "종목", render: (row) => renderScoreStack(row) },
-        { label: "상태", render: (row) => renderBadge(row.labels?.volatility_state || "중립", volatilityToneClass(row.labels?.volatility_state)) },
-        { label: "BB Width", render: (row) => escapeHtml(String(row.indicators?.bb_width ?? "-")) },
-        { label: "ATR%", render: (row) => escapeHtml(formatPercent(row.indicators?.atr_pct)) },
-        { label: "Squeeze", render: (row) => escapeHtml(row.signals?.squeeze ? "예" : "-") },
-        { label: "상방", render: (row) => escapeHtml(row.signals?.breakout_up ? "예" : "-") },
-        { label: "하방", render: (row) => escapeHtml(row.signals?.breakout_down ? "예" : "-") },
-      ],
-      asArray(payload.rows),
-      "변동성 데이터가 아직 없습니다.",
-    ),
-  );
-}
-
-function renderMultiTimeframePage(payload) {
-  const rows = asArray(payload.rows).slice(0, 24);
-  const cards = rows.length
-    ? `<div class="crypto-mtf-grid">${rows.map((row) => `<article class="scanner-card"><div class="scanner-card-head"><div><h3>${escapeHtml(row.symbol)}</h3><p>${escapeHtml(row.consensus_label || "-")}</p></div><div class="scanner-card-badges"><span class="scanner-badge ${toNumber(row.agreement_score) > 0 ? "is-bullish" : toNumber(row.agreement_score) < 0 ? "is-bearish" : ""}">${escapeHtml(String(row.agreement_score ?? 0))}</span></div></div><div class="crypto-mtf-table">${Object.entries(row.timeframes || {}).map(([timeframe, details]) => `<div class="crypto-mtf-row"><strong>${escapeHtml(timeframe)}</strong><span>${escapeHtml(details.technical_rating || "-")}</span><span>${escapeHtml(details.trend_bias || "-")}</span><span>${escapeHtml(details.momentum_bias || "-")}</span><span>${escapeHtml(String(details.opportunity ?? "-"))}</span></div>`).join("")}</div></article>`).join("")}</div>`
-    : '<div class="analysis-empty">멀티 타임프레임 데이터가 없습니다.</div>';
-  refs.pageHighlights.innerHTML = renderCountCards([
-    { label: "상승 합의", count: payload.counts?.bullish || 0, note: "3개 이상 동일 방향" },
-    { label: "하락 합의", count: payload.counts?.bearish || 0, note: "3개 이상 동일 방향" },
-    { label: "혼조", count: payload.counts?.mixed || 0, note: "방향 충돌" },
-  ]);
-  refs.pageControls.innerHTML = `<div class="crypto-chip-row">${renderBadge("5m")}${renderBadge("15m")}${renderBadge("1h")}${renderBadge("4h")}</div>`;
-  refs.pageContent.innerHTML = renderSection("Multi-Timeframe", "타임프레임 합의 매트릭스", cards);
-}
-
-function renderPage() {
-  populateControls();
-  renderPageTabs();
-  updateCooldownUI();
-  renderSummaryMeta();
-
-  if (state.isLoading) {
-    renderSkeleton();
-    return;
-  }
-
-  if (state.errorMessage && !state.pagePayload) {
-    renderErrorState();
-    return;
-  }
-
-  if (!state.pagePayload) {
-    renderErrorState();
-    return;
-  }
-
-  if (state.pageKey === "overview") {
-    refs.pageHighlights.innerHTML = renderMetricCards(asArray(state.pagePayload.summary_cards));
-    refs.pageControls.innerHTML = renderOverviewControls(state.pagePayload);
-    refs.pageContent.innerHTML = renderOverviewContent(state.pagePayload);
-    return;
-  }
-  if (state.pageKey === "signals") return renderSignalsPage(state.pagePayload);
-  if (state.pageKey === "patterns") return renderPatternsPage(state.pagePayload);
-  if (state.pageKey === "opportunities") return renderOpportunitiesPage(state.pagePayload);
-  if (state.pageKey === "setups") return renderSetupsPage(state.pagePayload);
-  if (state.pageKey === "technical_ratings") return renderTechnicalRatingsPage(state.pagePayload);
-  if (state.pageKey === "trend") return renderTrendPage(state.pagePayload);
-  if (state.pageKey === "momentum") return renderMomentumPage(state.pagePayload);
-  if (state.pageKey === "volatility") return renderVolatilityPage(state.pagePayload);
-  if (state.pageKey === "multi_timeframe") return renderMultiTimeframePage(state.pagePayload);
-
-  refs.pageHighlights.innerHTML = "";
-  refs.pageControls.innerHTML = "";
-  refs.pageContent.innerHTML = '<div class="analysis-empty">아직 지원되지 않는 페이지입니다.</div>';
-}
-
-function bindEvents() {
-  if (refs.universeSelect) {
-    refs.universeSelect.addEventListener("change", async (event) => {
-      state.universeKey = event.target.value;
-      state.isLoading = true;
-      state.notice = "선택한 조건으로 데이터를 다시 불러오는 중입니다.";
-      renderPage();
-      await loadPagePayload();
-    });
-  }
-  if (refs.timeframeSelect) {
-    refs.timeframeSelect.addEventListener("change", async (event) => {
-      state.timeframe = event.target.value;
-      state.isLoading = true;
-      state.notice = "선택한 조건으로 데이터를 다시 불러오는 중입니다.";
-      renderPage();
-      await loadPagePayload();
-    });
-  }
-  if (refs.refreshButton) {
-    refs.refreshButton.addEventListener("click", async () => {
-      if (Date.now() < state.cooldownUntil) {
-        updateCooldownUI();
-        return;
-      }
-      setCooldown();
-      updateCooldownUI();
-      state.isLoading = true;
-      state.notice = "최신 스냅샷을 다시 확인하는 중입니다.";
-      renderPage();
-      try {
-        await loadManifest({ bust: true });
-        await loadPagePayload({ bust: true });
-      } catch (error) {
-        state.isLoading = false;
-        if (!state.errorMessage) state.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
-        state.notice = state.errorMessage;
-        renderPage();
-      }
-    });
-  }
-  window.setInterval(() => {
-    updateCooldownUI();
-    if (!state.isLoading) renderSummaryMeta();
-  }, 1000);
-}
-
-async function init() {
-  state.isLoading = true;
-  renderPage();
-  bindEvents();
-  try {
-    await loadManifest();
-    await loadPagePayload();
-  } catch (error) {
-    state.isLoading = false;
-    if (!state.errorMessage) state.errorMessage = error?.message || "코인 데이터를 불러오지 못했습니다.";
-    state.notice = state.errorMessage;
-    renderPage();
-  }
-}
-
-if (bootstrapElement) {
-  void init();
 }

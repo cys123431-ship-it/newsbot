@@ -13,21 +13,21 @@ from typing import Any
 
 
 UNIVERSE_PRESETS: dict[str, dict[str, Any]] = {
-    "top100": {"label": "상위 100개 종목", "limit": 100},
+    "top100": {"label": "Top 100 Symbols", "limit": 100},
 }
 
 TIMEFRAME_LABELS = {
-    "5m": "5분 (5m)",
-    "15m": "15분 (15m)",
-    "1h": "1시간 (1h)",
-    "4h": "4시간 (4h)",
+    "5m": "5m",
+    "15m": "15m",
+    "1h": "1h",
+    "4h": "4h",
 }
 
 SCANNER_STATUS_LABELS = {
-    "forming": "실시간 진입",
-    "touch": "실시간 터치",
-    "tbar_complete": "T-Bar 완성",
-    "complete": "일반 완성",
+    "forming": "Realtime Entry",
+    "touch": "Realtime Touch",
+    "tbar_complete": "T-Bar Complete",
+    "complete": "Complete",
 }
 
 SCANNER_STATUS_ORDER = ("forming", "touch", "tbar_complete", "complete")
@@ -45,17 +45,19 @@ FALLBACK_SYMBOLS = (
     "AVAXUSDT",
 )
 
-CRYPTO_PAGE_DEFINITIONS: tuple[dict[str, str], ...] = (
-    {"key": "overview", "label": "오버뷰"},
-    {"key": "signals", "label": "시그널"},
-    {"key": "patterns", "label": "패턴"},
-    {"key": "opportunities", "label": "우선순위"},
-    {"key": "setups", "label": "세트업 랩"},
-    {"key": "technical_ratings", "label": "테크니컬 레이팅"},
-    {"key": "trend", "label": "추세"},
-    {"key": "momentum", "label": "모멘텀"},
-    {"key": "volatility", "label": "변동성"},
-    {"key": "multi_timeframe", "label": "멀티 타임프레임"},
+CRYPTO_PAGE_DEFINITIONS: tuple[dict[str, Any], ...] = (
+    {"key": "overview", "label": "Overview", "nav": True},
+    {"key": "signals", "label": "Signals", "nav": True},
+    {"key": "derivatives", "label": "Derivatives", "nav": True},
+    {"key": "movers", "label": "Movers", "nav": True},
+    {"key": "opportunities", "label": "Opportunities", "nav": True},
+    {"key": "setups", "label": "Watchlist", "nav": True},
+    {"key": "technical_ratings", "label": "Technical Ratings", "nav": True},
+    {"key": "trend", "label": "Trend", "nav": True},
+    {"key": "momentum", "label": "Momentum", "nav": True},
+    {"key": "volatility", "label": "Volatility", "nav": True},
+    {"key": "multi_timeframe", "label": "Multi-timeframe", "nav": True},
+    {"key": "patterns", "label": "Pattern Archive", "nav": False},
 )
 
 _SVG_COLORS = {

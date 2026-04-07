@@ -17,41 +17,41 @@
     </nav>
 
     <main class="markets-shell crypto-shell-page">
-      <section id="crypto-app" class="crypto-app-shell" aria-label="코인 분석 허브">
+      <section id="crypto-app" class="crypto-app-shell" aria-label="Crypto analysis hub">
         <header class="crypto-page-hero">
           <div class="crypto-page-copy">
             <p class="analysis-eyebrow">Crypto Analysis</p>
-            <h1>{{ crypto_page_label or "오버뷰" }}</h1>
-            <p>패턴, 파생 지표, 추세, 모멘텀, 변동성을 묶음으로 보는 정적 분석 제품입니다. 스캔 버튼은 최신 배치 스냅샷을 다시 불러옵니다.</p>
+            <h1>{{ crypto_page_label or "Overview" }}</h1>
+            <p>Live Binance market data is the primary source for this product. The refresh button runs a fresh browser-side query, and the page falls back to the latest batch dataset only when the live request fails.</p>
           </div>
           <div class="crypto-hero-pills">
             <span class="summary-pill">Binance USDT Perpetual</span>
-            <span class="summary-pill">상위 100개 스캔</span>
-            <span class="summary-pill">한국시간 표기</span>
-            <span class="summary-pill">최근 5분 배치 스냅샷 기준</span>
+            <span class="summary-pill">Top 100 symbols</span>
+            <span class="summary-pill">KST display</span>
+            <span class="summary-pill">Live query + fallback</span>
           </div>
         </header>
 
         <section class="crypto-toolbar-card">
           <div class="crypto-toolbar-grid">
             <label class="scanner-field">
-              <span>스캔 범위</span>
+              <span>Universe</span>
               <select id="crypto-universe-select" class="scanner-select"></select>
             </label>
             <label class="scanner-field">
-              <span>타임프레임</span>
+              <span>Timeframe</span>
               <select id="crypto-timeframe-select" class="scanner-select"></select>
             </label>
-            <button id="crypto-refresh-button" class="scanner-action-button" type="button">최신 스캔 다시 불러오기</button>
+            <button id="crypto-refresh-button" class="scanner-action-button" type="button">Refresh Live Snapshot</button>
           </div>
-          <p id="crypto-cooldown-text" class="scanner-cooldown-text">5분 배치 기준 최신 스냅샷을 곧 다시 불러올 수 있습니다.</p>
-          <div id="crypto-status-line" class="scanner-status-line">스캐너 manifest를 불러오는 중입니다.</div>
+          <p id="crypto-cooldown-text" class="scanner-cooldown-text">Preparing live Binance market data.</p>
+          <div id="crypto-status-line" class="scanner-status-line">Preparing data.</div>
           <div class="scanner-progress-track" aria-hidden="true">
             <span id="crypto-progress-bar" class="scanner-progress-bar"></span>
           </div>
         </section>
 
-        <nav id="crypto-page-tabs" class="crypto-page-tabs" aria-label="코인 분석 페이지"></nav>
+        <nav id="crypto-page-tabs" class="crypto-page-tabs" aria-label="Crypto analysis pages"></nav>
 
         <section class="crypto-summary-shell">
           <div id="crypto-summary-meta" class="scanner-summary-meta"></div>
@@ -63,7 +63,7 @@
         <section id="crypto-page-content" class="crypto-page-content"></section>
       </section>
 
-      <noscript class="noscript-note">JavaScript가 있어야 코인 분석 허브를 렌더링할 수 있습니다.</noscript>
+      <noscript class="noscript-note">JavaScript is required to render the crypto analysis hub.</noscript>
     </main>
 
     <script id="markets-bootstrap" type="application/json">{{ bootstrap_json | safe }}</script>

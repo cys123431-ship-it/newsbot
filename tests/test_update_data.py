@@ -48,7 +48,11 @@ def test_fallback_analyses_populate_non_pattern_pages():
     )
 
     assert page_data["signals"]["top100"]["5m"] == "signals-top100-5m.json"
+    assert page_data["derivatives"]["top100"]["5m"] == "derivatives-top100-5m.json"
+    assert page_data["movers"]["top100"]["5m"] == "movers-top100-5m.json"
     assert len(page_payloads["signals-top100-5m.json"]["rows"]) == 4
+    assert len(page_payloads["derivatives-top100-5m.json"]["rows"]) == 4
+    assert len(page_payloads["movers-top100-5m.json"]["rows"]) == 4
     assert len(page_payloads["opportunities-top100-5m.json"]["rows"]) >= 1
     assert len(page_payloads["overview-top100-5m.json"]["top_opportunities"]) >= 1
     assert detail_payloads["setups/scan-top100-5m/solusdt-gartley-touch.json"]["result"]["symbol"] == "SOLUSDT"

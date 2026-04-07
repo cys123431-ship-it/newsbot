@@ -221,12 +221,12 @@ function renderRefreshStrip() {
   const ageMinutes = generatedAt
     ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 60000))
     : null;
-  const isFresh = ageMinutes !== null && ageMinutes <= 10;
+  const isFresh = ageMinutes !== null && ageMinutes <= 15;
   refs.refreshSpotlight.classList.toggle("is-fresh", Boolean(isFresh));
-  refs.refreshLabel.textContent = isFresh ? "방금 갱신" : "최근 갱신";
+  refs.refreshLabel.textContent = isFresh ? "Just Updated" : "Latest Refresh";
   refs.refreshTitle.textContent = isFresh
-    ? "최근 5분 배치에서 수집한 기사 흐름을 바로 읽을 수 있게 정렬했습니다."
-    : "최근 5분 배치 기준 기사 흐름을 시간순으로 정리했습니다.";
+    ? "Tracking headline flow from the recent 10-15 minute batch."
+    : "Showing headline flow from the recent 10-15 minute batch.";
   refs.refreshTime.textContent = formatDateTime(payload.generated_at);
   refs.refreshTime.dateTime = payload.generated_at;
 }

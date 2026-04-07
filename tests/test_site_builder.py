@@ -237,6 +237,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert (output_dir / "markets" / "korea" / "index.html").exists()
     assert (output_dir / "markets" / "crypto" / "index.html").exists()
     assert (output_dir / "assets" / "style.css").exists()
+    assert (output_dir / "assets" / "crypto-live-worker.js").exists()
     assert (output_dir / "data" / "site-data.json").exists()
     assert (output_dir / "data" / "analysis-state.json").exists()
     assert (output_dir / "data" / "analysis-dashboard.json").exists()
@@ -328,6 +329,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
 
     for slug, key in (
         ("signals", "signals"),
+        ("derivatives", "derivatives"),
+        ("movers", "movers"),
         ("patterns", "patterns"),
         ("opportunities", "opportunities"),
         ("setups", "setups"),
@@ -343,14 +346,15 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
         assert '../../../assets/markets.js' in nested_html
 
     markets_js = (output_dir / "assets" / "markets.js").read_text(encoding="utf-8")
-    assert "loadCryptoManifest" in markets_js
-    assert "resolveCryptoPageDatasetPath" in markets_js
-    assert "cryptoDataMissingMessage" in markets_js
-    assert "renderSignalsPage" in markets_js
-    assert "renderPatternsPage" in markets_js
-    assert "renderMultiTimeframePage" in markets_js
-    assert "??? ??? ?? ?????. ??? ? ???? ??? ???? ???????." in markets_js
-    assert "??? ??" in markets_js
+    assert "crypto-live-worker.js" in crypto_markets_html
+    assert "ensureWorker" in markets_js
+    assert "loadLivePayload" in markets_js
+    assert "loadFallbackPayload" in markets_js
+    assert "renderSignals" in markets_js
+    assert "renderDerivatives" in markets_js
+    assert "renderMovers" in markets_js
+    assert "renderMultiTimeframe" in markets_js
+    assert "Live fetch failed" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
     assert file_payload["article_count"] >= 2
@@ -377,6 +381,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     for page_key in (
         "overview",
         "signals",
+        "derivatives",
+        "movers",
         "patterns",
         "opportunities",
         "setups",
