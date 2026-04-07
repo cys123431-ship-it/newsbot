@@ -1,0 +1,96 @@
+name: Watch Scanner Freshness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+
+concurrency:
+  group: scanner-freshness-watchdog
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STALE_THRESHOLD_MINUTES: "18"
+      SITE_DATA_URL: "https://cys123431-ship-it.github.io/newsbot/data/site-data.json"
+      MANIFEST_URL: "https://cys123431-ship-it.github.io/newsbot/data/scanner/manifest.json"
+    steps:
+      - name: Check live freshness
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from datetime import datetime, timezone
+
+          threshold_minutes = int(os.environ["STALE_THRESHOLD_MINUTES"])
+          now = datetime.now(timezone.utc)
+          urls = {
+              "site": os.environ["SITE_DATA_URL"],
+              "manifest": os.environ["MANIFEST_URL"],
+          }
+
+          stale = False
+          details = []
+
+          for label, url in urls.items():
+              try:
+                  with urllib.request.urlopen(url, timeout=30) as response:
+                      payload = json.load(response)
+                  generated_at = payload.get("generated_at")
+                  if not generated_at:
+                      stale = True
+                      details.append(f"{label}=missing-generated-at")
+                      continue
+                  timestamp = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+                  age_minutes = (now - timestamp.astimezone(timezone.utc)).total_seconds() / 60
+                  details.append(f"{label}={age_minutes:.1f}m")
+                  if age_minutes > threshold_minutes:
+                      stale = True
+              except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+                  stale = True
+                  details.append(f"{label}=fetch-error:{exc}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"stale={'true' if stale else 'false'}\n")
+              handle.write(f"details={' | '.join(details)}\n")
+          PY
+
+      - name: Check scanner workflow activity
+        if: steps.freshness.outputs.stale == 'true'
+        id: activity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scanner-schedule-v2.yml --limit 10 --json status | python - <<'PY'
+          import json, sys
+          runs = json.load(sys.stdin)
+          print("true" if any(run.get("status") in {"queued", "in_progress", "waiting", "pending"} for run in runs) else "false")
+          PY
+          )
+          echo "active=$active" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch scanner refresh
+        if: steps.freshness.outputs.stale == 'true' && steps.activity.outputs.active != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Detected stale live data: ${{ steps.freshness.outputs.details }}"
+          gh workflow run scanner-schedule-v2.yml --repo "$GITHUB_REPOSITORY"
+
+      - name: Summarize watchdog decision
+        run: |
+          echo "Freshness: ${{ steps.freshness.outputs.stale }}"
+          echo "Details: ${{ steps.freshness.outputs.details }}"
+          echo "Scanner workflow active: ${{ steps.activity.outputs.active || 'false' }}"
