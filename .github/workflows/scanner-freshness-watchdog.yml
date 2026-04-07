@@ -73,9 +73,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scanner-schedule-v2.yml --limit 10 --json status | python - <<'PY'
-          import json, sys
-          runs = json.load(sys.stdin)
+          runs_json=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scanner-schedule-v2.yml --limit 10 --json status)
+          active=$(RUNS_JSON="$runs_json" python - <<'PY'
+          import json
+          import os
+
+          runs = json.loads(os.environ["RUNS_JSON"])
           print("true" if any(run.get("status") in {"queued", "in_progress", "waiting", "pending"} for run in runs) else "false")
           PY
           )
