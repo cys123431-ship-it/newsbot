@@ -800,7 +800,7 @@ function renderMultiTimeframeCard(row) {
         </div>
       </div>
       <div class="crypto-mtf-table">
-        ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame])).join("")}
+        ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame.key])).join("")}
       </div>
     </article>
   `;
@@ -809,7 +809,7 @@ function renderMultiTimeframeCard(row) {
 function renderMultiTimeframeRow(frame, entry) {
   return `
     <div class="crypto-mtf-row">
-      <strong>${escapeHtml(frame)}</strong>
+      <strong>${escapeHtml(frame?.key || "-")}</strong>
       ${entry ? badge(entry.side_label || "-", sideScore(entry.side)) : "<span>-</span>"}
       <span>${escapeHtml(entry?.technical_rating || "-")}</span>
       <span>${escapeHtml(entry?.trend_bias || "-")}</span>
