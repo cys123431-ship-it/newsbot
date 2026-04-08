@@ -1675,11 +1675,8 @@ body.market-map-page .is-flat {
 }
 
 body.market-crypto-page {
-  background:
-    radial-gradient(circle at top left, rgba(14, 203, 129, 0.08), transparent 22%),
-    radial-gradient(circle at top right, rgba(246, 70, 93, 0.06), transparent 24%),
-    linear-gradient(180deg, #0b0e11 0%, #0b0e11 100%);
-  color: #d1d5db;
+  background: var(--crypto-body-bg);
+  color: var(--crypto-text);
 }
 
 body.market-crypto-page .surface-switcher,
@@ -1693,17 +1690,29 @@ body.market-crypto-page .surface-switcher {
 }
 
 body.market-crypto-page .surface-link {
-  color: #8e99a9;
+  color: var(--crypto-nav-link-color);
 }
 
 body.market-crypto-page .surface-link.is-active,
 body.market-crypto-page .surface-link:hover {
-  color: #ffffff;
-  background: rgba(33, 39, 47, 0.92);
+  color: var(--crypto-nav-link-active-color);
+  background: var(--crypto-nav-link-active-bg);
 }
 
 body.market-crypto-page .surface-link.is-active::after {
   background: #0ecb81;
+}
+
+body.market-crypto-page .summary-pill {
+  border-color: var(--crypto-chip-border);
+  background: var(--crypto-chip-bg);
+  color: var(--crypto-chip-text);
+}
+
+body.market-crypto-page .analysis-empty {
+  background: var(--crypto-panel-bg-strong);
+  border-color: var(--crypto-border-soft);
+  color: var(--crypto-text-muted);
 }
 
 body.market-crypto-page .markets-shell {
@@ -2125,11 +2134,85 @@ body.market-crypto-page .markets-shell {
   }
 }
 
-body.market-crypto-page {
-  background:
+html.crypto-theme-dark body.market-crypto-page {
+  --crypto-body-bg:
     radial-gradient(circle at top left, rgba(82, 143, 255, 0.12), transparent 32%),
     linear-gradient(180deg, #0a0f17 0%, #0b0e11 100%);
-  color: #d1d5db;
+  --crypto-panel-bg: rgba(21, 25, 30, 0.96);
+  --crypto-panel-bg-strong: rgba(9, 17, 28, 0.88);
+  --crypto-border: #272c36;
+  --crypto-border-strong: #303847;
+  --crypto-border-soft: #202b38;
+  --crypto-text: #d1d5db;
+  --crypto-text-strong: #ffffff;
+  --crypto-text-muted: #94a3b8;
+  --crypto-chip-bg: rgba(11, 18, 32, 0.88);
+  --crypto-chip-border: #334155;
+  --crypto-chip-text: #cbd5e1;
+  --crypto-select-bg: #111827;
+  --crypto-select-text: #f8fafc;
+  --crypto-action-bg: linear-gradient(135deg, rgba(58, 143, 255, 0.2), rgba(17, 24, 39, 0.95));
+  --crypto-action-border: rgba(56, 189, 248, 0.18);
+  --crypto-action-hover-border: rgba(96, 165, 250, 0.48);
+  --crypto-muted-button-bg: rgba(15, 23, 42, 0.88);
+  --crypto-progress-track: #0f172a;
+  --crypto-progress-fill: linear-gradient(90deg, #2563eb, #3b82f6);
+  --crypto-shadow: 0 18px 44px rgba(1, 7, 20, 0.34);
+  --crypto-nav-link-color: #8e99a9;
+  --crypto-nav-link-active-color: #ffffff;
+  --crypto-nav-link-active-bg: rgba(33, 39, 47, 0.92);
+  --crypto-positive-bg: rgba(14, 203, 129, 0.14);
+  --crypto-positive-border: rgba(14, 203, 129, 0.32);
+  --crypto-positive-text: #6ee7b7;
+  --crypto-negative-bg: rgba(246, 70, 93, 0.12);
+  --crypto-negative-border: rgba(246, 70, 93, 0.32);
+  --crypto-negative-text: #fda4af;
+  --crypto-warning-bg: rgba(113, 63, 18, 0.26);
+  --crypto-warning-border: rgba(251, 191, 36, 0.28);
+  --crypto-warning-text: #fcd34d;
+}
+
+html.crypto-theme-light body.market-crypto-page {
+  --crypto-body-bg:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #edf3fb 100%);
+  --crypto-panel-bg: rgba(255, 255, 255, 0.96);
+  --crypto-panel-bg-strong: rgba(247, 250, 255, 0.96);
+  --crypto-border: #d9e3ef;
+  --crypto-border-strong: #c6d4e5;
+  --crypto-border-soft: #dbe5f0;
+  --crypto-text: #1f2937;
+  --crypto-text-strong: #0f172a;
+  --crypto-text-muted: #5b6b80;
+  --crypto-chip-bg: rgba(241, 245, 249, 0.98);
+  --crypto-chip-border: #cbd5e1;
+  --crypto-chip-text: #334155;
+  --crypto-select-bg: #f8fbff;
+  --crypto-select-text: #0f172a;
+  --crypto-action-bg: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(255, 255, 255, 0.98));
+  --crypto-action-border: rgba(59, 130, 246, 0.2);
+  --crypto-action-hover-border: rgba(59, 130, 246, 0.42);
+  --crypto-muted-button-bg: rgba(241, 245, 249, 0.96);
+  --crypto-progress-track: #dbe5f0;
+  --crypto-progress-fill: linear-gradient(90deg, #2563eb, #3b82f6);
+  --crypto-shadow: 0 18px 40px rgba(148, 163, 184, 0.18);
+  --crypto-nav-link-color: #475569;
+  --crypto-nav-link-active-color: #0f172a;
+  --crypto-nav-link-active-bg: rgba(59, 130, 246, 0.12);
+  --crypto-positive-bg: rgba(14, 203, 129, 0.12);
+  --crypto-positive-border: rgba(14, 203, 129, 0.24);
+  --crypto-positive-text: #047857;
+  --crypto-negative-bg: rgba(246, 70, 93, 0.12);
+  --crypto-negative-border: rgba(246, 70, 93, 0.22);
+  --crypto-negative-text: #be123c;
+  --crypto-warning-bg: rgba(251, 191, 36, 0.16);
+  --crypto-warning-border: rgba(245, 158, 11, 0.28);
+  --crypto-warning-text: #b45309;
+}
+
+body.market-crypto-page {
+  background: var(--crypto-body-bg);
+  color: var(--crypto-text);
 }
 
 .crypto-shell-page {
@@ -2154,10 +2237,10 @@ body.market-crypto-page {
 .scanner-control-panel,
 .scanner-results-panel,
 .scanner-detail-card {
-  background: rgba(21, 25, 30, 0.96);
-  border: 1px solid #272c36;
+  background: var(--crypto-panel-bg);
+  border: 1px solid var(--crypto-border);
   border-radius: 24px;
-  box-shadow: 0 18px 44px rgba(1, 7, 20, 0.34);
+  box-shadow: var(--crypto-shadow);
 }
 
 .scanner-brand-block {
@@ -2167,7 +2250,7 @@ body.market-crypto-page {
 .scanner-brand-block h1,
 .scanner-detail-copy h1 {
   margin: 10px 0 12px;
-  color: #ffffff;
+  color: var(--crypto-text-strong);
   font-size: clamp(2rem, 3vw, 3rem);
   line-height: 1.05;
 }
@@ -2175,7 +2258,7 @@ body.market-crypto-page {
 .scanner-brand-block p:last-child,
 .scanner-detail-copy p:last-child {
   margin: 0;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 1rem;
   line-height: 1.7;
 }
@@ -2194,7 +2277,7 @@ body.market-crypto-page {
 }
 
 .scanner-field span {
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.88rem;
   font-weight: 600;
 }
@@ -2203,9 +2286,9 @@ body.market-crypto-page {
   width: 100%;
   min-width: 0;
   border-radius: 14px;
-  border: 1px solid #2d3748;
-  background: #111827;
-  color: #f8fafc;
+  border: 1px solid var(--crypto-border-strong);
+  background: var(--crypto-select-bg);
+  color: var(--crypto-select-text);
   padding: 14px 16px;
   font: inherit;
   appearance: none;
@@ -2219,9 +2302,9 @@ body.market-crypto-page {
   gap: 8px;
   min-height: 48px;
   border-radius: 14px;
-  border: 1px solid rgba(56, 189, 248, 0.18);
-  background: linear-gradient(135deg, rgba(58, 143, 255, 0.2), rgba(17, 24, 39, 0.95));
-  color: #f8fafc;
+  border: 1px solid var(--crypto-action-border);
+  background: var(--crypto-action-bg);
+  color: var(--crypto-text-strong);
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -2231,7 +2314,7 @@ body.market-crypto-page {
 .scanner-action-button:hover,
 .scanner-link-button:hover {
   transform: translateY(-1px);
-  border-color: rgba(96, 165, 250, 0.48);
+  border-color: var(--crypto-action-hover-border);
 }
 
 .scanner-action-button:disabled {
@@ -2240,16 +2323,16 @@ body.market-crypto-page {
 }
 
 .scanner-link-button.is-muted {
-  background: rgba(15, 23, 42, 0.88);
-  border-color: #303847;
-  color: #cbd5e1;
+  background: var(--crypto-muted-button-bg);
+  border-color: var(--crypto-border-strong);
+  color: var(--crypto-chip-text);
 }
 
 .scanner-cooldown-text,
 .scanner-status-line,
 .scanner-summary-meta,
 .scanner-active-scan {
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.92rem;
 }
 
@@ -2258,7 +2341,7 @@ body.market-crypto-page {
   overflow: hidden;
   height: 10px;
   border-radius: 999px;
-  background: #0f172a;
+  background: var(--crypto-progress-track);
 }
 
 .scanner-progress-bar {
@@ -2266,7 +2349,7 @@ body.market-crypto-page {
   height: 100%;
   width: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  background: var(--crypto-progress-fill);
   transition: width 220ms ease;
 }
 
@@ -2292,8 +2375,8 @@ body.market-crypto-page {
 .scanner-summary-pill,
 .scanner-active-pill {
   border-radius: 999px;
-  border: 1px solid #2d3748;
-  background: rgba(11, 18, 32, 0.9);
+  border: 1px solid var(--crypto-chip-border);
+  background: var(--crypto-chip-bg);
   padding: 8px 12px;
 }
 
@@ -2309,21 +2392,21 @@ body.market-crypto-page {
   align-items: center;
   gap: 10px;
   border-radius: 999px;
-  border: 1px solid #303847;
-  background: #111827;
-  color: #cbd5e1;
+  border: 1px solid var(--crypto-border-strong);
+  background: var(--crypto-select-bg);
+  color: var(--crypto-chip-text);
   padding: 10px 14px;
   cursor: pointer;
 }
 
 .scanner-filter-button strong {
-  color: #ffffff;
+  color: var(--crypto-text-strong);
 }
 
 .scanner-filter-button.is-active {
-  border-color: rgba(52, 211, 153, 0.45);
-  background: rgba(6, 78, 59, 0.4);
-  color: #ffffff;
+  border-color: var(--crypto-positive-border);
+  background: var(--crypto-positive-bg);
+  color: var(--crypto-text-strong);
 }
 
 .scanner-results-grid,
@@ -2351,14 +2434,14 @@ body.market-crypto-page {
 
 .scanner-card-head h3 {
   margin: 0 0 4px;
-  color: #ffffff;
+  color: var(--crypto-text-strong);
   font-size: 1.75rem;
   line-height: 1;
 }
 
 .scanner-card-head p {
   margin: 0;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.92rem;
   line-height: 1.55;
 }
@@ -2376,7 +2459,7 @@ body.market-crypto-page {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid #334155;
+  border: 1px solid var(--crypto-chip-border);
   padding: 8px 10px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -2384,28 +2467,28 @@ body.market-crypto-page {
 
 .scanner-badge.is-bullish,
 .scanner-flag-pill.is-pass {
-  border-color: rgba(14, 203, 129, 0.32);
-  background: rgba(14, 203, 129, 0.16);
-  color: #6ee7b7;
+  border-color: var(--crypto-positive-border);
+  background: var(--crypto-positive-bg);
+  color: var(--crypto-positive-text);
 }
 
 .scanner-badge.is-bearish {
-  border-color: rgba(246, 70, 93, 0.32);
-  background: rgba(246, 70, 93, 0.12);
-  color: #fda4af;
+  border-color: var(--crypto-negative-border);
+  background: var(--crypto-negative-bg);
+  color: var(--crypto-negative-text);
 }
 
 .scanner-badge.is-score {
-  color: #fcd34d;
-  border-color: rgba(251, 191, 36, 0.28);
-  background: rgba(113, 63, 18, 0.26);
+  color: var(--crypto-warning-text);
+  border-color: var(--crypto-warning-border);
+  background: var(--crypto-warning-bg);
 }
 
 .scanner-card-preview-wrap {
   overflow: hidden;
   border-radius: 18px;
-  border: 1px solid #202a37;
-  background: #09111c;
+  border: 1px solid var(--crypto-border-soft);
+  background: var(--crypto-panel-bg-strong);
   margin: 16px 0;
 }
 
@@ -2422,7 +2505,7 @@ body.market-crypto-page {
 
 .scanner-card-section-head {
   margin-bottom: 10px;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.84rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2430,7 +2513,7 @@ body.market-crypto-page {
 
 .scanner-card-section-head strong,
 .scanner-detail-card-head strong {
-  color: #ffffff;
+  color: var(--crypto-text-strong);
 }
 
 .scanner-point-grid,
@@ -2449,8 +2532,8 @@ body.market-crypto-page {
 .scanner-point-cell,
 .scanner-ratio-cell {
   border-radius: 14px;
-  border: 1px solid #273241;
-  background: rgba(9, 17, 28, 0.88);
+  border: 1px solid var(--crypto-border-soft);
+  background: var(--crypto-panel-bg-strong);
   padding: 10px 8px;
   text-align: center;
 }
@@ -2460,7 +2543,7 @@ body.market-crypto-page {
 .scanner-point-cell span,
 .scanner-ratio-cell span {
   display: block;
-  color: #7f8ea3;
+  color: var(--crypto-text-muted);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2472,13 +2555,13 @@ body.market-crypto-page {
 .scanner-ratio-cell strong {
   display: block;
   margin: 6px 0 4px;
-  color: #f8fafc;
+  color: var(--crypto-text-strong);
   font-size: 1rem;
 }
 
 .scanner-point-card small,
 .scanner-point-cell small {
-  color: #66758b;
+  color: var(--crypto-text-muted);
   font-size: 0.72rem;
 }
 
@@ -2488,14 +2571,14 @@ body.market-crypto-page {
   gap: 10px;
   margin-top: 16px;
   border-radius: 18px;
-  border: 1px solid rgba(251, 191, 36, 0.22);
-  background: linear-gradient(180deg, rgba(55, 36, 6, 0.32), rgba(15, 23, 42, 0.88));
+  border: 1px solid var(--crypto-warning-border);
+  background: linear-gradient(180deg, var(--crypto-warning-bg), var(--crypto-panel-bg-strong));
   padding: 14px;
 }
 
 .scanner-prz-box span {
   display: block;
-  color: #fcd34d;
+  color: var(--crypto-warning-text);
   font-size: 0.74rem;
   font-weight: 700;
 }
@@ -2503,7 +2586,7 @@ body.market-crypto-page {
 .scanner-prz-box strong {
   display: block;
   margin-top: 6px;
-  color: #f8fafc;
+  color: var(--crypto-text-strong);
   font-size: 0.95rem;
 }
 
@@ -2517,7 +2600,7 @@ body.market-crypto-page {
 .scanner-card-footer {
   margin-top: 18px;
   align-items: center;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.88rem;
 }
 
@@ -2577,17 +2660,17 @@ body.market-crypto-page {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #202b38;
+  border-bottom: 1px solid var(--crypto-border-soft);
   padding-bottom: 10px;
 }
 
 .scanner-metric-list dt {
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
 }
 
 .scanner-metric-list dd {
   margin: 0;
-  color: #ffffff;
+  color: var(--crypto-text-strong);
   text-align: right;
 }
 
@@ -2598,7 +2681,7 @@ body.market-crypto-page {
 
 .scanner-flag-row p {
   margin: 4px 0 0;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   font-size: 0.84rem;
 }
 
@@ -2656,10 +2739,10 @@ body.market-crypto-page {
 .crypto-panel,
 .crypto-section,
 .crypto-stat-card {
-  background: rgba(21, 25, 30, 0.96);
-  border: 1px solid #272c36;
+  background: var(--crypto-panel-bg);
+  border: 1px solid var(--crypto-border);
   border-radius: 24px;
-  box-shadow: 0 18px 44px rgba(1, 7, 20, 0.34);
+  box-shadow: var(--crypto-shadow);
 }
 
 .crypto-page-hero,
@@ -2673,17 +2756,18 @@ body.market-crypto-page {
 
 .crypto-page-copy h1 {
   margin: 10px 0 12px;
-  color: #ffffff;
+  color: var(--crypto-text-strong);
   font-size: clamp(2rem, 3vw, 3rem);
   line-height: 1.05;
 }
 
 .crypto-page-copy p:last-child {
   margin: 0;
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
   line-height: 1.7;
 }
 
+.crypto-hero-meta,
 .crypto-hero-pills,
 .crypto-chip-row,
 .crypto-summary-meta,
@@ -2691,6 +2775,17 @@ body.market-crypto-page {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.crypto-hero-meta {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.crypto-hero-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .crypto-toolbar-grid {
@@ -2713,18 +2808,18 @@ body.market-crypto-page {
   min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid #303847;
-  background: #111827;
-  color: #cbd5e1;
+  border: 1px solid var(--crypto-border-strong);
+  background: var(--crypto-select-bg);
+  color: var(--crypto-chip-text);
   font-size: 0.92rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .crypto-page-tab.is-active {
-  border-color: rgba(96, 165, 250, 0.48);
-  background: rgba(30, 64, 175, 0.36);
-  color: #ffffff;
+  border-color: var(--crypto-action-hover-border);
+  background: var(--crypto-nav-link-active-bg);
+  color: var(--crypto-text-strong);
 }
 
 .crypto-summary-shell,
@@ -2770,7 +2865,7 @@ body.market-crypto-page {
 .crypto-panel-head span,
 .crypto-preview-card p,
 .crypto-section-head h2 {
-  color: #94a3b8;
+  color: var(--crypto-text-muted);
 }
 
 .crypto-card-label {
@@ -2784,7 +2879,7 @@ body.market-crypto-page {
 .crypto-card-value {
   display: block;
   margin-top: 10px;
-  color: #ffffff;
+  color: var(--crypto-text-strong);
   font-size: 1.4rem;
   line-height: 1.1;
 }
@@ -2801,29 +2896,29 @@ body.market-crypto-page {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #334155;
-  background: rgba(11, 18, 32, 0.88);
-  color: #e2e8f0;
+  border: 1px solid var(--crypto-chip-border);
+  background: var(--crypto-chip-bg);
+  color: var(--crypto-chip-text);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .crypto-inline-badge.is-positive {
-  border-color: rgba(14, 203, 129, 0.32);
-  background: rgba(14, 203, 129, 0.14);
-  color: #6ee7b7;
+  border-color: var(--crypto-positive-border);
+  background: var(--crypto-positive-bg);
+  color: var(--crypto-positive-text);
 }
 
 .crypto-inline-badge.is-negative {
-  border-color: rgba(246, 70, 93, 0.32);
-  background: rgba(246, 70, 93, 0.12);
-  color: #fda4af;
+  border-color: var(--crypto-negative-border);
+  background: var(--crypto-negative-bg);
+  color: var(--crypto-negative-text);
 }
 
 .crypto-inline-badge.is-neutral {
-  border-color: #334155;
-  background: rgba(15, 23, 42, 0.88);
-  color: #cbd5e1;
+  border-color: var(--crypto-chip-border);
+  background: var(--crypto-muted-button-bg);
+  color: var(--crypto-chip-text);
 }
 
 .crypto-panel-head,
@@ -2843,9 +2938,16 @@ body.market-crypto-page {
 .crypto-preview-card,
 .crypto-compact-card {
   border-radius: 18px;
-  border: 1px solid #273241;
-  background: rgba(9, 17, 28, 0.88);
+  border: 1px solid var(--crypto-border-soft);
+  background: var(--crypto-panel-bg-strong);
   padding: 16px;
+}
+
+.crypto-panel-head strong,
+.crypto-preview-head strong,
+.crypto-compact-head strong,
+.crypto-score-stack strong {
+  color: var(--crypto-text-strong);
 }
 
 .crypto-preview-card p,
@@ -2860,7 +2962,7 @@ body.market-crypto-page {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
-  color: #e2e8f0;
+  color: var(--crypto-text);
   font-size: 0.85rem;
 }
 
@@ -2884,13 +2986,13 @@ body.market-crypto-page {
 .crypto-table th,
 .crypto-table td {
   padding: 12px 10px;
-  border-bottom: 1px solid #202b38;
+  border-bottom: 1px solid var(--crypto-border-soft);
   text-align: left;
   vertical-align: top;
 }
 
 .crypto-table th {
-  color: #7f8ea3;
+  color: var(--crypto-text-muted);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -2898,7 +3000,7 @@ body.market-crypto-page {
 }
 
 .crypto-table td {
-  color: #f8fafc;
+  color: var(--crypto-text);
   font-size: 0.92rem;
 }
 
@@ -2919,17 +3021,17 @@ body.market-crypto-page {
   gap: 8px;
   align-items: center;
   border-radius: 14px;
-  border: 1px solid #273241;
-  background: rgba(9, 17, 28, 0.88);
+  border: 1px solid var(--crypto-border-soft);
+  background: var(--crypto-panel-bg-strong);
   padding: 10px 12px;
 }
 
 .crypto-mtf-row strong {
-  color: #ffffff;
+  color: var(--crypto-text-strong);
 }
 
 .crypto-mtf-row span {
-  color: #cbd5e1;
+  color: var(--crypto-text);
   font-size: 0.84rem;
 }
 

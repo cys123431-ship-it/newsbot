@@ -4,6 +4,7 @@ const BINANCE_BASE_URL = "https://fapi.binance.com";
 const KLINE_LIMIT = 220;
 const REQUEST_CONCURRENCY = 10;
 const TIMEFRAMES = ["5m", "15m", "1h", "4h"];
+const TIMEFRAME_WEIGHTS = { "5m": 15, "15m": 20, "1h": 30, "4h": 35 };
 const TIMEFRAME_LABELS = {
   "5m": "5분 (5m)",
   "15m": "15분 (15m)",
@@ -13,6 +14,8 @@ const TIMEFRAME_LABELS = {
 const UNIVERSE_PRESETS = {
   top100: { label: "상위 100개 종목", limit: 100, multiTimeframeLimit: 100 },
 };
+const UNIVERSE_WEIGHT_QUOTE_VOLUME = 0.65;
+const UNIVERSE_WEIGHT_OPEN_INTEREST = 0.35;
 
 const CACHE_TTL_MS = 90_000;
 const universeCache = new Map();
@@ -75,19 +78,29 @@ async function loadUniverse(universeKey, force = false) {
     return cached.data;
   }
 
-  const [tickerRows, premiumRows] = await Promise.all([
+  const [exchangeInfo, tickerRows, premiumRows] = await Promise.all([
+    fetchJson("/fapi/v1/exchangeInfo"),
     fetchJson("/fapi/v1/ticker/24hr"),
     fetchJson("/fapi/v1/premiumIndex"),
   ]);
 
+  const tradableSymbols = new Set(
+    (Array.isArray(exchangeInfo?.symbols) ? exchangeInfo.symbols : [])
+      .filter(
+        (row) =>
+          row?.status === "TRADING" &&
+          row?.contractType === "PERPETUAL" &&
+          row?.quoteAsset === "USDT",
+      )
+      .map((row) => String(row.symbol || "").toUpperCase()),
+  );
+
   const premiumLookup = {};
-  const tradableSymbols = new Set();
   for (const row of Array.isArray(premiumRows) ? premiumRows : []) {
     const symbol = String(row.symbol || "").toUpperCase();
-    if (!symbol.endsWith("USDT")) {
+    if (!symbol.endsWith("USDT") || symbol.endsWith("BUSD") || !tradableSymbols.has(symbol)) {
       continue;
     }
-    tradableSymbols.add(symbol);
     premiumLookup[symbol] = safeNumber(row.lastFundingRate) * 100;
   }
 
@@ -113,11 +126,64 @@ async function loadUniverse(universeKey, force = false) {
     };
   }
 
-  const symbols = Object.keys(tickerLookup)
-    .sort((left, right) => tickerLookup[right].quote_volume - tickerLookup[left].quote_volume)
-    .slice(0, preset.limit);
+  const openInterestLookup = await loadOpenInterestUsd(Object.keys(tickerLookup), tickerLookup);
+  const normalizedQuoteLookup = normalizeMetricLookup(
+    Object.fromEntries(
+      Object.entries(tickerLookup).map(([symbol, row]) => [symbol, row.quote_volume]),
+    ),
+  );
+  const normalizedOpenInterestLookup = normalizeMetricLookup(openInterestLookup);
+  let scoredSymbols = Object.keys(tickerLookup)
+    .filter((symbol) => safeNumber(openInterestLookup[symbol]) > 0)
+    .map((symbol) => {
+      const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
+      const normalizedOpenInterestUsd = safeNumber(normalizedOpenInterestLookup[symbol]);
+      const universeScore = round(
+        (normalizedQuoteVolume * UNIVERSE_WEIGHT_QUOTE_VOLUME) +
+          (normalizedOpenInterestUsd * UNIVERSE_WEIGHT_OPEN_INTEREST),
+        2,
+      );
+      tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
+      tickerLookup[symbol].normalized_open_interest_usd = round(normalizedOpenInterestUsd, 2);
+      tickerLookup[symbol].universe_score = universeScore;
+      tickerLookup[symbol].open_interest_usd = round(safeNumber(openInterestLookup[symbol]), 2);
+      return { symbol, universeScore };
+    });
 
-  const data = { universeKey, preset, symbols, tickerLookup, premiumLookup };
+  if (!scoredSymbols.length) {
+    scoredSymbols = Object.keys(tickerLookup).map((symbol) => {
+      const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
+      const universeScore = round(normalizedQuoteVolume, 2);
+      tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
+      tickerLookup[symbol].normalized_open_interest_usd = 0;
+      tickerLookup[symbol].universe_score = universeScore;
+      tickerLookup[symbol].open_interest_usd = 0;
+      return { symbol, universeScore };
+    });
+  }
+
+  const universeScoreLookup = Object.fromEntries(scoredSymbols.map((entry) => [entry.symbol, entry.universeScore]));
+  const symbols = scoredSymbols
+    .sort(
+      (left, right) =>
+        right.universeScore - left.universeScore ||
+        tickerLookup[right.symbol].quote_volume - tickerLookup[left.symbol].quote_volume ||
+        left.symbol.localeCompare(right.symbol),
+    )
+    .slice(0, preset.limit)
+    .map((entry) => entry.symbol);
+
+  const data = {
+    universeKey,
+    preset,
+    symbols,
+    tickerLookup,
+    premiumLookup,
+    openInterestLookup,
+    normalizedQuoteLookup,
+    normalizedOpenInterestLookup,
+    universeScoreLookup,
+  };
   universeCache.set(universeKey, { storedAt: Date.now(), data });
   return data;
 }
@@ -204,13 +270,14 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
   }
 
   const rows = Object.entries(matrix).map(([symbol, byTimeframe]) => {
-    let bullish = 0;
-    let bearish = 0;
+    let longWeight = 0;
+    let shortWeight = 0;
     const timeframes = {};
     const anchor = byTimeframe["5m"] || byTimeframe["15m"] || byTimeframe["1h"] || byTimeframe["4h"];
     for (const timeframe of TIMEFRAMES) {
       const row = byTimeframe[timeframe];
       if (!row) continue;
+      const weight = TIMEFRAME_WEIGHTS[timeframe] || 0;
       timeframes[timeframe] = {
         side: row.side,
         side_label: row.side_label,
@@ -218,17 +285,21 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
         trend_bias: row.labels.trend_bias,
         momentum_bias: row.labels.momentum_bias,
         opportunity: row.scores.opportunity,
+        weight,
       };
-      if (row.side === "long") bullish += 1;
-      if (row.side === "short") bearish += 1;
+      if (row.side === "long") longWeight += weight;
+      if (row.side === "short") shortWeight += weight;
     }
-    const consensus_label = bullish >= 3 ? "상승 합의" : bearish >= 3 ? "하락 합의" : "혼합";
+    const consensus_label =
+      longWeight >= 65 ? "상승 합의" : shortWeight >= 65 ? "하락 합의" : "혼합";
     return {
       symbol,
       last_price: safeNumber(anchor && anchor.last_price),
       change_24h: safeNumber(anchor && anchor.change_24h),
-      agreement_score: round(((bullish - bearish) / TIMEFRAMES.length) * 100, 1),
+      agreement_score: round(longWeight - shortWeight, 1),
       consensus_label,
+      long_weight: longWeight,
+      short_weight: shortWeight,
       primary: anchor,
       timeframes,
     };
@@ -282,7 +353,7 @@ async function getAnalysesForTimeframe({ timeframe, universe, universeKey, symbo
     return cached.analyses;
   }
 
-  const contextPromise = loadSymbolContexts(symbols, universe.tickerLookup, timeframe);
+  const contextPromise = loadSymbolContexts(symbols, universe, timeframe);
   const candlesPromise = loadCandles(symbols, timeframe);
   const [contexts, candleResult] = await Promise.all([contextPromise, candlesPromise]);
   const analyses = [];
@@ -292,39 +363,54 @@ async function getAnalysesForTimeframe({ timeframe, universe, universeKey, symbo
       continue;
     }
     const context = contexts[symbol] || {};
-    analyses.push(
-      buildSymbolAnalysis({
-        symbol,
-        timeframe,
-        candles,
-        ticker: universe.tickerLookup[symbol],
-        fundingRate: universe.premiumLookup[symbol],
-        openInterestUsd: context.open_interest_usd,
-        longShortRatio: context.long_short_ratio,
-      }),
+    const analysis = buildSymbolAnalysis({
+      symbol,
+      timeframe,
+      candles,
+      ticker: universe.tickerLookup[symbol],
+      fundingRate: universe.premiumLookup[symbol],
+      openInterestUsd: context.open_interest_usd,
+      longShortRatio: context.long_short_ratio,
+    });
+    analysis.normalized_quote_volume = round(safeNumber(universe.normalizedQuoteLookup[symbol]), 2);
+    analysis.normalized_open_interest_usd = round(
+      safeNumber(universe.normalizedOpenInterestLookup[symbol]),
+      2,
     );
+    analysis.universe_score = round(safeNumber(universe.universeScoreLookup[symbol]), 2);
+    analyses.push(analysis);
   }
   analysisCache.set(cacheKey, { storedAt: Date.now(), analyses });
   return analyses;
 }
 
-async function loadSymbolContexts(symbols, tickerLookup, timeframe) {
+async function loadOpenInterestUsd(symbols, tickerLookup) {
+  const entries = await mapConcurrent(symbols, REQUEST_CONCURRENCY, async (symbol) => {
+    try {
+      const payload = await fetchJson("/fapi/v1/openInterest", { symbol });
+      const openInterest = safeNumber(payload.openInterest);
+      const lastPrice = safeNumber(tickerLookup[symbol] && tickerLookup[symbol].last_price);
+      return [symbol, openInterest * lastPrice];
+    } catch (_) {
+      return [symbol, 0];
+    }
+  });
+
+  return Object.fromEntries(entries);
+}
+
+async function loadSymbolContexts(symbols, universe, timeframe) {
   const longShortPeriod = ["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"].includes(timeframe)
     ? timeframe
     : "5m";
 
   const entries = await mapConcurrent(symbols, REQUEST_CONCURRENCY, async (symbol) => {
     try {
-      const [openInterestPayload, longShortPayload] = await Promise.all([
-        fetchJson("/fapi/v1/openInterest", { symbol }),
-        fetchJson("/futures/data/globalLongShortAccountRatio", {
-          symbol,
-          period: longShortPeriod,
-          limit: 1,
-        }),
-      ]);
-      const openInterest = safeNumber(openInterestPayload.openInterest);
-      const lastPrice = safeNumber(tickerLookup[symbol] && tickerLookup[symbol].last_price);
+      const longShortPayload = await fetchJson("/futures/data/globalLongShortAccountRatio", {
+        symbol,
+        period: longShortPeriod,
+        limit: 1,
+      });
       const longShortRatio =
         Array.isArray(longShortPayload) && longShortPayload.length
           ? safeNumber(longShortPayload[longShortPayload.length - 1].longShortRatio, null)
@@ -332,12 +418,18 @@ async function loadSymbolContexts(symbols, tickerLookup, timeframe) {
       return [
         symbol,
         {
-          open_interest_usd: openInterest * lastPrice,
+          open_interest_usd: safeNumber(universe.openInterestLookup[symbol], null),
           long_short_ratio: longShortRatio,
         },
       ];
     } catch (_) {
-      return [symbol, { open_interest_usd: null, long_short_ratio: null }];
+      return [
+        symbol,
+        {
+          open_interest_usd: safeNumber(universe.openInterestLookup[symbol], null),
+          long_short_ratio: null,
+        },
+      ];
     }
   });
 
@@ -401,6 +493,22 @@ function buildPayloadForPage({
     (left, right) =>
       right.scores.opportunity - left.scores.opportunity || right.scores.technical - left.scores.technical,
   );
+  const signalRows = rankRows(analyses, computeSignalScore);
+  const derivativesRows = rankRows(analyses, computeDerivativesRankScore);
+  const moversRows = rankRows(analyses, computeMoversRankScore);
+  const watchlistRows = rankRows(analyses, computeWatchlistRankScore);
+  const technicalRows = [...analyses].sort(
+    (left, right) =>
+      computeTechnicalRankScore(right) - computeTechnicalRankScore(left) ||
+      safeNumber(right.universe_score) - safeNumber(left.universe_score) ||
+      right.quote_volume - left.quote_volume ||
+      left.symbol.localeCompare(right.symbol),
+  );
+  const trendRows = rankRows(analyses, computeTrendRankScore);
+  const momentumRows = rankRows(analyses, computeMomentumRankScore);
+  const volatilityRows = rankRows(analyses, computeVolatilityRankScore);
+  const longOpportunityRows = opportunities.filter((row) => row.side === "long").slice(0, 6);
+  const shortOpportunityRows = opportunities.filter((row) => row.side === "short").slice(0, 6);
   const summary = buildSummaryCards(analyses);
   const basePayload = {
     page_key: pageKey,
@@ -420,14 +528,21 @@ function buildPayloadForPage({
       ...basePayload,
       summary_cards: summary,
       top_opportunities: opportunities.slice(0, 6),
-      top_signals: sortRows(analyses, ["derivatives", "momentum", "technical"]).slice(0, 6),
-      page_previews: buildPagePreviewCards(analyses, opportunities),
+      top_signals: signalRows.slice(0, 6),
+      page_previews: buildPagePreviewCards({
+        opportunities,
+        signals: signalRows,
+        technical: technicalRows,
+        trend: trendRows,
+        momentum: momentumRows,
+        volatility: volatilityRows,
+      }),
       strong_recommendations: strongRecommendations,
     };
   }
 
   if (pageKey === "signals") {
-    const rows = sortRows(analyses, ["derivatives", "momentum", "technical"]).slice(0, 60);
+    const rows = signalRows.slice(0, 60);
     return {
       ...basePayload,
       summary_cards: summary,
@@ -442,13 +557,7 @@ function buildPayloadForPage({
   }
 
   if (pageKey === "derivatives") {
-    const rows = [...analyses]
-      .sort(
-        (left, right) =>
-          right.scores.derivatives - left.scores.derivatives ||
-          Math.abs(right.funding_rate || 0) - Math.abs(left.funding_rate || 0),
-      )
-      .slice(0, 60);
+    const rows = derivativesRows.slice(0, 60);
     return {
       ...basePayload,
       summary_cards: summary,
@@ -463,14 +572,7 @@ function buildPayloadForPage({
   }
 
   if (pageKey === "movers") {
-    const rows = [...analyses]
-      .sort(
-        (left, right) =>
-          Math.abs(right.change_24h) - Math.abs(left.change_24h) ||
-          right.quote_volume - left.quote_volume ||
-          right.scores.volatility - left.scores.volatility,
-      )
-      .slice(0, 60);
+    const rows = moversRows.slice(0, 60);
     return {
       ...basePayload,
       summary_cards: summary,
@@ -489,26 +591,21 @@ function buildPayloadForPage({
       ...basePayload,
       summary_cards: summary,
       rows: opportunities.slice(0, 40),
+      long_rows: longOpportunityRows,
+      short_rows: shortOpportunityRows,
     };
   }
 
   if (pageKey === "setups") {
     return {
       ...basePayload,
-      summary_cards: summary,
-      rows: opportunities.slice(0, 20),
+      summary_cards: buildSummaryCards(watchlistRows),
+      rows: watchlistRows.slice(0, 20),
     };
   }
 
   if (pageKey === "technical_ratings") {
-    const rows = [...analyses]
-      .sort(
-        (left, right) =>
-          Math.abs(right.scores.technical) - Math.abs(left.scores.technical) ||
-          Math.abs(right.scores.moving_average) - Math.abs(left.scores.moving_average) ||
-          right.quote_volume - left.quote_volume,
-      )
-      .slice(0, 80);
+    const rows = technicalRows.slice(0, 80);
     return {
       ...basePayload,
       distribution: buildTechnicalDistribution(analyses),
@@ -517,14 +614,7 @@ function buildPayloadForPage({
   }
 
   if (pageKey === "trend") {
-    const rows = [...analyses]
-      .sort(
-        (left, right) =>
-          right.scores.trend - left.scores.trend ||
-          Math.abs(right.scores.trend_bias) - Math.abs(left.scores.trend_bias) ||
-          right.quote_volume - left.quote_volume,
-      )
-      .slice(0, 80);
+    const rows = trendRows.slice(0, 80);
     return {
       ...basePayload,
       counts: {
@@ -537,14 +627,7 @@ function buildPayloadForPage({
   }
 
   if (pageKey === "momentum") {
-    const rows = [...analyses]
-      .sort(
-        (left, right) =>
-          right.scores.momentum - left.scores.momentum ||
-          Math.abs(right.scores.momentum_bias) - Math.abs(left.scores.momentum_bias) ||
-          right.quote_volume - left.quote_volume,
-      )
-      .slice(0, 80);
+    const rows = momentumRows.slice(0, 80);
     return {
       ...basePayload,
       counts: {
@@ -557,9 +640,7 @@ function buildPayloadForPage({
   }
 
   if (pageKey === "volatility") {
-    const rows = [...analyses]
-      .sort((left, right) => right.scores.volatility - left.scores.volatility)
-      .slice(0, 80);
+    const rows = volatilityRows.slice(0, 80);
     return {
       ...basePayload,
       counts: {
@@ -624,29 +705,27 @@ function buildSummaryCards(rows) {
   ];
 }
 
-function buildPagePreviewCards(analyses, opportunities) {
+function buildPagePreviewCards(rankedRows) {
   return [
-    bestRowCard(opportunities, "opportunity", "기회 랭킹", "지금 우선 확인할 종목"),
-    bestRowCard(analyses, "derivatives", "파생지표", "펀딩·OI·롱숏 이상치"),
-    bestRowCard(analyses, "technical", "테크니컬", "기술 점수 우위"),
-    bestRowCard(analyses, "trend", "추세", "추세 강도 우위"),
-    bestRowCard(analyses, "momentum", "모멘텀", "가속도 우위"),
-    bestRowCard(analyses, "volatility", "변동성", "압축·돌파 후보"),
+    bestRowCard(rankedRows.opportunities, (row) => row.scores.opportunity, "기회 랭킹", "지금 우선 확인할 종목"),
+    bestRowCard(rankedRows.signals, computeSignalScore, "시그널", "파생 이상치와 모멘텀 강도 기준"),
+    bestRowCard(rankedRows.technical, computeTechnicalRankScore, "테크니컬", "종합 기술 점수 우위"),
+    bestRowCard(rankedRows.trend, computeTrendRankScore, "추세", "추세 강도 우위"),
+    bestRowCard(rankedRows.momentum, computeMomentumRankScore, "모멘텀", "가속도 우위"),
+    bestRowCard(rankedRows.volatility, computeVolatilityRankScore, "변동성", "압축·돌파 후보"),
   ].filter(Boolean);
 }
 
-function bestRowCard(rows, scoreKey, title, description) {
+function bestRowCard(rows, scoreGetter, title, description) {
   if (!rows.length) {
     return null;
   }
-  const best = [...rows].sort(
-    (left, right) => safeNumber(right.scores?.[scoreKey]) - safeNumber(left.scores?.[scoreKey]),
-  )[0];
+  const best = rows[0];
   return {
     title,
     symbol: best.symbol,
     description,
-    score: round(safeNumber(best.scores?.[scoreKey]), 1),
+    score: round(safeNumber(scoreGetter(best)), 1),
   };
 }
 
@@ -658,16 +737,100 @@ function buildTechnicalDistribution(rows) {
   return Object.entries(counts).map(([label, count]) => ({ label, count }));
 }
 
-function sortRows(rows, scoreKeys) {
+function rankRows(rows, scoreGetter) {
   return [...rows].sort((left, right) => {
-    const leftScore = scoreKeys.reduce((total, key) => total + safeNumber(left.scores?.[key]), 0);
-    const rightScore = scoreKeys.reduce((total, key) => total + safeNumber(right.scores?.[key]), 0);
+    const leftScore = safeNumber(scoreGetter(left));
+    const rightScore = safeNumber(scoreGetter(right));
     return (
       rightScore - leftScore ||
+      safeNumber(right.universe_score) - safeNumber(left.universe_score) ||
       right.quote_volume - left.quote_volume ||
       left.symbol.localeCompare(right.symbol)
     );
   });
+}
+
+function normalizeMetricLookup(lookup) {
+  const entries = Object.entries(lookup || {});
+  const maxValue = Math.max(...entries.map(([, value]) => safeNumber(value)), 0);
+  return Object.fromEntries(
+    entries.map(([key, value]) => [key, maxValue > 0 ? round((safeNumber(value) / maxValue) * 100, 2) : 0]),
+  );
+}
+
+function computeSignalScore(row) {
+  return (
+    (safeNumber(row.scores?.derivatives) * 0.45) +
+    (Math.abs(safeNumber(row.scores?.momentum_bias)) * 0.3) +
+    (Math.abs(safeNumber(row.scores?.technical)) * 0.25)
+  );
+}
+
+function computeDerivativesRankScore(row) {
+  return (
+    (safeNumber(row.scores?.derivatives) * 0.5) +
+    (safeNumber(row.normalized_open_interest_usd) * 0.3) +
+    (safeNumber(row.normalized_quote_volume) * 0.2)
+  );
+}
+
+function computeMoversRankScore(row) {
+  return (
+    (Math.abs(safeNumber(row.change_24h)) * 0.45) +
+    (safeNumber(row.normalized_quote_volume) * 0.3) +
+    (safeNumber(row.scores?.volatility) * 0.25)
+  );
+}
+
+function computeWatchlistRankScore(row) {
+  return (
+    (safeNumber(row.scores?.opportunity) * 0.55) +
+    (safeNumber(row.scores?.volatility) * 0.2) +
+    (safeNumber(row.scores?.derivatives) * 0.15) +
+    (computeRecencyFlagScore(row) * 0.1)
+  );
+}
+
+function computeTechnicalRankScore(row) {
+  return (
+    (Math.abs(safeNumber(row.scores?.technical)) * 0.75) +
+    (Math.abs(safeNumber(row.scores?.moving_average)) * 0.25)
+  );
+}
+
+function computeTrendRankScore(row) {
+  return (
+    (safeNumber(row.scores?.trend) * 0.7) +
+    (Math.abs(safeNumber(row.scores?.trend_bias)) * 0.3)
+  );
+}
+
+function computeMomentumRankScore(row) {
+  return (
+    (safeNumber(row.scores?.momentum) * 0.65) +
+    (Math.abs(safeNumber(row.scores?.momentum_bias)) * 0.35)
+  );
+}
+
+function computeVolatilityRankScore(row) {
+  return (
+    (safeNumber(row.scores?.volatility) * 0.7) +
+    (computeBreakoutOrSqueezeBonus(row) * 0.3)
+  );
+}
+
+function computeBreakoutOrSqueezeBonus(row) {
+  if (row.signals?.breakout_up || row.signals?.breakout_down) return 100;
+  if (row.signals?.squeeze) return 82;
+  if (row.labels?.volatility_state === "확장") return 60;
+  return 24;
+}
+
+function computeRecencyFlagScore(row) {
+  if (row.signals?.breakout_up || row.signals?.breakout_down) return 100;
+  if (row.signals?.divergence_candidate) return 88;
+  if (row.signals?.squeeze) return 72;
+  return 0;
 }
 
 function buildSymbolAnalysis({

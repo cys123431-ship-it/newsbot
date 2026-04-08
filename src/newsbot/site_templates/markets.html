@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ page_title }}</title>
     <meta name="description" content="{{ page_description }}" />
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("newsbot:crypto-theme") || "dark";
+          document.documentElement.classList.add(theme === "light" ? "crypto-theme-light" : "crypto-theme-dark");
+        } catch (error) {
+          document.documentElement.classList.add("crypto-theme-dark");
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="{{ asset_prefix }}/style.css?v={{ asset_version }}" />
   </head>
   <body class="public-app {{ body_class }}">
@@ -21,31 +31,38 @@
         <header class="crypto-page-hero">
           <div class="crypto-page-copy">
             <p class="analysis-eyebrow">Crypto Analysis</p>
-            <h1>{{ crypto_page_label or "Overview" }}</h1>
-            <p>Live Binance market data is the primary source for this product. The refresh button runs a fresh browser-side query, and the page falls back to the latest batch dataset only when the live request fails.</p>
+            <h1>{{ crypto_page_label or "오버뷰" }}</h1>
+            <p>Binance 실시간 데이터를 기본 소스로 사용합니다. 버튼을 누르면 브라우저에서 새로 조회하고, 실시간 조회가 실패할 때만 최근 배치 fallback 데이터를 보여줍니다.</p>
           </div>
-          <div class="crypto-hero-pills">
-            <span class="summary-pill">Binance USDT Perpetual</span>
-            <span class="summary-pill">Top 100 symbols</span>
-            <span class="summary-pill">KST display</span>
-            <span class="summary-pill">Live query + fallback</span>
+          <div class="crypto-hero-meta">
+            <div class="crypto-hero-pills">
+              <span class="summary-pill">Binance USDT Perpetual</span>
+              <span class="summary-pill">거래량 65 + OI 35 top100</span>
+              <span class="summary-pill">한국시간 표기</span>
+              <span class="summary-pill">라이브 우선 + 배치 fallback</span>
+            </div>
+            <div class="crypto-hero-actions">
+              <button id="crypto-theme-toggle" class="scanner-link-button is-muted crypto-theme-toggle" type="button">
+                라이트 모드
+              </button>
+            </div>
           </div>
         </header>
 
         <section class="crypto-toolbar-card">
           <div class="crypto-toolbar-grid">
             <label class="scanner-field">
-              <span>Universe</span>
+              <span>스캔 대상</span>
               <select id="crypto-universe-select" class="scanner-select"></select>
             </label>
             <label class="scanner-field">
-              <span>Timeframe</span>
+              <span>타임프레임</span>
               <select id="crypto-timeframe-select" class="scanner-select"></select>
             </label>
-            <button id="crypto-refresh-button" class="scanner-action-button" type="button">Refresh Live Snapshot</button>
+            <button id="crypto-refresh-button" class="scanner-action-button" type="button">최신 실시간 다시 불러오기</button>
           </div>
-          <p id="crypto-cooldown-text" class="scanner-cooldown-text">Preparing live Binance market data.</p>
-          <div id="crypto-status-line" class="scanner-status-line">Preparing data.</div>
+          <p id="crypto-cooldown-text" class="scanner-cooldown-text">Binance 실시간 데이터를 준비하고 있습니다.</p>
+          <div id="crypto-status-line" class="scanner-status-line">데이터 준비 중입니다.</div>
           <div class="scanner-progress-track" aria-hidden="true">
             <span id="crypto-progress-bar" class="scanner-progress-bar"></span>
           </div>

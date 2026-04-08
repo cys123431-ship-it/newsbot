@@ -2,6 +2,7 @@ const bootstrap = JSON.parse(document.getElementById("markets-bootstrap")?.textC
 
 const refs = {
   app: document.getElementById("crypto-app"),
+  themeToggle: document.getElementById("crypto-theme-toggle"),
   universeSelect: document.getElementById("crypto-universe-select"),
   timeframeSelect: document.getElementById("crypto-timeframe-select"),
   refreshButton: document.getElementById("crypto-refresh-button"),
@@ -24,6 +25,7 @@ const TIMEFRAMES = [
 ];
 const UNIVERSE_OPTIONS = [{ key: "top100", label: "상위 100개 종목" }];
 const LOCAL_CACHE_PREFIX = "newsbot:crypto-live:";
+const THEME_STORAGE_KEY = "newsbot:crypto-theme";
 const LIVE_CACHE_TTL_MS = 90 * 1000;
 const REFRESH_COOLDOWN_MS = 45 * 1000;
 const ROOT_FALLBACK_MANIFEST = "/newsbot/data/scanner/manifest.json";
@@ -43,11 +45,13 @@ const state = {
   lastLoadedAt: null,
   generatedAt: null,
   liveCoverageNote: "",
+  theme: readThemePreference(),
 };
 
 init();
 
 function init() {
+  applyTheme(state.theme, false);
   populateSelect(refs.universeSelect, UNIVERSE_OPTIONS, state.universeKey);
   populateSelect(refs.timeframeSelect, TIMEFRAMES, state.timeframe);
   renderPageTabs();
@@ -77,6 +81,10 @@ function bindEvents() {
     state.cooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
     updateCooldownText();
     void loadPage(true);
+  });
+
+  refs.themeToggle?.addEventListener("click", () => {
+    applyTheme(state.theme === "light" ? "dark" : "light");
   });
 
   window.setInterval(updateCooldownText, 1000);
@@ -237,10 +245,10 @@ function renderPageTabs() {
 }
 
 function renderLoadingState() {
-  refs.statusLine.textContent = "Preparing live market data.";
+  refs.statusLine.textContent = "실시간 시장 데이터를 준비하고 있습니다.";
   refs.progressBar.style.width = "18%";
-  refs.summaryMeta.innerHTML = chip("Preparing data");
-  refs.activeScan.innerHTML = chip("Loading live Binance market data.");
+  refs.summaryMeta.innerHTML = chip("실시간 데이터를 준비 중입니다.");
+  refs.activeScan.innerHTML = chip("Binance 실시간 데이터를 불러오고 있습니다.");
   refs.pageHighlights.innerHTML = renderSkeletonGrid(4);
   refs.pageControls.innerHTML = renderSkeletonGrid(2);
   refs.pageContent.innerHTML = renderSkeletonGrid(3);
@@ -378,11 +386,21 @@ function renderMovers(payload) {
 
 function renderOpportunities(payload) {
   refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
-  refs.pageControls.innerHTML = renderSection(
-    "랭킹 공식",
-    "기술·추세·모멘텀·파생·변동성을 조합한 실시간 우선순위입니다.",
-    renderChipRow(["기술 28%", "추세 20%", "모멘텀 16%", "파생 18%", "변동성 8%", "합의도 10%"]),
-  );
+  refs.pageControls.innerHTML = [
+    renderSection(
+      "롱/숏 상위 랭킹",
+      "같은 종합 점수 체계에서 롱 우위 후보와 숏 우위 후보를 나눠서 바로 봅니다.",
+      `<div class="crypto-control-grid">
+        ${renderSideRankingBlock("롱 랭킹 상위", payload.long_rows || [], "long")}
+        ${renderSideRankingBlock("숏 랭킹 상위", payload.short_rows || [], "short")}
+      </div>`,
+    ),
+    renderSection(
+      "랭킹 공식",
+      "기술·추세·모멘텀·파생·변동성을 조합한 실시간 우선순위입니다.",
+      renderChipRow(["기술 28%", "추세 20%", "모멘텀 16%", "파생 18%", "변동성 8%", "합의도 10%"]),
+    ),
+  ].join("");
   refs.pageContent.innerHTML = renderOpportunityGrid(payload.rows || []);
 }
 
@@ -390,8 +408,8 @@ function renderSetups(payload) {
   refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
   refs.pageControls.innerHTML = renderSection(
     "워치리스트 해석",
-    "지금 바로 체크할 만한 실시간 후보를 카드형으로 정리했습니다.",
-    renderChipRow(["롱/숏 우위", "기술 점수", "모멘텀", "파생 온도"]),
+    "즉시성 신호와 기회 점수를 함께 반영한 후보를 카드형으로 정리했습니다.",
+    renderChipRow(["롱/숏 우위", "기회 점수", "변동성", "파생 온도", "즉시성 신호"]),
   );
   refs.pageContent.innerHTML = renderSetupCards(payload.rows || []);
 }
@@ -468,8 +486,8 @@ function renderMultiTimeframe(payload) {
   refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
   refs.pageControls.innerHTML = renderSection(
     "프레임 합의도",
-    "5m / 15m / 1h / 4h의 추세·모멘텀·기회 점수를 한 번에 확인합니다.",
-    renderChipRow(["5m", "15m", "1h", "4h"]),
+    "4h 35 · 1h 30 · 15m 20 · 5m 15 가중치로 롱/숏 합의를 계산합니다.",
+    renderChipRow(["4h 35", "1h 30", "15m 20", "5m 15"]),
   );
   refs.pageContent.innerHTML = `
     <section class="crypto-section">
@@ -620,6 +638,25 @@ function renderStrongRecommendationSection(recommendations) {
         ${entries.map((entry) => renderStrongRecommendationFrame(entry)).join("")}
       </div>
     </section>
+  `;
+}
+
+function renderSideRankingBlock(title, rows, side) {
+  return `
+    <article class="crypto-panel">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(side === "long" ? "롱 우위 상위 4개" : "숏 우위 상위 4개")}</span>
+        </div>
+        ${badge(side === "long" ? "롱" : "숏", sideScore(side))}
+      </div>
+      ${
+        rows.length
+          ? `<div class="crypto-preview-grid">${rows.slice(0, 4).map((row) => renderOpportunityCard(row)).join("")}</div>`
+          : '<div class="analysis-empty">후보 없음</div>'
+      }
+    </article>
   `;
 }
 
@@ -796,7 +833,7 @@ function renderMultiTimeframeCard(row) {
       <div class="crypto-panel-head">
         <div>
           <strong>${escapeHtml(row.symbol)}</strong>
-          <span>${escapeHtml(row.consensus_label)} · 합의도 ${escapeHtml(formatSignedNumber(row.agreement_score))}</span>
+          <span>${escapeHtml(row.consensus_label)} · 롱 ${escapeHtml(formatNumber(row.long_weight))} / 숏 ${escapeHtml(formatNumber(row.short_weight))}</span>
         </div>
       </div>
       <div class="crypto-mtf-table">
@@ -1033,6 +1070,34 @@ function updateCooldownText() {
     remaining > 0
       ? `다음 라이브 새로고침까지 ${remaining}초`
       : "실시간 Binance 조회 기준입니다. 버튼을 누르면 최신 시장 데이터를 다시 불러옵니다.";
+}
+
+function readThemePreference() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" ? "light" : "dark";
+  } catch (_) {
+    return "dark";
+  }
+}
+
+function applyTheme(theme, persist = true) {
+  state.theme = theme === "light" ? "light" : "dark";
+  document.documentElement.classList.remove("crypto-theme-dark", "crypto-theme-light");
+  document.documentElement.classList.add(`crypto-theme-${state.theme}`);
+  refs.app?.setAttribute("data-theme", state.theme);
+  if (refs.themeToggle) {
+    refs.themeToggle.textContent = state.theme === "light" ? "다크 모드" : "라이트 모드";
+    refs.themeToggle.setAttribute("aria-pressed", state.theme === "light" ? "true" : "false");
+  }
+  if (!persist) {
+    return;
+  }
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, state.theme);
+  } catch (_) {
+    // Ignore storage errors.
+  }
 }
 
 function populateSelect(element, options, selected) {

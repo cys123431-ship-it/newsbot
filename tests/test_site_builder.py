@@ -305,6 +305,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'id="crypto-page-tabs"' in crypto_markets_html
     assert 'id="crypto-page-controls"' in crypto_markets_html
     assert 'id="crypto-page-content"' in crypto_markets_html
+    assert 'id="crypto-theme-toggle"' in crypto_markets_html
     assert '"initial_surface":"crypto"' in crypto_markets_html
     assert '"crypto_page_key":"overview"' in crypto_markets_html
     assert '"crypto_page_links":' in crypto_markets_html
@@ -396,6 +397,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert first_result["detail_page"].startswith("crypto/setups/")
     detail_html_path = output_dir / "markets" / first_result["detail_page"] / "index.html"
     assert detail_html_path.exists()
+    detail_html = detail_html_path.read_text(encoding="utf-8")
+    assert 'id="crypto-detail-theme-toggle"' in detail_html
     legacy_detail_html_path = output_dir / "markets" / first_result["legacy_detail_page"] / "index.html"
     assert legacy_detail_html_path.exists()
     detail_json_path = output_dir / "data" / "scanner" / first_result["detail_data_path"]

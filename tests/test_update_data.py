@@ -56,8 +56,13 @@ def test_fallback_analyses_populate_non_pattern_pages():
     assert len(page_payloads["derivatives-top100-5m.json"]["rows"]) == 6
     assert len(page_payloads["movers-top100-5m.json"]["rows"]) == 6
     assert len(page_payloads["opportunities-top100-5m.json"]["rows"]) >= 1
+    assert page_payloads["opportunities-top100-5m.json"]["long_rows"]
+    assert page_payloads["opportunities-top100-5m.json"]["short_rows"]
     assert len(page_payloads["overview-top100-5m.json"]["top_opportunities"]) >= 1
     assert len(page_payloads["overview-top100-5m.json"]["top_signals"]) >= 1
+    assert "universe_score" in page_payloads["overview-top100-5m.json"]["top_opportunities"][0]
+    assert "normalized_quote_volume" in page_payloads["overview-top100-5m.json"]["top_opportunities"][0]
+    assert "normalized_open_interest_usd" in page_payloads["overview-top100-5m.json"]["top_opportunities"][0]
     assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["long"]["side"] == "long"
     assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["short"]["side"] == "short"
     assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["long"]["symbol"]
@@ -65,6 +70,9 @@ def test_fallback_analyses_populate_non_pattern_pages():
     mtf_rows = page_payloads["multi-timeframe-top100-5m.json"]["rows"]
     assert mtf_rows
     assert "side" in mtf_rows[0]["timeframes"]["5m"]
+    assert "weight" in mtf_rows[0]["timeframes"]["5m"]
+    assert "long_weight" in mtf_rows[0]
+    assert "short_weight" in mtf_rows[0]
     assert mtf_rows[0]["consensus_label"] in {"상승 합의", "하락 합의", "혼합"}
     assert detail_payloads["setups/scan-top100-5m/solusdt-gartley-touch.json"]["result"]["symbol"] == "SOLUSDT"
 

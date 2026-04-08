@@ -43,6 +43,9 @@ REQUEST_TIMEOUT = float(os.getenv("NEWSBOT_REQUEST_TIMEOUT_SEC", "10"))
 REQUEST_CONCURRENCY = max(1, int(os.getenv("NEWSBOT_STATIC_FETCH_CONCURRENCY", "8")))
 KLINE_LIMIT = 220
 TIMEFRAME_MINUTES = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
+TIMEFRAME_WEIGHTS = {"5m": 15, "15m": 20, "1h": 30, "4h": 35}
+UNIVERSE_WEIGHT_QUOTE_VOLUME = 0.65
+UNIVERSE_WEIGHT_OPEN_INTEREST = 0.35
 FALLBACK_SYMBOL_BASELINES: dict[str, dict[str, float]] = {
     "BTCUSDT": {"last_price": 68320.0, "quote_volume": 9_450_000_000.0, "open_interest_usd": 3_850_000_000.0},
     "ETHUSDT": {"last_price": 3315.0, "quote_volume": 4_280_000_000.0, "open_interest_usd": 1_920_000_000.0},
@@ -69,6 +72,16 @@ def _safe_float(value: Any, fallback: float = 0.0) -> float:
     if numeric != numeric:
         return fallback
     return numeric
+
+
+def _normalize_lookup(values: dict[str, float]) -> dict[str, float]:
+    max_value = max((_safe_float(value) for value in values.values()), default=0.0)
+    if max_value <= 0:
+        return {key: 0.0 for key in values}
+    return {
+        key: round((_safe_float(value) / max_value) * 100, 2)
+        for key, value in values.items()
+    }
 
 
 def _slugify(value: str) -> str:
@@ -239,10 +252,48 @@ async def _load_universe(
             continue
         ticker_lookup[symbol] = row
 
+    open_interest_lookup = await _load_open_interest_lookup(client, list(ticker_lookup), ticker_lookup)
+    normalized_quote_lookup = _normalize_lookup(
+        {
+            symbol: row["quote_volume"]
+            for symbol, row in ticker_lookup.items()
+        }
+    )
+    normalized_open_interest_lookup = _normalize_lookup(open_interest_lookup)
+    scored_symbols = []
+    for symbol, row in ticker_lookup.items():
+        open_interest_usd = _safe_float(open_interest_lookup.get(symbol))
+        if open_interest_usd <= 0:
+            continue
+        normalized_quote = normalized_quote_lookup.get(symbol, 0.0)
+        normalized_oi = normalized_open_interest_lookup.get(symbol, 0.0)
+        universe_score = round(
+            (normalized_quote * UNIVERSE_WEIGHT_QUOTE_VOLUME)
+            + (normalized_oi * UNIVERSE_WEIGHT_OPEN_INTEREST),
+            2,
+        )
+        row["open_interest_usd"] = round(open_interest_usd, 2)
+        row["normalized_quote_volume"] = round(normalized_quote, 2)
+        row["normalized_open_interest_usd"] = round(normalized_oi, 2)
+        row["universe_score"] = universe_score
+        scored_symbols.append(symbol)
+
+    if not scored_symbols:
+        for symbol, row in ticker_lookup.items():
+            normalized_quote = normalized_quote_lookup.get(symbol, 0.0)
+            row["open_interest_usd"] = 0.0
+            row["normalized_quote_volume"] = round(normalized_quote, 2)
+            row["normalized_open_interest_usd"] = 0.0
+            row["universe_score"] = round(normalized_quote, 2)
+        scored_symbols = list(ticker_lookup)
+
     ordered_symbols = sorted(
-        ticker_lookup,
-        key=lambda symbol: ticker_lookup[symbol]["quote_volume"],
-        reverse=True,
+        scored_symbols,
+        key=lambda symbol: (
+            -_safe_float(ticker_lookup[symbol].get("universe_score")),
+            -_safe_float(ticker_lookup[symbol].get("quote_volume")),
+            symbol,
+        ),
     )[: UNIVERSE_PRESETS[UNIVERSE_KEY]["limit"]]
 
     premium_lookup = {
@@ -251,6 +302,26 @@ async def _load_universe(
         if str(item.get("symbol") or "").upper() in ordered_symbols
     }
     return ordered_symbols, ticker_lookup, premium_lookup
+
+
+async def _load_open_interest_lookup(
+    client: httpx.AsyncClient,
+    symbols: list[str],
+    ticker_lookup: dict[str, dict[str, Any]],
+) -> dict[str, float]:
+    semaphore = asyncio.Semaphore(REQUEST_CONCURRENCY)
+
+    async def worker(symbol: str) -> tuple[str, float]:
+        async with semaphore:
+            try:
+                payload = await _fetch_json(client, "/fapi/v1/openInterest", params={"symbol": symbol})
+            except httpx.HTTPError:
+                return symbol, 0.0
+            open_interest = _safe_float(payload.get("openInterest"))
+            last_price = _safe_float(ticker_lookup.get(symbol, {}).get("last_price"))
+            return symbol, open_interest * last_price
+
+    return dict(await asyncio.gather(*(worker(symbol) for symbol in symbols)))
 
 
 async def _load_symbol_contexts(
@@ -263,26 +334,23 @@ async def _load_symbol_contexts(
     async def worker(symbol: str) -> tuple[str, dict[str, float | None]]:
         async with semaphore:
             try:
-                open_interest_payload, long_short_payload = await asyncio.gather(
-                    _fetch_json(client, "/fapi/v1/openInterest", params={"symbol": symbol}),
-                    _fetch_json(
-                        client,
-                        "/futures/data/globalLongShortAccountRatio",
-                        params={"symbol": symbol, "period": "5m", "limit": 1},
-                    ),
+                long_short_payload = await _fetch_json(
+                    client,
+                    "/futures/data/globalLongShortAccountRatio",
+                    params={"symbol": symbol, "period": "5m", "limit": 1},
                 )
             except httpx.HTTPError:
-                return symbol, {"open_interest_usd": None, "long_short_ratio": None}
-
-            open_interest = _safe_float(open_interest_payload.get("openInterest"))
-            last_price = ticker_lookup.get(symbol, {}).get("last_price", 0.0)
+                return symbol, {
+                    "open_interest_usd": _safe_float(ticker_lookup.get(symbol, {}).get("open_interest_usd"), None),
+                    "long_short_ratio": None,
+                }
             long_short_ratio = None
             if isinstance(long_short_payload, list) and long_short_payload:
                 long_short_ratio = _safe_float(long_short_payload[-1].get("longShortRatio"))
             return (
                 symbol,
                 {
-                    "open_interest_usd": open_interest * _safe_float(last_price),
+                    "open_interest_usd": _safe_float(ticker_lookup.get(symbol, {}).get("open_interest_usd"), None),
                     "long_short_ratio": long_short_ratio,
                 },
             )
@@ -564,7 +632,133 @@ def _decorate_results(
 
 
 def _analysis_row(row: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(json.dumps(row, ensure_ascii=False))
+    payload = json.loads(json.dumps(row, ensure_ascii=False))
+    payload.setdefault("normalized_quote_volume", 0.0)
+    payload.setdefault("normalized_open_interest_usd", 0.0)
+    payload.setdefault("universe_score", 0.0)
+    return payload
+
+
+def _apply_universe_metrics(
+    analyses: list[dict[str, Any]],
+    ticker_lookup: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    for row in analyses:
+        ticker = ticker_lookup.get(row.get("symbol"), {})
+        row["normalized_quote_volume"] = round(
+            _safe_float(ticker.get("normalized_quote_volume")),
+            2,
+        )
+        row["normalized_open_interest_usd"] = round(
+            _safe_float(ticker.get("normalized_open_interest_usd")),
+            2,
+        )
+        row["universe_score"] = round(_safe_float(ticker.get("universe_score")), 2)
+    return analyses
+
+
+def _breakout_or_squeeze_bonus(row: dict[str, Any]) -> float:
+    signals = row.get("signals", {})
+    labels = row.get("labels", {})
+    if signals.get("breakout_up") or signals.get("breakout_down"):
+        return 100.0
+    if signals.get("squeeze"):
+        return 82.0
+    if labels.get("volatility_state") == "확장":
+        return 60.0
+    return 24.0
+
+
+def _recency_flag_score(row: dict[str, Any]) -> float:
+    signals = row.get("signals", {})
+    if signals.get("breakout_up") or signals.get("breakout_down"):
+        return 100.0
+    if signals.get("divergence_candidate"):
+        return 88.0
+    if signals.get("squeeze"):
+        return 72.0
+    return 0.0
+
+
+def _signal_score(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("derivatives")) * 0.45
+        + abs(_safe_float(scores.get("momentum_bias"))) * 0.30
+        + abs(_safe_float(scores.get("technical"))) * 0.25
+    )
+
+
+def _derivatives_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("derivatives")) * 0.50
+        + _safe_float(row.get("normalized_open_interest_usd")) * 0.30
+        + _safe_float(row.get("normalized_quote_volume")) * 0.20
+    )
+
+
+def _movers_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        abs(_safe_float(row.get("change_24h"))) * 0.45
+        + _safe_float(row.get("normalized_quote_volume")) * 0.30
+        + _safe_float(scores.get("volatility")) * 0.25
+    )
+
+
+def _watchlist_score(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("opportunity")) * 0.55
+        + _safe_float(scores.get("volatility")) * 0.20
+        + _safe_float(scores.get("derivatives")) * 0.15
+        + _recency_flag_score(row) * 0.10
+    )
+
+
+def _technical_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        abs(_safe_float(scores.get("technical"))) * 0.75
+        + abs(_safe_float(scores.get("moving_average"))) * 0.25
+    )
+
+
+def _trend_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("trend")) * 0.70
+        + abs(_safe_float(scores.get("trend_bias"))) * 0.30
+    )
+
+
+def _momentum_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("momentum")) * 0.65
+        + abs(_safe_float(scores.get("momentum_bias"))) * 0.35
+    )
+
+
+def _volatility_rank(row: dict[str, Any]) -> float:
+    scores = row.get("scores", {})
+    return (
+        _safe_float(scores.get("volatility")) * 0.70
+        + _breakout_or_squeeze_bonus(row) * 0.30
+    )
+
+
+def _sort_ranked_rows(rows: list[dict[str, Any]], scorer) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            -_safe_float(scorer(row)),
+            -_safe_float(row.get("universe_score")),
+            -_safe_float(row.get("quote_volume")),
+            row["symbol"],
+        ),
+    )
 
 
 def _summary_cards(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -615,32 +809,41 @@ def _status_counts(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
 def _page_preview_cards(
     *,
     opportunities: list[dict[str, Any]],
-    analyses: list[dict[str, Any]],
+    signals: list[dict[str, Any]],
+    technical: list[dict[str, Any]],
+    trend: list[dict[str, Any]],
+    momentum: list[dict[str, Any]],
+    volatility: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     def best_label(
         rows: list[dict[str, Any]],
         *,
-        score_key: str,
+        score_getter,
         title: str,
         description: str,
     ) -> dict[str, Any]:
         if not rows:
             return {"title": title, "symbol": "-", "description": description, "score": 0}
-        best = max(rows, key=lambda item: _safe_float(item.get("scores", {}).get(score_key)))
+        best = rows[0]
         return {
             "title": title,
             "symbol": best["symbol"],
             "description": description,
-            "score": round(_safe_float(best.get("scores", {}).get(score_key)), 1),
+            "score": round(_safe_float(score_getter(best)), 1),
         }
 
     return [
-        best_label(opportunities, score_key="opportunity", title="우선순위", description="가장 높은 종합 기회 점수"),
-        best_label(analyses, score_key="derivatives", title="시그널", description="파생 이상치가 가장 큰 심볼"),
-        best_label(analyses, score_key="technical", title="테크니컬 레이팅", description="종합 기술 점수 최상위"),
-        best_label(analyses, score_key="trend", title="추세", description="추세 강도가 가장 강한 심볼"),
-        best_label(analyses, score_key="momentum", title="모멘텀", description="모멘텀 강도가 가장 큰 심볼"),
-        best_label(analyses, score_key="volatility", title="변동성", description="돌파/압축 상태가 가장 뚜렷한 심볼"),
+        best_label(
+            opportunities,
+            score_getter=lambda row: row.get("scores", {}).get("opportunity"),
+            title="우선순위",
+            description="가장 높은 종합 기회 점수",
+        ),
+        best_label(signals, score_getter=_signal_score, title="시그널", description="파생 이상치가 가장 큰 심볼"),
+        best_label(technical, score_getter=_technical_rank, title="테크니컬 레이팅", description="종합 기술 점수 최상위"),
+        best_label(trend, score_getter=_trend_rank, title="추세", description="추세 강도가 가장 강한 심볼"),
+        best_label(momentum, score_getter=_momentum_rank, title="모멘텀", description="모멘텀 강도가 가장 큰 심볼"),
+        best_label(volatility, score_getter=_volatility_rank, title="변동성", description="돌파/압축 상태가 가장 뚜렷한 심볼"),
     ]
 
 
@@ -746,17 +949,16 @@ def _build_page_payloads(
             ),
         )
         top_patterns = [row for row in opportunities_sorted if row.get("pattern")]
-        signals_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -(
-                    _safe_float(row.get("scores", {}).get("derivatives"))
-                    + abs(_safe_float(row.get("scores", {}).get("momentum_bias")))
-                    + abs(_safe_float(row.get("scores", {}).get("technical")))
-                ),
-                row["symbol"],
-            ),
-        )
+        signals_rows = _sort_ranked_rows(analyses, _signal_score)
+        derivatives_rows = _sort_ranked_rows(analyses, _derivatives_rank)
+        movers_rows = _sort_ranked_rows(analyses, _movers_rank)
+        watchlist_rows = _sort_ranked_rows(analyses, _watchlist_score)
+        ratings_rows = _sort_ranked_rows(analyses, _technical_rank)
+        trend_rows = _sort_ranked_rows(analyses, _trend_rank)
+        momentum_rows = _sort_ranked_rows(analyses, _momentum_rank)
+        volatility_rows = _sort_ranked_rows(analyses, _volatility_rank)
+        long_opportunities = [row for row in opportunities_sorted if row.get("side") == "long"]
+        short_opportunities = [row for row in opportunities_sorted if row.get("side") == "short"]
 
         overview_payload = {
             "page_key": "overview",
@@ -773,7 +975,14 @@ def _build_page_payloads(
             "top_opportunities": [_analysis_row(row) for row in opportunities_sorted[:6]],
             "top_patterns": [_analysis_row(row) for row in top_patterns[:4]],
             "top_signals": [_analysis_row(row) for row in signals_rows[:6]] if analyses else [],
-            "page_previews": _page_preview_cards(opportunities=opportunities_sorted, analyses=analyses),
+            "page_previews": _page_preview_cards(
+                opportunities=opportunities_sorted,
+                signals=signals_rows,
+                technical=ratings_rows,
+                trend=trend_rows,
+                momentum=momentum_rows,
+                volatility=volatility_rows,
+            ),
             "strong_recommendations": json.loads(json.dumps(strong_recommendations, ensure_ascii=False)),
         }
         signals_payload = {
@@ -795,15 +1004,6 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in signals_rows[:60]],
         }
 
-        derivatives_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("derivatives")),
-                -abs(_safe_float(row.get("funding_rate"))),
-                -_safe_float(row.get("open_interest_usd")),
-                row["symbol"],
-            ),
-        )
         derivatives_payload = {
             "page_key": "derivatives",
             "page_label": "파생지표",
@@ -823,15 +1023,6 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in derivatives_rows[:60]],
         }
 
-        movers_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -abs(_safe_float(row.get("change_24h"))),
-                -_safe_float(row.get("quote_volume")),
-                -_safe_float(row.get("scores", {}).get("volatility")),
-                row["symbol"],
-            ),
-        )
         movers_payload = {
             "page_key": "movers",
             "page_label": "급등락",
@@ -862,6 +1053,8 @@ def _build_page_payloads(
             "timeframe_label": TIMEFRAME_LABELS[timeframe],
             "summary_cards": _summary_cards(opportunities_sorted),
             "rows": [_analysis_row(row) for row in opportunities_sorted[:40]],
+            "long_rows": [_analysis_row(row) for row in long_opportunities[:6]],
+            "short_rows": [_analysis_row(row) for row in short_opportunities[:6]],
         }
 
         setups_payload = {
@@ -873,19 +1066,10 @@ def _build_page_payloads(
             "universe_label": universe_label,
             "timeframe": timeframe,
             "timeframe_label": TIMEFRAME_LABELS[timeframe],
-            "summary_cards": _summary_cards(opportunities_sorted),
-            "rows": [_analysis_row(row) for row in opportunities_sorted[:20]],
+            "summary_cards": _summary_cards(watchlist_rows),
+            "rows": [_analysis_row(row) for row in watchlist_rows[:20]],
         }
 
-        ratings_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -abs(_safe_float(row.get("scores", {}).get("technical"))),
-                -abs(_safe_float(row.get("scores", {}).get("moving_average"))),
-                -_safe_float(row.get("quote_volume")),
-                row["symbol"],
-            ),
-        )
         technical_payload = {
             "page_key": "technical_ratings",
             "page_label": "테크니컬 레이팅",
@@ -899,15 +1083,6 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in ratings_rows[:80]],
         }
 
-        trend_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("trend")),
-                -abs(_safe_float(row.get("scores", {}).get("trend_bias"))),
-                -_safe_float(row.get("quote_volume")),
-                row["symbol"],
-            ),
-        )
         trend_payload = {
             "page_key": "trend",
             "page_label": "추세",
@@ -925,15 +1100,6 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in trend_rows[:80]],
         }
 
-        momentum_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("momentum")),
-                -abs(_safe_float(row.get("scores", {}).get("momentum_bias"))),
-                -_safe_float(row.get("quote_volume")),
-                row["symbol"],
-            ),
-        )
         momentum_payload = {
             "page_key": "momentum",
             "page_label": "모멘텀",
@@ -951,13 +1117,6 @@ def _build_page_payloads(
             "rows": [_analysis_row(row) for row in momentum_rows[:80]],
         }
 
-        volatility_rows = sorted(
-            analyses,
-            key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("volatility")),
-                row["symbol"],
-            ),
-        )
         volatility_payload = {
             "page_key": "volatility",
             "page_label": "변동성",
@@ -982,12 +1141,13 @@ def _build_page_payloads(
             if not anchor:
                 continue
             timeframes_payload = {}
-            bullish_count = 0
-            bearish_count = 0
+            long_weight = 0
+            short_weight = 0
             for frame in TIMEFRAMES:
                 row = rows_by_timeframe.get(frame)
                 if not row:
                     continue
+                weight = TIMEFRAME_WEIGHTS[frame]
                 timeframes_payload[frame] = {
                     "side": row.get("side"),
                     "side_label": row.get("side_label"),
@@ -995,20 +1155,23 @@ def _build_page_payloads(
                     "trend_bias": row["labels"]["trend_bias"],
                     "momentum_bias": row["labels"]["momentum_bias"],
                     "opportunity": row["scores"]["opportunity"],
+                    "weight": weight,
                     "pattern": row.get("pattern", {}).get("pattern") if row.get("pattern") else "",
                 }
                 if row.get("side") == "long":
-                    bullish_count += 1
+                    long_weight += weight
                 elif row.get("side") == "short":
-                    bearish_count += 1
-            consensus = "상승 합의" if bullish_count >= 3 else "하락 합의" if bearish_count >= 3 else "혼합"
+                    short_weight += weight
+            consensus = "상승 합의" if long_weight >= 65 else "하락 합의" if short_weight >= 65 else "혼합"
             multi_timeframe_rows.append(
                 {
                     "symbol": symbol,
                     "last_price": anchor["last_price"],
                     "change_24h": anchor["change_24h"],
-                    "agreement_score": round(((bullish_count - bearish_count) / max(len(TIMEFRAMES), 1)) * 100, 1),
+                    "agreement_score": round(long_weight - short_weight, 1),
                     "consensus_label": consensus,
+                    "long_weight": long_weight,
+                    "short_weight": short_weight,
                     "primary": _analysis_row(anchor),
                     "timeframes": timeframes_payload,
                 }
@@ -1155,6 +1318,7 @@ async def _scan_all(
                     premium_lookup={},
                     symbol_contexts={},
                 )
+                _apply_universe_metrics(analyses[snapshot["timeframe"]], {})
             return snapshots, analyses
 
         snapshots: list[dict[str, Any]] = []
@@ -1232,7 +1396,7 @@ async def _scan_all(
                     symbol_contexts=symbol_contexts,
                 )
                 analyses.extend(fallback_analyses)
-            analyses_by_timeframe[timeframe] = analyses
+            analyses_by_timeframe[timeframe] = _apply_universe_metrics(analyses, ticker_lookup)
         return snapshots, analyses_by_timeframe
 
 

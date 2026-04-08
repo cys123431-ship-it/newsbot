@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ page_title }}</title>
     <meta name="description" content="{{ page_description }}" />
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("newsbot:crypto-theme") || "dark";
+          document.documentElement.classList.add(theme === "light" ? "crypto-theme-light" : "crypto-theme-dark");
+        } catch (error) {
+          document.documentElement.classList.add("crypto-theme-dark");
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="{{ asset_prefix }}/style.css?v={{ asset_version }}" />
   </head>
   <body class="public-app market-crypto-page scanner-detail-page">
@@ -25,6 +35,7 @@
         </div>
         <div class="scanner-detail-actions">
           <a class="scanner-link-button" href="{{ back_href }}">코인 페이지로 돌아가기</a>
+          <button id="crypto-detail-theme-toggle" class="scanner-link-button is-muted" type="button">라이트 모드</button>
           <a class="scanner-link-button is-muted" href="{{ external_links.binance }}" target="_blank" rel="noopener noreferrer">Binance</a>
           <a class="scanner-link-button is-muted" href="{{ external_links.tradingview }}" target="_blank" rel="noopener noreferrer">TradingView</a>
         </div>
@@ -130,5 +141,44 @@
         </article>
       </section>
     </main>
+
+    <script>
+      (function () {
+        var key = "newsbot:crypto-theme";
+        var button = document.getElementById("crypto-detail-theme-toggle");
+
+        function readTheme() {
+          try {
+            return localStorage.getItem(key) === "light" ? "light" : "dark";
+          } catch (error) {
+            return "dark";
+          }
+        }
+
+        function applyTheme(theme, persist) {
+          document.documentElement.classList.remove("crypto-theme-dark", "crypto-theme-light");
+          document.documentElement.classList.add(theme === "light" ? "crypto-theme-light" : "crypto-theme-dark");
+          if (button) {
+            button.textContent = theme === "light" ? "다크 모드" : "라이트 모드";
+            button.setAttribute("aria-pressed", theme === "light" ? "true" : "false");
+          }
+          if (!persist) {
+            return;
+          }
+          try {
+            localStorage.setItem(key, theme);
+          } catch (error) {
+            // Ignore storage failures.
+          }
+        }
+
+        applyTheme(readTheme(), false);
+        if (button) {
+          button.addEventListener("click", function () {
+            applyTheme(readTheme() === "light" ? "dark" : "light", true);
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
