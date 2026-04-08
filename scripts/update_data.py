@@ -644,6 +644,70 @@ def _page_preview_cards(
     ]
 
 
+def _build_strong_recommendation_card(
+    rows: list[dict[str, Any]],
+    *,
+    side: str,
+    timeframe: str,
+) -> dict[str, Any]:
+    candidates = [row for row in rows if str(row.get("side")) == side]
+    side_label = "롱" if side == "long" else "숏"
+    if not candidates:
+        return {
+            "timeframe": timeframe,
+            "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "side": side,
+            "side_label": side_label,
+            "symbol": None,
+            "empty": True,
+            "opportunity": None,
+            "technical_rating": None,
+            "trend_bias": None,
+            "momentum_bias": None,
+            "setup_bias": None,
+        }
+
+    best = sorted(
+        candidates,
+        key=lambda row: (
+            -_safe_float(row.get("scores", {}).get("opportunity")),
+            -abs(_safe_float(row.get("scores", {}).get("technical"))),
+            -_safe_float(row.get("quote_volume")),
+            row["symbol"],
+        ),
+    )[0]
+    return {
+        "timeframe": timeframe,
+        "timeframe_label": TIMEFRAME_LABELS[timeframe],
+        "side": side,
+        "side_label": side_label,
+        "symbol": best["symbol"],
+        "empty": False,
+        "opportunity": best["scores"]["opportunity"],
+        "technical_rating": best["labels"]["technical_rating"],
+        "trend_bias": best["labels"]["trend_bias"],
+        "momentum_bias": best["labels"]["momentum_bias"],
+        "setup_bias": best["labels"]["setup_bias"],
+        "change_24h": best.get("change_24h"),
+        "last_price": best.get("last_price"),
+    }
+
+
+def _build_strong_recommendations(
+    analyses_by_timeframe: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    recommendations: dict[str, dict[str, Any]] = {}
+    for timeframe in TIMEFRAMES:
+        rows = analyses_by_timeframe.get(timeframe, [])
+        recommendations[timeframe] = {
+            "timeframe": timeframe,
+            "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "long": _build_strong_recommendation_card(rows, side="long", timeframe=timeframe),
+            "short": _build_strong_recommendation_card(rows, side="short", timeframe=timeframe),
+        }
+    return recommendations
+
+
 def _technical_distribution(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     counts = {label: 0 for label in ("Strong Buy", "Buy", "Neutral", "Sell", "Strong Sell")}
     for row in rows:
@@ -662,6 +726,7 @@ def _build_page_payloads(
     page_payloads: dict[str, dict[str, Any]] = {}
     detail_payloads: dict[str, dict[str, Any]] = {}
     universe_label = UNIVERSE_PRESETS[universe_key]["label"]
+    strong_recommendations = _build_strong_recommendations(analyses_by_timeframe)
 
     symbol_matrix: dict[str, dict[str, dict[str, Any]]] = {}
     for timeframe, rows in analyses_by_timeframe.items():
@@ -671,40 +736,16 @@ def _build_page_payloads(
     for timeframe in TIMEFRAMES:
         analyses = analyses_by_timeframe.get(timeframe, [])
         snapshot = snapshots[timeframe]
-        analyses_sorted = sorted(
+        opportunities_sorted = sorted(
             analyses,
             key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("technical")),
+                -_safe_float(row.get("scores", {}).get("opportunity")),
+                -abs(_safe_float(row.get("scores", {}).get("technical"))),
                 -_safe_float(row.get("quote_volume")),
                 row["symbol"],
             ),
         )
-        opportunities = [row for row in analyses if row.get("pattern")]
-        opportunities_sorted = sorted(
-            opportunities,
-            key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("opportunity")),
-                -_safe_float(row.get("scores", {}).get("technical")),
-                row["symbol"],
-            ),
-        )
-
-        overview_payload = {
-            "page_key": "overview",
-            "page_label": "오버뷰",
-            "generated_at": generated_at,
-            "market": "binance-usdt-perpetual",
-            "universe_key": universe_key,
-            "universe_label": universe_label,
-            "timeframe": timeframe,
-            "timeframe_label": TIMEFRAME_LABELS[timeframe],
-            "summary_cards": _summary_cards(analyses),
-            "status_counts": _status_counts(snapshot),
-            "top_opportunities": [_analysis_row(row) for row in opportunities_sorted[:6]],
-            "top_patterns": [_analysis_row(row) for row in opportunities_sorted[:4]],
-            "page_previews": _page_preview_cards(opportunities=opportunities_sorted, analyses=analyses),
-        }
-
+        top_patterns = [row for row in opportunities_sorted if row.get("pattern")]
         signals_rows = sorted(
             analyses,
             key=lambda row: (
@@ -716,10 +757,30 @@ def _build_page_payloads(
                 row["symbol"],
             ),
         )
+
+        overview_payload = {
+            "page_key": "overview",
+            "page_label": "오버뷰",
+            "generated_at": generated_at,
+            "market": "binance-usdt-perpetual",
+            "data_source": "batch_fallback",
+            "universe_key": universe_key,
+            "universe_label": universe_label,
+            "timeframe": timeframe,
+            "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "summary_cards": _summary_cards(analyses),
+            "status_counts": _status_counts(snapshot),
+            "top_opportunities": [_analysis_row(row) for row in opportunities_sorted[:6]],
+            "top_patterns": [_analysis_row(row) for row in top_patterns[:4]],
+            "top_signals": [_analysis_row(row) for row in signals_rows[:6]] if analyses else [],
+            "page_previews": _page_preview_cards(opportunities=opportunities_sorted, analyses=analyses),
+            "strong_recommendations": json.loads(json.dumps(strong_recommendations, ensure_ascii=False)),
+        }
         signals_payload = {
             "page_key": "signals",
             "page_label": "시그널",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -747,6 +808,7 @@ def _build_page_payloads(
             "page_key": "derivatives",
             "page_label": "파생지표",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -774,6 +836,7 @@ def _build_page_payloads(
             "page_key": "movers",
             "page_label": "급등락",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -792,6 +855,7 @@ def _build_page_payloads(
             "page_key": "opportunities",
             "page_label": "기회 랭킹",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -804,6 +868,7 @@ def _build_page_payloads(
             "page_key": "setups",
             "page_label": "워치리스트",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -815,8 +880,9 @@ def _build_page_payloads(
         ratings_rows = sorted(
             analyses,
             key=lambda row: (
-                -_safe_float(row.get("scores", {}).get("technical")),
-                -_safe_float(row.get("scores", {}).get("moving_average")),
+                -abs(_safe_float(row.get("scores", {}).get("technical"))),
+                -abs(_safe_float(row.get("scores", {}).get("moving_average"))),
+                -_safe_float(row.get("quote_volume")),
                 row["symbol"],
             ),
         )
@@ -824,6 +890,7 @@ def _build_page_payloads(
             "page_key": "technical_ratings",
             "page_label": "테크니컬 레이팅",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -837,6 +904,7 @@ def _build_page_payloads(
             key=lambda row: (
                 -_safe_float(row.get("scores", {}).get("trend")),
                 -abs(_safe_float(row.get("scores", {}).get("trend_bias"))),
+                -_safe_float(row.get("quote_volume")),
                 row["symbol"],
             ),
         )
@@ -844,6 +912,7 @@ def _build_page_payloads(
             "page_key": "trend",
             "page_label": "추세",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -861,6 +930,7 @@ def _build_page_payloads(
             key=lambda row: (
                 -_safe_float(row.get("scores", {}).get("momentum")),
                 -abs(_safe_float(row.get("scores", {}).get("momentum_bias"))),
+                -_safe_float(row.get("quote_volume")),
                 row["symbol"],
             ),
         )
@@ -868,6 +938,7 @@ def _build_page_payloads(
             "page_key": "momentum",
             "page_label": "모멘텀",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -891,6 +962,7 @@ def _build_page_payloads(
             "page_key": "volatility",
             "page_label": "변동성",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
@@ -917,15 +989,17 @@ def _build_page_payloads(
                 if not row:
                     continue
                 timeframes_payload[frame] = {
+                    "side": row.get("side"),
+                    "side_label": row.get("side_label"),
                     "technical_rating": row["labels"]["technical_rating"],
                     "trend_bias": row["labels"]["trend_bias"],
                     "momentum_bias": row["labels"]["momentum_bias"],
                     "opportunity": row["scores"]["opportunity"],
                     "pattern": row.get("pattern", {}).get("pattern") if row.get("pattern") else "",
                 }
-                if row["labels"]["trend_bias"] == "상승 추세":
+                if row.get("side") == "long":
                     bullish_count += 1
-                elif row["labels"]["trend_bias"] == "하락 추세":
+                elif row.get("side") == "short":
                     bearish_count += 1
             consensus = "상승 합의" if bullish_count >= 3 else "하락 합의" if bearish_count >= 3 else "혼합"
             multi_timeframe_rows.append(
@@ -933,7 +1007,7 @@ def _build_page_payloads(
                     "symbol": symbol,
                     "last_price": anchor["last_price"],
                     "change_24h": anchor["change_24h"],
-                    "agreement_score": round((bullish_count - bearish_count) * 25, 1),
+                    "agreement_score": round(((bullish_count - bearish_count) / max(len(TIMEFRAMES), 1)) * 100, 1),
                     "consensus_label": consensus,
                     "primary": _analysis_row(anchor),
                     "timeframes": timeframes_payload,
@@ -944,10 +1018,12 @@ def _build_page_payloads(
             "page_key": "multi_timeframe",
             "page_label": "멀티 타임프레임",
             "generated_at": generated_at,
+            "data_source": "batch_fallback",
             "universe_key": universe_key,
             "universe_label": universe_label,
             "timeframe": timeframe,
             "timeframe_label": TIMEFRAME_LABELS[timeframe],
+            "coverage_note": f"멀티 타임프레임 배치 집계 {len(multi_timeframe_rows)}/{len(symbol_matrix)}개 심볼 기준",
             "counts": {
                 "bullish": sum(1 for row in multi_timeframe_rows if row["consensus_label"] == "상승 합의"),
                 "bearish": sum(1 for row in multi_timeframe_rows if row["consensus_label"] == "하락 합의"),

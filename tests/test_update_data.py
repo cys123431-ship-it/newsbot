@@ -28,7 +28,7 @@ def test_fallback_analyses_populate_non_pattern_pages():
             timeframe=timeframe,
             generated_at=generated_at,
             snapshot=snapshot,
-            symbols=["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+            symbols=["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT"],
             ticker_lookup={},
             premium_lookup={},
             symbol_contexts={},
@@ -36,9 +36,11 @@ def test_fallback_analyses_populate_non_pattern_pages():
         for timeframe, snapshot in snapshots.items()
     }
 
-    assert len(analyses_by_timeframe["5m"]) == 4
+    assert len(analyses_by_timeframe["5m"]) == 6
     assert any(row["symbol"] == "SOLUSDT" and row["pattern"] for row in analyses_by_timeframe["5m"])
     assert all(row["data_origin"] == "fallback_synthetic" for row in analyses_by_timeframe["5m"])
+    assert any(row["side"] == "long" for row in analyses_by_timeframe["5m"])
+    assert any(row["side"] == "short" for row in analyses_by_timeframe["5m"])
 
     page_data, page_payloads, detail_payloads = update_data._build_page_payloads(
         generated_at=generated_at,
@@ -50,11 +52,20 @@ def test_fallback_analyses_populate_non_pattern_pages():
     assert page_data["signals"]["top100"]["5m"] == "signals-top100-5m.json"
     assert page_data["derivatives"]["top100"]["5m"] == "derivatives-top100-5m.json"
     assert page_data["movers"]["top100"]["5m"] == "movers-top100-5m.json"
-    assert len(page_payloads["signals-top100-5m.json"]["rows"]) == 4
-    assert len(page_payloads["derivatives-top100-5m.json"]["rows"]) == 4
-    assert len(page_payloads["movers-top100-5m.json"]["rows"]) == 4
+    assert len(page_payloads["signals-top100-5m.json"]["rows"]) == 6
+    assert len(page_payloads["derivatives-top100-5m.json"]["rows"]) == 6
+    assert len(page_payloads["movers-top100-5m.json"]["rows"]) == 6
     assert len(page_payloads["opportunities-top100-5m.json"]["rows"]) >= 1
     assert len(page_payloads["overview-top100-5m.json"]["top_opportunities"]) >= 1
+    assert len(page_payloads["overview-top100-5m.json"]["top_signals"]) >= 1
+    assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["long"]["side"] == "long"
+    assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["short"]["side"] == "short"
+    assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["long"]["symbol"]
+    assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["short"]["symbol"]
+    mtf_rows = page_payloads["multi-timeframe-top100-5m.json"]["rows"]
+    assert mtf_rows
+    assert "side" in mtf_rows[0]["timeframes"]["5m"]
+    assert mtf_rows[0]["consensus_label"] in {"상승 합의", "하락 합의", "혼합"}
     assert detail_payloads["setups/scan-top100-5m/solusdt-gartley-touch.json"]["result"]["symbol"] == "SOLUSDT"
 
 

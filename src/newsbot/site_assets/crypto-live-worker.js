@@ -11,11 +11,13 @@ const TIMEFRAME_LABELS = {
   "4h": "4시간 (4h)",
 };
 const UNIVERSE_PRESETS = {
-  top100: { label: "상위 100개 종목", limit: 100, multiTimeframeLimit: 40 },
+  top100: { label: "상위 100개 종목", limit: 100, multiTimeframeLimit: 100 },
 };
 
+const CACHE_TTL_MS = 90_000;
 const universeCache = new Map();
 const pageCache = new Map();
+const analysisCache = new Map();
 
 self.onmessage = async (event) => {
   const message = event.data || {};
@@ -38,15 +40,17 @@ self.onmessage = async (event) => {
 async function loadPagePayload({ pageKey, timeframe, universeKey = "top100", force = false }) {
   const cacheKey = [pageKey, timeframe, universeKey].join("|");
   const cached = pageCache.get(cacheKey);
-  if (!force && cached && Date.now() - cached.storedAt <= 90_000) {
+  if (!force && cached && Date.now() - cached.storedAt <= CACHE_TTL_MS) {
     return cached.payload;
   }
 
   const universe = await loadUniverse(universeKey, force);
   const generatedAt = new Date().toISOString();
   let payload;
-  if (pageKey === "multi_timeframe") {
-    payload = await buildMultiTimeframePayload({ generatedAt, universeKey, universe });
+  if (pageKey === "overview") {
+    payload = await buildOverviewPayload({ generatedAt, universeKey, timeframe, universe, force });
+  } else if (pageKey === "multi_timeframe") {
+    payload = await buildMultiTimeframePayload({ generatedAt, universeKey, universe, force });
   } else if (pageKey === "patterns") {
     payload = buildPatternsNoticePayload({ generatedAt, universeKey, timeframe, universe });
   } else {
@@ -56,6 +60,7 @@ async function loadPagePayload({ pageKey, timeframe, universeKey = "top100", for
       universeKey,
       timeframe,
       universe,
+      force,
     });
   }
 
@@ -66,7 +71,7 @@ async function loadPagePayload({ pageKey, timeframe, universeKey = "top100", for
 async function loadUniverse(universeKey, force = false) {
   const preset = UNIVERSE_PRESETS[universeKey] || UNIVERSE_PRESETS.top100;
   const cached = universeCache.get(universeKey);
-  if (!force && cached && Date.now() - cached.storedAt <= 90_000) {
+  if (!force && cached && Date.now() - cached.storedAt <= CACHE_TTL_MS) {
     return cached.data;
   }
 
@@ -117,11 +122,49 @@ async function loadUniverse(universeKey, force = false) {
   return data;
 }
 
-async function buildSingleTimeframePayload({ pageKey, generatedAt, universeKey, timeframe, universe }) {
-  const analyses = await buildAnalysesForTimeframe({
+async function buildOverviewPayload({ generatedAt, universeKey, timeframe, universe, force }) {
+  const symbols = universe.symbols.slice(0, universe.preset.limit);
+  const [analyses, analysesByTimeframe] = await Promise.all([
+    getAnalysesForTimeframe({
+      timeframe,
+      universe,
+      universeKey,
+      symbols,
+      force,
+    }),
+    loadAnalysesByTimeframe({
+      timeframes: TIMEFRAMES,
+      universe,
+      universeKey,
+      symbols,
+      force,
+    }),
+  ]);
+
+  const payload = buildPayloadForPage({
+    pageKey: "overview",
+    generatedAt,
+    universeKey,
+    timeframe,
+    analyses,
+    universe,
+    coverageNote: `실시간 기준 ${analyses.length}/${universe.symbols.length}개 심볼 계산`,
+    strongRecommendations: buildStrongRecommendations(analysesByTimeframe),
+  });
+
+  if (!payload.top_opportunities?.length && !payload.top_signals?.length) {
+    throw new Error("No live rows were produced for the overview page.");
+  }
+  return payload;
+}
+
+async function buildSingleTimeframePayload({ pageKey, generatedAt, universeKey, timeframe, universe, force }) {
+  const analyses = await getAnalysesForTimeframe({
     timeframe,
     universe,
+    universeKey,
     symbols: universe.symbols.slice(0, universe.preset.limit),
+    force,
   });
 
   const payload = buildPayloadForPage({
@@ -140,16 +183,15 @@ async function buildSingleTimeframePayload({ pageKey, generatedAt, universeKey, 
   return payload;
 }
 
-async function buildMultiTimeframePayload({ generatedAt, universeKey, universe }) {
+async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, force }) {
   const symbols = universe.symbols.slice(0, universe.preset.multiTimeframeLimit);
-  const analysesByTimeframe = {};
-  for (const timeframe of TIMEFRAMES) {
-    analysesByTimeframe[timeframe] = await buildAnalysesForTimeframe({
-      timeframe,
-      universe,
-      symbols,
-    });
-  }
+  const analysesByTimeframe = await loadAnalysesByTimeframe({
+    timeframes: TIMEFRAMES,
+    universe,
+    universeKey,
+    symbols,
+    force,
+  });
 
   const matrix = {};
   for (const timeframe of TIMEFRAMES) {
@@ -170,13 +212,15 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe }
       const row = byTimeframe[timeframe];
       if (!row) continue;
       timeframes[timeframe] = {
+        side: row.side,
+        side_label: row.side_label,
         technical_rating: row.labels.technical_rating,
         trend_bias: row.labels.trend_bias,
         momentum_bias: row.labels.momentum_bias,
         opportunity: row.scores.opportunity,
       };
-      if (row.labels.trend_bias === "상승 추세") bullish += 1;
-      if (row.labels.trend_bias === "하락 추세") bearish += 1;
+      if (row.side === "long") bullish += 1;
+      if (row.side === "short") bearish += 1;
     }
     const consensus_label = bullish >= 3 ? "상승 합의" : bearish >= 3 ? "하락 합의" : "혼합";
     return {
@@ -205,7 +249,7 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe }
     universe_label: universe.preset.label,
     timeframe: "5m",
     timeframe_label: TIMEFRAME_LABELS["5m"],
-    coverage_note: `멀티 타임프레임은 실시간 심층 계산 ${rows.length}/${universe.symbols.length}개 심볼 기준`,
+    coverage_note: `멀티 타임프레임 실시간 집계 ${rows.length}/${universe.symbols.length}개 심볼 기준`,
     counts: {
       bullish: rows.filter((row) => row.consensus_label === "상승 합의").length,
       bearish: rows.filter((row) => row.consensus_label === "하락 합의").length,
@@ -215,7 +259,29 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe }
   };
 }
 
-async function buildAnalysesForTimeframe({ timeframe, universe, symbols }) {
+async function loadAnalysesByTimeframe({ timeframes, universe, universeKey, symbols, force }) {
+  const entries = await Promise.all(
+    timeframes.map(async (timeframe) => [
+      timeframe,
+      await getAnalysesForTimeframe({
+        timeframe,
+        universe,
+        universeKey,
+        symbols,
+        force,
+      }),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function getAnalysesForTimeframe({ timeframe, universe, universeKey, symbols, force = false }) {
+  const cacheKey = [universeKey, timeframe, symbols.length].join("|");
+  const cached = analysisCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.storedAt <= CACHE_TTL_MS) {
+    return cached.analyses;
+  }
+
   const contextPromise = loadSymbolContexts(symbols, universe.tickerLookup, timeframe);
   const candlesPromise = loadCandles(symbols, timeframe);
   const [contexts, candleResult] = await Promise.all([contextPromise, candlesPromise]);
@@ -238,6 +304,7 @@ async function buildAnalysesForTimeframe({ timeframe, universe, symbols }) {
       }),
     );
   }
+  analysisCache.set(cacheKey, { storedAt: Date.now(), analyses });
   return analyses;
 }
 
@@ -307,7 +374,16 @@ async function loadCandles(symbols, timeframe) {
   return { candlesBySymbol: Object.fromEntries(entries), failures };
 }
 
-function buildPayloadForPage({ pageKey, generatedAt, universeKey, timeframe, analyses, universe, coverageNote }) {
+function buildPayloadForPage({
+  pageKey,
+  generatedAt,
+  universeKey,
+  timeframe,
+  analyses,
+  universe,
+  coverageNote,
+  strongRecommendations = null,
+}) {
   const pageLabelMap = {
     overview: "오버뷰",
     signals: "시그널",
@@ -346,6 +422,7 @@ function buildPayloadForPage({ pageKey, generatedAt, universeKey, timeframe, ana
       top_opportunities: opportunities.slice(0, 6),
       top_signals: sortRows(analyses, ["derivatives", "momentum", "technical"]).slice(0, 6),
       page_previews: buildPagePreviewCards(analyses, opportunities),
+      strong_recommendations: strongRecommendations,
     };
   }
 
@@ -427,8 +504,9 @@ function buildPayloadForPage({ pageKey, generatedAt, universeKey, timeframe, ana
     const rows = [...analyses]
       .sort(
         (left, right) =>
-          right.scores.technical - left.scores.technical ||
-          right.scores.moving_average - left.scores.moving_average,
+          Math.abs(right.scores.technical) - Math.abs(left.scores.technical) ||
+          Math.abs(right.scores.moving_average) - Math.abs(left.scores.moving_average) ||
+          right.quote_volume - left.quote_volume,
       )
       .slice(0, 80);
     return {
@@ -443,7 +521,8 @@ function buildPayloadForPage({ pageKey, generatedAt, universeKey, timeframe, ana
       .sort(
         (left, right) =>
           right.scores.trend - left.scores.trend ||
-          Math.abs(right.scores.trend_bias) - Math.abs(left.scores.trend_bias),
+          Math.abs(right.scores.trend_bias) - Math.abs(left.scores.trend_bias) ||
+          right.quote_volume - left.quote_volume,
       )
       .slice(0, 80);
     return {
@@ -462,7 +541,8 @@ function buildPayloadForPage({ pageKey, generatedAt, universeKey, timeframe, ana
       .sort(
         (left, right) =>
           right.scores.momentum - left.scores.momentum ||
-          Math.abs(right.scores.momentum_bias) - Math.abs(left.scores.momentum_bias),
+          Math.abs(right.scores.momentum_bias) - Math.abs(left.scores.momentum_bias) ||
+          right.quote_volume - left.quote_volume,
       )
       .slice(0, 80);
     return {
@@ -728,6 +808,8 @@ function buildSymbolAnalysis({
     1,
   );
 
+  const side = sideFromScore(setupBiasScore);
+  const sideLabel = side === "long" ? "롱" : side === "short" ? "숏" : "관망";
   const flags = [];
   if (technicalRating === "Strong Buy" || technicalRating === "Strong Sell") {
     flags.push(`기술 ${technicalRating}`);
@@ -742,6 +824,8 @@ function buildSymbolAnalysis({
     symbol,
     timeframe,
     timeframe_label: TIMEFRAME_LABELS[timeframe] || timeframe,
+    side,
+    side_label: sideLabel,
     last_price: roundPrice(currentClose),
     change_24h: round(safeNumber(ticker.change_24h), 2),
     quote_volume: round(safeNumber(ticker.quote_volume), 2),
@@ -776,7 +860,7 @@ function buildSymbolAnalysis({
             : signedLabel(momentumBiasScore, "상승 모멘텀", "하락 모멘텀", "중립"),
       volatility_state: squeeze ? "압축" : breakoutUp ? "상방 돌파" : breakoutDown ? "하방 돌파" : expansion ? "확장" : "중립",
       derivatives_bias: signedLabel(crowdingBiasScore, "숏 과밀", "롱 과밀", "중립"),
-      setup_bias: signedLabel(setupBiasScore, "롱 우위", "숏 우위", "관망"),
+      setup_bias: setupBiasLabel(setupBiasScore),
     },
     signals: {
       squeeze,
@@ -813,6 +897,62 @@ function buildSymbolAnalysis({
     pattern: null,
     flags,
     data_origin: "live_binance",
+  };
+}
+
+function buildStrongRecommendations(analysesByTimeframe) {
+  const recommendations = {};
+  for (const timeframe of TIMEFRAMES) {
+    const rows = Array.isArray(analysesByTimeframe[timeframe]) ? analysesByTimeframe[timeframe] : [];
+    recommendations[timeframe] = {
+      timeframe,
+      timeframe_label: TIMEFRAME_LABELS[timeframe] || timeframe,
+      long: buildStrongRecommendationCard(rows, "long", timeframe),
+      short: buildStrongRecommendationCard(rows, "short", timeframe),
+    };
+  }
+  return recommendations;
+}
+
+function buildStrongRecommendationCard(rows, side, timeframe) {
+  const candidates = rows.filter((row) => row.side === side);
+  if (!candidates.length) {
+    return {
+      timeframe,
+      timeframe_label: TIMEFRAME_LABELS[timeframe] || timeframe,
+      side,
+      side_label: side === "long" ? "롱" : "숏",
+      symbol: null,
+      empty: true,
+      opportunity: null,
+      technical_rating: null,
+      trend_bias: null,
+      momentum_bias: null,
+      setup_bias: null,
+    };
+  }
+
+  const best = [...candidates].sort(
+    (left, right) =>
+      right.scores.opportunity - left.scores.opportunity ||
+      Math.abs(right.scores.technical) - Math.abs(left.scores.technical) ||
+      right.quote_volume - left.quote_volume ||
+      left.symbol.localeCompare(right.symbol),
+  )[0];
+  return {
+    timeframe,
+    timeframe_label: TIMEFRAME_LABELS[timeframe] || timeframe,
+    side,
+    side_label: side === "long" ? "롱" : "숏",
+    symbol: best.symbol,
+    empty: false,
+    opportunity: best.scores.opportunity,
+    technical_rating: best.labels.technical_rating,
+    trend_bias: best.labels.trend_bias,
+    momentum_bias: best.labels.momentum_bias,
+    setup_bias: best.labels.setup_bias,
+    change_24h: best.change_24h,
+    last_price: best.last_price,
   };
 }
 
@@ -1111,6 +1251,22 @@ function signedLabel(score, bullishLabel, bearishLabel, neutralLabel) {
   if (score >= 20) return bullishLabel;
   if (score <= -20) return bearishLabel;
   return neutralLabel;
+}
+
+function sideFromScore(score) {
+  const numeric = Number(score);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return "neutral";
+  }
+  return numeric > 0 ? "long" : "short";
+}
+
+function setupBiasLabel(score) {
+  const numeric = Number(score);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return "관망";
+  }
+  return numeric > 0 ? "롱 우위" : "숏 우위";
 }
 
 function ratingLabel(score) {

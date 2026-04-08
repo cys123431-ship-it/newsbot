@@ -156,13 +156,11 @@ class MarketPageSpec(TypedDict):
 def _build_market_nav_links(
     *,
     news_href: str,
-    analysis_href: str,
     crypto_href: str,
 ) -> list[dict[str, str]]:
     return [
         {"key": "news", "label": "News", "href": news_href},
-        {"key": "analysis", "label": "Analysis", "href": analysis_href},
-        {"key": "crypto", "label": "코인", "href": crypto_href},
+        {"key": "crypto", "label": "Coin", "href": crypto_href},
     ]
 
 def _build_crypto_page_links(
@@ -229,7 +227,6 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             show_market_map=False,
             nav_links=_build_market_nav_links(
                 news_href="../",
-                analysis_href="../analysis/",
                 crypto_href="crypto/",
             ),
             surface_links=[],
@@ -252,7 +249,6 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             show_market_map=False,
             nav_links=_build_market_nav_links(
                 news_href="../../",
-                analysis_href="../../analysis/",
                 crypto_href="./",
             ),
             surface_links=[],
@@ -282,7 +278,6 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
                 show_market_map=False,
                 nav_links=_build_market_nav_links(
                     news_href="../../../",
-                    analysis_href="../../../analysis/",
                     crypto_href="../",
                 ),
                 surface_links=[],
@@ -2223,7 +2218,6 @@ def _write_static_site(
     (output_dir / "assets").mkdir(parents=True, exist_ok=True)
     (output_dir / "data").mkdir(parents=True, exist_ok=True)
     (output_dir / "data" / SCANNER_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
-    (output_dir / ANALYSIS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / MARKETS_DIRECTORY_NAME).mkdir(parents=True, exist_ok=True)
     (output_dir / MARKETS_DIRECTORY_NAME / "us").mkdir(parents=True, exist_ok=True)
     (output_dir / MARKETS_DIRECTORY_NAME / "korea").mkdir(parents=True, exist_ok=True)
@@ -2233,7 +2227,6 @@ def _write_static_site(
 
     shutil.copy2(SITE_ASSET_DIR / "style.css", output_dir / "assets" / "style.css")
     shutil.copy2(SITE_ASSET_DIR / "app.js", output_dir / "assets" / "app.js")
-    shutil.copy2(SITE_ASSET_DIR / "analysis.js", output_dir / "assets" / "analysis.js")
     shutil.copy2(SITE_ASSET_DIR / "markets.js", output_dir / "assets" / "markets.js")
     shutil.copy2(
         SITE_ASSET_DIR / "crypto-live-worker.js",
@@ -2271,31 +2264,12 @@ def _write_static_site(
         source_statuses=payload["source_statuses"],
         payload_json=payload_json,
     )
-    analysis_template = environment.get_template("analysis.html")
-    analysis_bootstrap_json = json.dumps(
-        {
-            "data_url": "../data/" + ANALYSIS_DASHBOARD_FILENAME,
-            "default_window": analysis_dashboard["default_window"],
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).replace("</", "<\\/")
-    analysis_html = analysis_template.render(
-        generated_at=payload["generated_at"],
-        asset_version=asset_version,
-        retention_days=analysis_dashboard["retention_days"],
-        bootstrap_json=analysis_bootstrap_json,
-    )
     markets_template = environment.get_template("markets.html")
     _copy_directory_contents(PUBLIC_SCANNER_DATA_DIR, output_dir / "data" / SCANNER_DIRECTORY_NAME)
     _copy_directory_contents(PUBLIC_SCANNER_GENERATED_DIR, output_dir / "generated" / SCANNER_DIRECTORY_NAME)
 
     (output_dir / "index.html").write_text(html, encoding="utf-8")
     (output_dir / "404.html").write_text(html, encoding="utf-8")
-    (output_dir / ANALYSIS_DIRECTORY_NAME / "index.html").write_text(
-        analysis_html,
-        encoding="utf-8",
-    )
     for page_spec in market_page_specs:
         markets_bootstrap_json = json.dumps(
             {
@@ -2656,8 +2630,7 @@ def _write_scanner_detail_pages(
                     asset_prefix=prefix_root + "assets",
                     nav_links=[
                         {"key": "news", "label": "News", "href": prefix_root},
-                        {"key": "analysis", "label": "Analysis", "href": prefix_root + "analysis/"},
-                        {"key": "crypto", "label": "코인", "href": prefix_root + "markets/crypto/"},
+                        {"key": "crypto", "label": "Coin", "href": prefix_root + "markets/crypto/"},
                     ],
                     back_href=prefix_root + "markets/crypto/patterns/",
                     detail=detail_payload.get("result") or result,

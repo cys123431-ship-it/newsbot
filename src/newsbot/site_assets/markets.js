@@ -303,7 +303,10 @@ function renderPayload(payload, options = {}) {
 }
 
 function renderOverview(payload) {
-  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageHighlights.innerHTML = [
+    renderStatCards(payload.summary_cards || []),
+    renderStrongRecommendationSection(payload.strong_recommendations || {}),
+  ].join("");
   refs.pageControls.innerHTML = renderPreviewCards(payload.page_previews || []);
   refs.pageContent.innerHTML = [
     renderSection(
@@ -600,6 +603,75 @@ function renderCountGrid(counts) {
   `;
 }
 
+function renderStrongRecommendationSection(recommendations) {
+  const entries = Object.values(recommendations || {});
+  if (!entries.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>타임프레임별 강력 추천</strong>
+          <span>각 타임프레임에서 가장 강한 롱 후보 1개와 숏 후보 1개를 같이 보여줍니다.</span>
+        </div>
+      </div>
+      <div class="crypto-recommendation-grid">
+        ${entries.map((entry) => renderStrongRecommendationFrame(entry)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderStrongRecommendationFrame(entry) {
+  return `
+    <article class="crypto-panel crypto-recommendation-frame">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(entry.timeframe_label || entry.timeframe || "-")}</strong>
+          <span>롱 1개 · 숏 1개</span>
+        </div>
+      </div>
+      <div class="crypto-preview-grid">
+        ${renderStrongRecommendationCard(entry.long)}
+        ${renderStrongRecommendationCard(entry.short)}
+      </div>
+    </article>
+  `;
+}
+
+function renderStrongRecommendationCard(card) {
+  if (!card || card.empty) {
+    return `
+      <article class="crypto-preview-card">
+        <div class="crypto-preview-head">
+          <strong>${escapeHtml(card?.side_label || "후보")}</strong>
+          ${badge("후보 없음", 0)}
+        </div>
+        <p>현재 조건에서는 강하게 분류된 후보가 없습니다.</p>
+      </article>
+    `;
+  }
+  return `
+    <article class="crypto-preview-card">
+      <div class="crypto-preview-head">
+        <strong>${escapeHtml(card.symbol)}</strong>
+        ${badge(card.side_label || "-", sideScore(card.side))}
+      </div>
+      <p>${escapeHtml([
+        card.technical_rating || "Neutral",
+        card.trend_bias || "혼조",
+        card.momentum_bias || "중립",
+      ].join(" · "))}</p>
+      <div class="crypto-preview-score">
+        <span>${escapeHtml(card.timeframe_label || card.timeframe || "-")}</span>
+        <span>기회 ${escapeHtml(formatNumber(card.opportunity))}</span>
+        <span>${escapeHtml(formatPrice(card.last_price))}</span>
+      </div>
+    </article>
+  `;
+}
+
 function renderPreviewCards(cards) {
   if (!cards.length) {
     return "";
@@ -738,6 +810,7 @@ function renderMultiTimeframeRow(frame, entry) {
   return `
     <div class="crypto-mtf-row">
       <strong>${escapeHtml(frame)}</strong>
+      ${entry ? badge(entry.side_label || "-", sideScore(entry.side)) : "<span>-</span>"}
       <span>${escapeHtml(entry?.technical_rating || "-")}</span>
       <span>${escapeHtml(entry?.trend_bias || "-")}</span>
       <span>${escapeHtml(entry?.momentum_bias || "-")}</span>
@@ -877,6 +950,12 @@ function renderOpportunitySummary(row) {
 function stateScoreForLabel(label) {
   if (label === "상방 돌파" || label === "확장") return 1;
   if (label === "하방 돌파") return -1;
+  return 0;
+}
+
+function sideScore(side) {
+  if (side === "long") return 1;
+  if (side === "short") return -1;
   return 0;
 }
 

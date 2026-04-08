@@ -46,18 +46,18 @@ FALLBACK_SYMBOLS = (
 )
 
 CRYPTO_PAGE_DEFINITIONS: tuple[dict[str, Any], ...] = (
-    {"key": "overview", "label": "Overview", "nav": True},
-    {"key": "signals", "label": "Signals", "nav": True},
-    {"key": "derivatives", "label": "Derivatives", "nav": True},
-    {"key": "movers", "label": "Movers", "nav": True},
-    {"key": "opportunities", "label": "Opportunities", "nav": True},
-    {"key": "setups", "label": "Watchlist", "nav": True},
-    {"key": "technical_ratings", "label": "Technical Ratings", "nav": True},
-    {"key": "trend", "label": "Trend", "nav": True},
-    {"key": "momentum", "label": "Momentum", "nav": True},
-    {"key": "volatility", "label": "Volatility", "nav": True},
-    {"key": "multi_timeframe", "label": "Multi-timeframe", "nav": True},
-    {"key": "patterns", "label": "Pattern Archive", "nav": False},
+    {"key": "overview", "label": "오버뷰", "nav": True},
+    {"key": "signals", "label": "시그널", "nav": True},
+    {"key": "derivatives", "label": "파생지표", "nav": True},
+    {"key": "movers", "label": "급등락", "nav": True},
+    {"key": "opportunities", "label": "기회 랭킹", "nav": True},
+    {"key": "setups", "label": "워치리스트", "nav": True},
+    {"key": "technical_ratings", "label": "테크니컬 레이팅", "nav": True},
+    {"key": "trend", "label": "추세", "nav": True},
+    {"key": "momentum", "label": "모멘텀", "nav": True},
+    {"key": "volatility", "label": "변동성", "nav": True},
+    {"key": "multi_timeframe", "label": "멀티 타임프레임", "nav": True},
+    {"key": "patterns", "label": "패턴 보관함", "nav": False},
 )
 
 _SVG_COLORS = {
@@ -417,6 +417,30 @@ def _signed_label(score: float, bullish_label: str, bearish_label: str, neutral_
     if score <= -20:
         return bearish_label
     return neutral_label
+
+
+def _sign(score: float) -> int:
+    if score > 0:
+        return 1
+    if score < 0:
+        return -1
+    return 0
+
+
+def _score_side(score: float) -> str:
+    if score > 0:
+        return "long"
+    if score < 0:
+        return "short"
+    return "neutral"
+
+
+def _setup_bias_label(score: float) -> str:
+    if score > 0:
+        return "롱 우위"
+    if score < 0:
+        return "숏 우위"
+    return "관망"
 
 
 def _rating_label(score: float) -> str:
@@ -997,6 +1021,20 @@ def build_symbol_analysis(
         1,
     )
     technical_rating = _rating_label(technical_bias_score)
+    setup_bias_score = round(
+        _clamp(
+            (technical_bias_score * 0.45)
+            + (trend_bias_score * 0.35)
+            + (momentum_bias_score * 0.2),
+            -100,
+            100,
+        ),
+        1,
+    )
+    direction_agreement = min(
+        100.0,
+        abs(_sign(technical_bias_score) + _sign(trend_bias_score) + _sign(momentum_bias_score)) * 33.34,
+    )
 
     divergence_candidate = (roc12 > 0 and macd_histogram < 0) or (roc12 < 0 and macd_histogram > 0)
     derivatives_bias = _signed_label(crowding_bias_score, "숏 과밀", "롱 과밀", "중립")
@@ -1034,7 +1072,19 @@ def build_symbol_analysis(
     if divergence_candidate:
         flags.append("다이버전스 후보")
 
-    opportunity_score = 0.0
+    opportunity_score = round(
+        _clamp(
+            (abs(technical_bias_score) * 0.28)
+            + (trend_strength * 0.2)
+            + (momentum_strength * 0.16)
+            + (derivatives_score * 0.18)
+            + (volatility_score * 0.08)
+            + (direction_agreement * 0.1),
+            0,
+            100,
+        ),
+        1,
+    )
     pattern_payload = None
     if pattern_result:
         side = str(pattern_result.get("side") or "bullish")
@@ -1058,23 +1108,29 @@ def build_symbol_analysis(
             "ratios": pattern_result.get("ratios"),
             "indicator_flags": pattern_result.get("indicator_flags"),
         }
-        opportunity_score = round(
-            _clamp(
-                _safe_float(pattern_result.get("score_breakdown", {}).get("ratio_fit"))
-                + (_safe_float(pattern_result.get("score_breakdown", {}).get("geometry")) / 25 * 20)
-                + (_alignment_for_side(crowding_bias_score, side) / 100 * 15)
-                + (_alignment_for_side(trend_bias_score, side) / 100 * 10)
-                + (_alignment_for_side(momentum_bias_score, side) / 100 * 10)
-                + (
-                    (volatility_score if squeeze or breakout_up or breakout_down else max(volatility_score - 25, 0))
-                    / 100
-                    * 5
+        opportunity_score = max(
+            opportunity_score,
+            round(
+                _clamp(
+                    _safe_float(pattern_result.get("score_breakdown", {}).get("ratio_fit"))
+                    + (_safe_float(pattern_result.get("score_breakdown", {}).get("geometry")) / 25 * 20)
+                    + (_alignment_for_side(crowding_bias_score, side) / 100 * 15)
+                    + (_alignment_for_side(trend_bias_score, side) / 100 * 10)
+                    + (_alignment_for_side(momentum_bias_score, side) / 100 * 10)
+                    + (
+                        (volatility_score if squeeze or breakout_up or breakout_down else max(volatility_score - 25, 0))
+                        / 100
+                        * 5
+                    ),
+                    0,
+                    100,
                 ),
-                0,
-                100,
+                1,
             ),
-            1,
         )
+
+    side = _score_side(setup_bias_score)
+    side_label = "롱" if side == "long" else "숏" if side == "short" else "관망"
 
     return {
         "symbol": symbol,
@@ -1099,6 +1155,7 @@ def build_symbol_analysis(
             "derivatives": derivatives_score,
             "derivatives_bias": crowding_bias_score,
             "opportunity": opportunity_score,
+            "setup_bias": setup_bias_score,
         },
         "labels": {
             "technical_rating": technical_rating,
@@ -1106,7 +1163,10 @@ def build_symbol_analysis(
             "momentum_bias": momentum_bias,
             "volatility_state": volatility_state,
             "derivatives_bias": derivatives_bias,
+            "setup_bias": _setup_bias_label(setup_bias_score),
         },
+        "side": side,
+        "side_label": side_label,
         "signals": {
             "squeeze": squeeze,
             "breakout_up": breakout_up,

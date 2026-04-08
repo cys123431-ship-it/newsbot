@@ -95,8 +95,13 @@ def test_build_symbol_analysis_exposes_scores_and_labels():
 
     assert analysis["symbol"] == "SOLUSDT"
     assert "technical" in analysis["scores"]
+    assert "setup_bias" in analysis["scores"]
     assert "trend_bias" in analysis["labels"]
+    assert "setup_bias" in analysis["labels"]
     assert "rsi14" in analysis["indicators"]
+    assert analysis["side"] in {"long", "short", "neutral"}
+    assert analysis["side_label"] in {"롱", "숏", "관망"}
+    assert analysis["labels"]["setup_bias"] in {"롱 우위", "숏 우위", "관망"}
     assert analysis["pattern"]["detail_page"].startswith("crypto/setups/")
     assert analysis["pattern"]["detail_data_path"].startswith("setups/")
 

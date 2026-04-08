@@ -231,7 +231,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     output_dir = tmp_path / "site-dist"
     validate_site_output(output_dir)
     assert (output_dir / "index.html").exists()
-    assert (output_dir / "analysis" / "index.html").exists()
+    assert not (output_dir / "analysis" / "index.html").exists()
     assert (output_dir / "markets" / "index.html").exists()
     assert (output_dir / "markets" / "us" / "index.html").exists()
     assert (output_dir / "markets" / "korea" / "index.html").exists()
@@ -270,23 +270,10 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert 'class="news-desktop-lead"' in html
     assert 'class="headline-stack"' in html
     assert 'class="news-side-rail"' in html
-    assert 'href="analysis/"' in html
+    assert 'href="analysis/"' not in html
     assert 'href="markets/crypto/"' in html
     assert 'href="markets/us/"' not in html
     assert 'href="markets/korea/"' not in html
-
-    analysis_html = (output_dir / "analysis" / "index.html").read_text(encoding="utf-8")
-    assert 'id="analysis-window-tabs"' in analysis_html
-    assert 'id="analysis-kpi-strip"' in analysis_html
-    assert 'id="analysis-trend-primary"' in analysis_html
-    assert 'id="analysis-distribution-panels"' in analysis_html
-    assert 'id="analysis-trend-panels"' in analysis_html
-    assert 'id="analysis-repeated"' in analysis_html
-    assert 'id="analysis-samples"' in analysis_html
-    assert "../assets/analysis.js" in analysis_html
-    assert 'href="../markets/crypto/"' in analysis_html
-    assert 'href="../markets/us/"' not in analysis_html
-    assert 'href="../markets/korea/"' not in analysis_html
 
     markets_alias_html = (output_dir / "markets" / "index.html").read_text(encoding="utf-8")
     assert 'id="crypto-app"' in markets_alias_html
@@ -324,6 +311,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert '"scanner_manifest_url":"' in crypto_markets_html
     assert "../../assets/markets.js" in crypto_markets_html
     assert "echarts.min.js" not in crypto_markets_html
+    assert '>News<' in crypto_markets_html
+    assert '>Coin<' in crypto_markets_html
+    assert '>Analysis<' not in crypto_markets_html
     assert 'href="../us/"' not in crypto_markets_html
     assert 'href="../korea/"' not in crypto_markets_html
 
