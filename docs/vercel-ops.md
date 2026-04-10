@@ -11,13 +11,13 @@ This repository now supports two separate public deployment surfaces:
 - Branch: `main`
 - Framework Preset: `Other`
 - Install Command:
-  - `python -m pip install --upgrade pip && pip install -e . -r scripts/requirements.txt`
+  - Leave blank and let Vercel auto-detect Python dependencies
 - Build Command:
   - `python -m newsbot.site_builder`
 - Output Directory:
   - `site-dist`
 
-The repository-level `vercel.json` already contains the same install/build/output settings and cache headers for `/assets`, `/data`, and `/generated`.
+The repository-level `vercel.json` already contains the build/output settings and cache headers for `/assets`, `/data`, and `/generated`.
 
 ## Environment Variables
 

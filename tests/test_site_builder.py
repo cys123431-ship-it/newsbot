@@ -941,5 +941,5 @@ def test_vercel_config_targets_static_site_output():
 
     assert vercel_config["outputDirectory"] == "site-dist"
     assert vercel_config["buildCommand"] == "python -m newsbot.site_builder"
-    assert vercel_config["installCommand"].startswith("python -m pip install --upgrade pip")
+    assert "installCommand" not in vercel_config
     assert any(header["source"] == "/data/(.*)" for header in vercel_config["headers"])
