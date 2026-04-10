@@ -16,6 +16,7 @@ from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _apply_thumbnail_placeholders
 from newsbot.site_builder import _backfill_static_article_thumbnails
+from newsbot.site_builder import _build_thumbnail_health
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import _merge_articles
 from newsbot.site_builder import _prepare_archive_articles
@@ -199,6 +200,39 @@ def test_merge_articles_preserves_thumbnail_from_non_preferred_article():
     assert merged.thumbnail_url == "https://img.example.com/fresh.jpg"
 
 
+def test_merge_articles_prefers_real_thumbnail_over_placeholder():
+    current = StaticArticle.from_public_dict(
+        {
+            "title": "Shared market headline",
+            "canonical_url": "https://example.com/story",
+            "source_key": "archive-source",
+            "source_name": "Archive Source",
+            "thumbnail_url": "data:image/svg+xml;charset=UTF-8,placeholder",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 95,
+            "language": "en",
+        }
+    )
+    incoming = StaticArticle.from_public_dict(
+        {
+            "title": "Shared market headline",
+            "canonical_url": "https://example.com/story",
+            "source_key": "fresh-source",
+            "source_name": "Fresh Source",
+            "thumbnail_url": "https://img.example.com/fresh.jpg",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:01:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+
+    merged = _merge_articles(current, incoming)
+
+    assert merged.thumbnail_url == "https://img.example.com/fresh.jpg"
+
+
 def test_backfill_static_article_thumbnails_recovers_archive_thumbnails():
     article = StaticArticle.from_public_dict(
         {
@@ -334,6 +368,42 @@ def test_apply_thumbnail_placeholders_fills_remaining_missing_articles():
     hydrated = _apply_thumbnail_placeholders([article])
 
     assert hydrated[0].thumbnail_url.startswith("data:image/svg+xml")
+    assert hydrated[0].thumbnail_kind == "placeholder"
+
+
+def test_build_thumbnail_health_counts_only_real_thumbnails():
+    real_article = StaticArticle.from_public_dict(
+        {
+            "title": "Real thumb",
+            "canonical_url": "https://example.com/real",
+            "source_key": "real-source",
+            "source_name": "Real Source",
+            "thumbnail_url": "https://img.example.com/real.jpg",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+    placeholder_article = StaticArticle.from_public_dict(
+        {
+            "title": "Placeholder thumb",
+            "canonical_url": "https://example.com/placeholder",
+            "source_key": "placeholder-source",
+            "source_name": "Placeholder Source",
+            "thumbnail_url": "data:image/svg+xml;charset=UTF-8,placeholder",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+
+    health = _build_thumbnail_health([real_article, placeholder_article])
+
+    assert health["overall_coverage"]["with_thumbnail"] == 1
+    assert health["overall_coverage"]["without_thumbnail"] == 1
+    assert health["placeholder_top200_count"] == 1
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):
@@ -525,6 +595,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert "renderDerivatives" in markets_js
     assert "renderMovers" in markets_js
     assert "renderMultiTimeframe" in markets_js
+    assert "overview_featured_rows" in markets_js
     assert "Live fetch failed" in markets_js
 
     file_payload = json.loads((output_dir / "data" / "site-data.json").read_text(encoding="utf-8"))
@@ -533,10 +604,12 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert file_payload["warning_source_count"] == 0
     assert file_payload["thumbnail_health"]["overall_coverage"]["total"] >= 2
     assert "top200_coverage" in file_payload["thumbnail_health"]
+    assert "placeholder_top200_count" in file_payload["thumbnail_health"]
     assert "top_missing_sources" in file_payload["thumbnail_health"]
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
     assert "thumbnail_url" in file_payload["articles"][0]
+    assert "thumbnail_kind" in file_payload["articles"][0]
 
     analysis_payload = _read_json(output_dir / "data" / "analysis-dashboard.json")
     assert analysis_payload["default_window"] == "7d"
@@ -1130,3 +1203,4 @@ def test_vercel_config_targets_static_site_output():
     assert any(header["source"] == "/data/(.*)" for header in vercel_config["headers"])
     assert "jinja2>=" in requirements_text
     assert "sys.path.insert" in vercel_build_script
+    assert 'NEWSBOT_TELEGRAM_INPUT_ENABLED' in vercel_build_script

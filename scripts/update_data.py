@@ -911,6 +911,58 @@ def _build_strong_recommendations(
     return recommendations
 
 
+def _build_featured_multi_timeframe_rows(
+    strong_recommendations: dict[str, dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    row_lookup = {str(row.get("symbol") or ""): row for row in rows}
+    featured_rows: list[dict[str, Any]] = []
+    for timeframe in TIMEFRAMES:
+        recommendation = strong_recommendations.get(timeframe)
+        if not recommendation:
+            continue
+        for side in ("long", "short"):
+            card = recommendation.get(side) or {}
+            featured_slot = {
+                "timeframe": timeframe,
+                "timeframe_label": recommendation.get("timeframe_label") or TIMEFRAME_LABELS[timeframe],
+                "side": side,
+                "side_label": card.get("side_label") or ("롱" if side == "long" else "숏"),
+                "opportunity": card.get("opportunity"),
+            }
+            if not card or card.get("empty"):
+                featured_rows.append(
+                    {
+                        "symbol": card.get("symbol"),
+                        "consensus_label": "데이터 준비 중",
+                        "agreement_score": 0,
+                        "long_weight": 0,
+                        "short_weight": 0,
+                        "timeframes": {},
+                        "featured_slot": featured_slot,
+                        "missing": True,
+                    }
+                )
+                continue
+            base_row = row_lookup.get(str(card.get("symbol") or ""))
+            if not base_row:
+                featured_rows.append(
+                    {
+                        "symbol": card.get("symbol"),
+                        "consensus_label": "데이터 준비 중",
+                        "agreement_score": 0,
+                        "long_weight": 0,
+                        "short_weight": 0,
+                        "timeframes": {},
+                        "featured_slot": featured_slot,
+                        "missing": True,
+                    }
+                )
+                continue
+            featured_rows.append({**json.loads(json.dumps(base_row, ensure_ascii=False)), "featured_slot": featured_slot})
+    return featured_rows
+
+
 def _technical_distribution(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     counts = {label: 0 for label in ("Strong Buy", "Buy", "Neutral", "Sell", "Strong Sell")}
     for row in rows:
@@ -1177,6 +1229,10 @@ def _build_page_payloads(
                 }
             )
         multi_timeframe_rows.sort(key=lambda row: (-abs(_safe_float(row.get("agreement_score"))), row["symbol"]))
+        featured_multi_timeframe_rows = _build_featured_multi_timeframe_rows(
+            strong_recommendations,
+            multi_timeframe_rows,
+        )
         multi_timeframe_payload = {
             "page_key": "multi_timeframe",
             "page_label": "멀티 타임프레임",
@@ -1192,6 +1248,8 @@ def _build_page_payloads(
                 "bearish": sum(1 for row in multi_timeframe_rows if row["consensus_label"] == "하락 합의"),
                 "mixed": sum(1 for row in multi_timeframe_rows if row["consensus_label"] == "혼합"),
             },
+            "overview_featured_rows": featured_multi_timeframe_rows,
+            "featured_rows": featured_multi_timeframe_rows,
             "rows": multi_timeframe_rows[:80],
         }
 

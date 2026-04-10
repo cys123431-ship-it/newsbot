@@ -14,6 +14,7 @@ def _python_env(src_dir: Path) -> dict[str, str]:
         if existing
         else str(src_dir)
     )
+    env["NEWSBOT_TELEGRAM_INPUT_ENABLED"] = "false"
     return env
 
 

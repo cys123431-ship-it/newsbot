@@ -329,6 +329,7 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
       mixed: rows.filter((row) => row.consensus_label === "혼합").length,
     },
     strong_recommendations: strongRecommendations,
+    overview_featured_rows: featuredRows,
     featured_rows: featuredRows,
     rows: rows.slice(0, 60),
   };
@@ -1131,18 +1132,43 @@ function buildFeaturedMultiTimeframeRows(strongRecommendations, rows) {
     if (!recommendation) continue;
     for (const side of ["long", "short"]) {
       const card = recommendation[side];
-      if (!card || card.empty) continue;
+      const featuredSlot = {
+        timeframe,
+        timeframe_label: recommendation.timeframe_label,
+        side,
+        side_label: card?.side_label || (side === "long" ? "롱" : "숏"),
+        opportunity: card?.opportunity ?? null,
+      };
+      if (!card || card.empty) {
+        featuredRows.push({
+          symbol: card?.symbol || null,
+          consensus_label: "데이터 준비 중",
+          agreement_score: 0,
+          long_weight: 0,
+          short_weight: 0,
+          timeframes: {},
+          featured_slot: featuredSlot,
+          missing: true,
+        });
+        continue;
+      }
       const baseRow = rowLookup[card.symbol];
-      if (!baseRow) continue;
+      if (!baseRow) {
+        featuredRows.push({
+          symbol: card.symbol,
+          consensus_label: "데이터 준비 중",
+          agreement_score: 0,
+          long_weight: 0,
+          short_weight: 0,
+          timeframes: {},
+          featured_slot: featuredSlot,
+          missing: true,
+        });
+        continue;
+      }
       featuredRows.push({
         ...baseRow,
-        featured_slot: {
-          timeframe,
-          timeframe_label: recommendation.timeframe_label,
-          side,
-          side_label: card.side_label,
-          opportunity: card.opportunity,
-        },
+        featured_slot: featuredSlot,
       });
     }
   }

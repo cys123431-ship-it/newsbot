@@ -445,13 +445,14 @@ def validate_site_output(output_dir: Path) -> None:
         raise ValueError(
             f"Site data payload missing thumbnail_health summary: {site_data_path}"
         )
-    for key in ("overall_coverage", "top200_coverage", "top_missing_sources"):
+    for key in ("overall_coverage", "top200_coverage", "placeholder_top200_count", "top_missing_sources"):
         if key not in thumbnail_health:
             raise ValueError(
                 f"Site data payload missing thumbnail_health.{key}: {site_data_path}"
             )
     top200_coverage = thumbnail_health.get("top200_coverage") or {}
     top200_ratio = float(top200_coverage.get("ratio") or 0.0)
+    placeholder_top200_count = int(thumbnail_health.get("placeholder_top200_count") or 0)
     if top200_ratio < THUMBNAIL_HEALTH_WARNING_THRESHOLD:
         top_missing_sources = thumbnail_health.get("top_missing_sources") or []
         preview_sources = ", ".join(
@@ -462,6 +463,11 @@ def validate_site_output(output_dir: Path) -> None:
         print(
             "Warning: top-200 thumbnail coverage is low "
             f"({top200_ratio:.1%}). Top missing sources: {preview_sources or 'n/a'}"
+        )
+    if placeholder_top200_count > 0:
+        print(
+            "Warning: top-200 thumbnail coverage still depends on placeholders "
+            f"({placeholder_top200_count} placeholder cards)."
         )
 
     scanner_dir = output_dir / "data" / SCANNER_DIRECTORY_NAME
@@ -544,6 +550,18 @@ def validate_site_output(output_dir: Path) -> None:
     ):
         raise FileNotFoundError(f"Missing generated scanner assets in {generated_dir}")
 
+    markets_js_path = output_dir / "assets" / "markets.js"
+    worker_js_path = output_dir / "assets" / "crypto-live-worker.js"
+    for asset_path in (markets_js_path, worker_js_path):
+        if not asset_path.exists():
+            raise FileNotFoundError(f"Missing crypto asset: {asset_path}")
+    markets_js = markets_js_path.read_text(encoding="utf-8")
+    worker_js = worker_js_path.read_text(encoding="utf-8")
+    if "overview_featured_rows" not in markets_js:
+        raise ValueError("markets.js missing overview_featured_rows render path")
+    if "overview_featured_rows" not in worker_js:
+        raise ValueError("crypto-live-worker.js missing overview_featured_rows payload path")
+
 
 def _assert_scanner_site_output(output_dir: Path) -> None:
     validate_site_output(output_dir)
@@ -601,6 +619,41 @@ def _display_priority_tuple(
     return (priority_rank, -sort_timestamp, -trust_level, title.lower())
 
 
+def _thumbnail_kind_from_url(value: str | None) -> str:
+    text = decode_html_entities(str(value or "")).strip()
+    if not text:
+        return "placeholder"
+    if text.startswith("data:image/"):
+        return "placeholder"
+    if any(marker in text for marker in ("<", ">", "\r", "\n", "\t")):
+        return "placeholder"
+    parts = urlsplit(text)
+    if parts.scheme in {"http", "https"} and parts.netloc:
+        return "real"
+    return "placeholder"
+
+
+def _article_thumbnail_kind(article: StaticArticle | dict[str, Any]) -> str:
+    if isinstance(article, StaticArticle):
+        return article.thumbnail_kind
+    raw_kind = str(article.get("thumbnail_kind") or "").strip().lower()
+    if raw_kind in {"real", "placeholder"}:
+        return raw_kind
+    return _thumbnail_kind_from_url(str(article.get("thumbnail_url") or ""))
+
+
+def _visual_display_priority_tuple(
+    article: StaticArticle | dict[str, Any],
+    *,
+    scope: str = "all",
+    section: str = "all",
+) -> tuple[int, int, int, int, str]:
+    return (
+        0 if _article_thumbnail_kind(article) == "real" else 1,
+        *_display_priority_tuple(article, scope=scope, section=section),
+    )
+
+
 def _prioritize_feed_articles(
     articles: list[StaticArticle | dict[str, Any]],
     *,
@@ -610,6 +663,18 @@ def _prioritize_feed_articles(
     return sorted(
         articles,
         key=lambda article: _display_priority_tuple(article, scope=scope, section=section),
+    )
+
+
+def _prioritize_visual_articles(
+    articles: list[StaticArticle | dict[str, Any]],
+    *,
+    scope: str = "all",
+    section: str = "all",
+) -> list[StaticArticle | dict[str, Any]]:
+    return sorted(
+        articles,
+        key=lambda article: _visual_display_priority_tuple(article, scope=scope, section=section),
     )
 
 
@@ -642,6 +707,14 @@ class StaticArticle:
             return 0
         return int(self.published_at.timestamp())
 
+    @property
+    def thumbnail_kind(self) -> str:
+        return _thumbnail_kind_from_url(self.thumbnail_url)
+
+    @property
+    def has_real_thumbnail(self) -> bool:
+        return self.thumbnail_kind == "real"
+
     def to_public_dict(self) -> dict[str, Any]:
         category_meta = _get_category_payload_entry(self.primary_category)
         return {
@@ -661,6 +734,7 @@ class StaticArticle:
             "trust_level": self.trust_level,
             "language": self.language,
             "sort_timestamp": self.sort_timestamp,
+            "thumbnail_kind": self.thumbnail_kind,
         }
 
     @classmethod
@@ -922,7 +996,7 @@ async def _backfill_static_article_thumbnails(
     }
     grouped_candidates: dict[str, tuple[SourceDefinition, list[tuple[int, ArticleCandidate]]]] = {}
     for index, article in enumerate(articles[:limit]):
-        if str(article.thumbnail_url or "").strip():
+        if article.has_real_thumbnail:
             continue
         if not article.canonical_url.startswith(("http://", "https://")):
             continue
@@ -1246,16 +1320,32 @@ def _merge_articles(current: StaticArticle, incoming: StaticArticle) -> StaticAr
     merged_sources = tuple(
         sorted(set(current.source_names or (current.source_name,)) | set(incoming.source_names or (incoming.source_name,)))
     )
-    merged_thumbnail_url = (
-        preferred.thumbnail_url
-        or current.thumbnail_url
-        or incoming.thumbnail_url
+    merged_thumbnail_url = _pick_preferred_thumbnail_url(
+        preferred.thumbnail_url,
+        current.thumbnail_url,
+        incoming.thumbnail_url,
     )
     return replace(
         preferred,
         source_names=merged_sources,
         thumbnail_url=merged_thumbnail_url,
     )
+
+
+def _pick_preferred_thumbnail_url(*candidates: str | None) -> str | None:
+    real_candidates = [
+        candidate
+        for candidate in candidates
+        if _thumbnail_kind_from_url(candidate) == "real"
+    ]
+    if real_candidates:
+        return real_candidates[0]
+    placeholder_candidates = [
+        candidate
+        for candidate in candidates
+        if str(candidate or "").strip()
+    ]
+    return placeholder_candidates[0] if placeholder_candidates else None
 
 
 def _within_dedupe_window(left: StaticArticle, right: StaticArticle) -> bool:
@@ -1317,7 +1407,7 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
     def _coverage(rows: list[StaticArticle]) -> dict[str, Any]:
         total = len(rows)
         with_thumbnail = sum(
-            1 for article in rows if str(article.thumbnail_url or "").strip()
+            1 for article in rows if article.has_real_thumbnail
         )
         ratio = round((with_thumbnail / total), 4) if total else 0.0
         return {
@@ -1328,6 +1418,9 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
         }
 
     top_sample = articles[:THUMBNAIL_HEALTH_SAMPLE_SIZE]
+    placeholder_top200_count = sum(
+        1 for article in top_sample if article.thumbnail_kind == "placeholder"
+    )
     source_rows: dict[tuple[str, str], dict[str, Any]] = {}
     for article in top_sample:
         source_key = str(article.source_key or "").strip()
@@ -1342,7 +1435,7 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
             },
         )
         row["total_count"] += 1
-        if not str(article.thumbnail_url or "").strip():
+        if not article.has_real_thumbnail:
             row["missing_count"] += 1
 
     top_missing_sources = [
@@ -1370,6 +1463,7 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
     return {
         "overall_coverage": _coverage(articles),
         "top200_coverage": _coverage(top_sample),
+        "placeholder_top200_count": placeholder_top200_count,
         "top_missing_sources": top_missing_sources[:10],
     }
 
@@ -1379,7 +1473,7 @@ def _apply_thumbnail_placeholders(
 ) -> list[StaticArticle]:
     hydrated_articles: list[StaticArticle] = []
     for article in articles:
-        if str(article.thumbnail_url or "").strip():
+        if article.has_real_thumbnail:
             hydrated_articles.append(article)
             continue
         hydrated_articles.append(
@@ -1439,7 +1533,7 @@ def _prepare_archive_articles(
         if adapter_type == "telegram_channel" and not settings.telegram_runtime_enabled:
             continue
         hinted_thumbnail_url = thumbnail_hints.get(article.canonical_url)
-        if hinted_thumbnail_url and not article.thumbnail_url:
+        if hinted_thumbnail_url and not article.has_real_thumbnail:
             prepared_articles.append(
                 replace(article, thumbnail_url=hinted_thumbnail_url)
             )
@@ -2436,10 +2530,21 @@ def _build_initial_feed(payload: dict[str, Any]) -> dict[str, Any]:
         page=1,
         page_size=int(payload.get("feed_page_size") or payload.get("page_size") or 25),
     )
-    featured = page_articles[0] if page_articles else None
+    visual_articles = _prioritize_visual_articles(page_articles, scope="all", section="all")
+    featured = visual_articles[0] if visual_articles else None
+    headline_articles = visual_articles[1:5]
+    used_urls = {
+        str(article.get("canonical_url") or "")
+        for article in [*(headline_articles or []), *([featured] if featured else [])]
+    }
+    stream_articles = [
+        article
+        for article in page_articles
+        if str(article.get("canonical_url") or "") not in used_urls
+    ]
     return {
         "featured": featured,
-        "items": page_articles[1:] if len(page_articles) > 1 else [],
+        "items": [*headline_articles, *stream_articles],
     }
 
 

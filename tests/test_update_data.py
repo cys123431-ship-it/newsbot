@@ -68,7 +68,11 @@ def test_fallback_analyses_populate_non_pattern_pages():
     assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["long"]["symbol"]
     assert page_payloads["overview-top100-5m.json"]["strong_recommendations"]["5m"]["short"]["symbol"]
     mtf_rows = page_payloads["multi-timeframe-top100-5m.json"]["rows"]
+    featured_rows = page_payloads["multi-timeframe-top100-5m.json"]["overview_featured_rows"]
     assert mtf_rows
+    assert len(featured_rows) == 8
+    assert featured_rows[0]["featured_slot"]["timeframe"] == "5m"
+    assert featured_rows[1]["featured_slot"]["side"] == "short"
     assert "side" in mtf_rows[0]["timeframes"]["5m"]
     assert "weight" in mtf_rows[0]["timeframes"]["5m"]
     assert "long_weight" in mtf_rows[0]

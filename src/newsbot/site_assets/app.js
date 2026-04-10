@@ -216,6 +216,39 @@ function prioritizeArticlesForDisplay(articles) {
   });
 }
 
+function hasRealThumbnail(article) {
+  return String(article?.thumbnail_kind || "").trim().toLowerCase() === "real";
+}
+
+function prioritizeArticlesForVisualLead(articles) {
+  return articles
+    .map((article, index) => ({ article, index }))
+    .sort((left, right) => {
+      const leftVisual = hasRealThumbnail(left.article) ? 0 : 1;
+      const rightVisual = hasRealThumbnail(right.article) ? 0 : 1;
+      if (leftVisual !== rightVisual) {
+        return leftVisual - rightVisual;
+      }
+      return left.index - right.index;
+    })
+    .map((entry) => entry.article);
+}
+
+function splitLeadArticles(pageArticles) {
+  const visualArticles = prioritizeArticlesForVisualLead(pageArticles);
+  const featured = visualArticles[0] || null;
+  const headlineArticles = visualArticles.slice(1, 5);
+  const usedUrls = new Set(
+    [featured, ...headlineArticles]
+      .filter(Boolean)
+      .map((article) => String(article.canonical_url || "")),
+  );
+  const streamArticles = pageArticles.filter(
+    (article) => !usedUrls.has(String(article.canonical_url || "")),
+  );
+  return { featured, headlineArticles, streamArticles };
+}
+
 function renderRefreshStrip() {
   const generatedAt = parsePublishedAt(payload.generated_at);
   const ageMinutes = generatedAt
@@ -324,10 +357,11 @@ function renderSourceOptions() {
 }
 
 function buildStoryThumb(article) {
+  const realThumbnail = hasRealThumbnail(article);
   return `
     <span class="story-fallback">${escapeHtml(getSectionLabel(article))}</span>
     ${
-      article.thumbnail_url
+      realThumbnail && article.thumbnail_url
         ? `<img src="${escapeHtml(article.thumbnail_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />`
         : ""
     }
@@ -337,7 +371,7 @@ function buildStoryThumb(article) {
 function renderFeaturedStory(article) {
   return `
     <article class="featured-story-card">
-      <a class="featured-story-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+      <a class="featured-story-thumb ${hasRealThumbnail(article) ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
         ${buildStoryThumb(article)}
       </a>
       <div class="featured-story-copy">
@@ -364,7 +398,7 @@ function renderFeaturedStory(article) {
 function renderHeadlineStackItem(article) {
   return `
     <article class="headline-stack-item">
-      <a class="headline-stack-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+      <a class="headline-stack-thumb ${hasRealThumbnail(article) ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
         ${buildStoryThumb(article)}
       </a>
       <div class="headline-stack-copy">
@@ -384,7 +418,7 @@ function renderHeadlineStackItem(article) {
 function renderStoryRow(article) {
   return `
     <article class="news-row">
-      <a class="story-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+      <a class="story-thumb ${hasRealThumbnail(article) ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
         ${buildStoryThumb(article)}
       </a>
       <div class="story-copy">
@@ -1308,5 +1342,47 @@ function setCopyButtonState(label, stateName) {
     refs.copyAllButton.classList.remove("is-done", "is-error");
   }, 2200);
 }
+
+renderFeed = function renderFeedLatest() {
+  const filteredArticles = getArticlesForCurrentScope();
+  const prioritizedArticles = prioritizeArticlesForDisplay(filteredArticles);
+  const pagination = getPaginationMeta(prioritizedArticles.length);
+  const pageArticles = prioritizedArticles.slice(pagination.start, pagination.end);
+  const { featured, headlineArticles, streamArticles } = splitLeadArticles(pageArticles);
+
+  if (!featured) {
+    refs.newsSections.innerHTML = '<div class="empty-state">선택한 조건에 맞는 기사가 없습니다.</div>';
+    refs.statusLine.textContent = "선택한 조건에 맞는 기사가 없습니다.";
+    renderPagination(pagination);
+    return;
+  }
+
+  refs.statusLine.textContent = `${getHubLabel(state.hub)} 허브에서 ${filteredArticles.length}개의 기사를 찾았습니다.`;
+  refs.newsSections.innerHTML = `
+    <div class="news-desktop-lead">
+      ${renderFeaturedStory(featured)}
+      ${
+        headlineArticles.length
+          ? `
+            <aside class="headline-stack">
+              <div class="headline-stack-head">
+                <p class="rail-kicker">Top stories</p>
+                <h3>바로 읽을 핵심 기사</h3>
+              </div>
+              ${headlineArticles.map((article) => renderHeadlineStackItem(article)).join("")}
+            </aside>
+          `
+          : ""
+      }
+    </div>
+    <div class="news-desktop-stream">
+      <div class="news-list">
+        ${streamArticles.map((article) => renderStoryRow(article)).join("")}
+      </div>
+      ${renderSideRail(prioritizedArticles)}
+    </div>
+  `;
+  renderPagination(pagination);
+};
 
 render();

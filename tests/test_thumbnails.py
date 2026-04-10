@@ -89,6 +89,36 @@ def test_extract_thumbnail_from_payload_supports_html_content_blocks():
     assert thumbnail == "https://example.com/images/feed-hero.jpg"
 
 
+def test_extract_thumbnail_from_payload_prefers_html_img_over_broken_wrapper_url():
+    payload = {
+        "thumbnail_url": '<div><img src="https:/img.etoday.co.kr/crop/200/120/2320207.jpg" /></div>',
+    }
+
+    thumbnail = extract_thumbnail_from_payload(
+        payload,
+        base_url="https://www.etoday.co.kr/news/view/2572888",
+    )
+
+    assert thumbnail == "https://img.etoday.co.kr/crop/200/120/2320207.jpg"
+
+
+def test_extract_thumbnail_from_html_repairs_single_slash_https_urls():
+    html = """
+    <html>
+      <body>
+        <img src="https:/img.etoday.co.kr/crop/200/120/2320207.jpg" alt="hero" />
+      </body>
+    </html>
+    """
+
+    thumbnail = extract_thumbnail_from_html(
+        html,
+        base_url="https://www.etoday.co.kr/news/view/2572888",
+    )
+
+    assert thumbnail == "https://img.etoday.co.kr/crop/200/120/2320207.jpg"
+
+
 def test_hydrate_candidate_thumbnails_fetches_page_for_telegram_sources():
     candidate = ArticleCandidate(
         source_key="telegram-dada-news2",

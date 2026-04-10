@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Mapping
 from html.parser import HTMLParser
 from typing import Any
@@ -48,6 +49,8 @@ _IMG_ATTRIBUTE_KEYS = (
     "data-thumb",
 )
 _LINK_REL_CANDIDATES = {"image_src", "preload", "preconnect"}
+_HTML_FRAGMENT_RE = re.compile(r"<[^>]+>")
+_BROKEN_PROTOCOL_RE = re.compile(r"^(https?):/([^/])", re.IGNORECASE)
 _PAGE_FETCH_HEADERS = {
     "Accept": (
         "text/html,application/xhtml+xml,application/xml;q=0.9,"
@@ -124,12 +127,24 @@ def _normalize_thumbnail_url(url: str | None, *, base_url: str | None = None) ->
     value = decode_html_entities(str(url or "")).strip()
     if not value:
         return None
+    if _looks_like_html_fragment(value):
+        return None
+    value = _BROKEN_PROTOCOL_RE.sub(r"\1://\2", value)
     if base_url:
         value = urljoin(base_url, value)
     parts = urlsplit(value)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         return None
     return value
+
+
+def _looks_like_html_fragment(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if "<" in text or ">" in text:
+        return True
+    return bool(_HTML_FRAGMENT_RE.search(text))
 
 
 def _extract_from_mapping(raw_payload: Mapping[str, Any], *, base_url: str | None = None) -> str | None:
@@ -154,11 +169,13 @@ def _extract_from_mapping(raw_payload: Mapping[str, Any], *, base_url: str | Non
 
 def _extract_thumbnail_candidate(value: Any, *, base_url: str | None = None) -> str | None:
     if isinstance(value, str):
+        if _looks_like_html_fragment(value):
+            parsed = extract_thumbnail_from_html(value, base_url=base_url or "")
+            if parsed:
+                return parsed
         normalized = _normalize_thumbnail_url(value, base_url=base_url)
         if normalized:
             return normalized
-        if base_url and "<" in value and ">" in value:
-            return extract_thumbnail_from_html(value, base_url=base_url)
         return None
     if isinstance(value, Mapping):
         return _extract_from_mapping(value, base_url=base_url)

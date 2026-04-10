@@ -115,7 +115,7 @@
           {% if initial_feed.featured %}
           <article class="featured-story-card">
             <a
-              class="featured-story-thumb {% if not initial_feed.featured.thumbnail_url %}is-placeholder{% endif %}"
+              class="featured-story-thumb {% if initial_feed.featured.thumbnail_kind != 'real' %}is-placeholder{% endif %}"
               href="{{ initial_feed.featured.canonical_url }}"
               target="_blank"
               rel="noreferrer"
@@ -123,7 +123,7 @@
               <span class="story-fallback">
                 {{ initial_feed.featured.section_label if initial_feed.featured.section_label else initial_feed.featured.hub_label }}
               </span>
-              {% if initial_feed.featured.thumbnail_url %}
+              {% if initial_feed.featured.thumbnail_kind == "real" and initial_feed.featured.thumbnail_url %}
               <img src="{{ initial_feed.featured.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
               {% endif %}
             </a>
@@ -155,9 +155,9 @@
             </div>
             {% for article in headline_articles %}
             <article class="headline-stack-item">
-              <a class="headline-stack-thumb {% if not article.thumbnail_url %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+              <a class="headline-stack-thumb {% if article.thumbnail_kind != 'real' %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
-                {% if article.thumbnail_url %}
+                {% if article.thumbnail_kind == "real" and article.thumbnail_url %}
                 <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
                 {% endif %}
               </a>
@@ -182,9 +182,9 @@
           <div class="news-list">
             {% for article in stream_articles %}
             <article class="news-row">
-              <a class="story-thumb {% if not article.thumbnail_url %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+              <a class="story-thumb {% if article.thumbnail_kind != 'real' %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
-                {% if article.thumbnail_url %}
+                {% if article.thumbnail_kind == "real" and article.thumbnail_url %}
                 <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
                 {% endif %}
               </a>

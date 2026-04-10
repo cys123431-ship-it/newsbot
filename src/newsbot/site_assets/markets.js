@@ -515,7 +515,7 @@ function renderMultiTimeframe(payload) {
     renderChipRow(["4h 35", "1h 30", "15m 20", "5m 15"]),
   );
   refs.pageContent.innerHTML = `
-    ${renderMultiTimeframeFeaturedSection(payload.featured_rows || [])}
+    ${renderMultiTimeframeFeaturedSection(payload.overview_featured_rows || payload.featured_rows || [])}
     <section class="crypto-section">
       <div class="crypto-panel-head">
         <div>
@@ -1198,4 +1198,52 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function renderMultiTimeframeFeaturedSection(rows) {
+  if (!rows.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>오버뷰 강력 추천 멀티 타임프레임</strong>
+          <span>오버뷰에서 고른 8개 추천 코인을 멀티 타임프레임 규칙으로 다시 보여줍니다.</span>
+        </div>
+      </div>
+      <div class="crypto-mtf-grid">
+        ${rows.map((row) => renderMultiTimeframeCard(row, { featured: true })).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderMultiTimeframeCard(row, options = {}) {
+  const featured = Boolean(options.featured);
+  const featuredSlot = row.featured_slot || null;
+  const displaySymbol = row.symbol || "후보 없음";
+  const displayConsensus = row.missing ? "데이터 준비 중" : row.consensus_label;
+  return `
+    <article class="crypto-panel">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(displaySymbol)}</strong>
+          <span>${escapeHtml(displayConsensus)} · 롱 ${escapeHtml(formatNumber(row.long_weight))} / 숏 ${escapeHtml(formatNumber(row.short_weight))}</span>
+        </div>
+      </div>
+      ${
+        featured && featuredSlot
+          ? `<div class="crypto-chip-row">
+              ${chip(`오버뷰 ${featuredSlot.timeframe_label || featuredSlot.timeframe || "-"}`)}
+              ${badge(featuredSlot.side_label || "-", sideScore(featuredSlot.side))}
+              ${chip(`기회 ${formatNumber(featuredSlot.opportunity)}`)}
+            </div>`
+          : ""
+      }
+      <div class="crypto-mtf-table">
+        ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame.key])).join("")}
+      </div>
+    </article>
+  `;
 }
