@@ -28,7 +28,7 @@ const LOCAL_CACHE_PREFIX = "newsbot:crypto-live:";
 const THEME_STORAGE_KEY = "newsbot:crypto-theme";
 const LIVE_CACHE_TTL_MS = 90 * 1000;
 const REFRESH_COOLDOWN_MS = 45 * 1000;
-const ROOT_FALLBACK_MANIFEST = "/newsbot/data/scanner/manifest.json";
+const ROOT_FALLBACK_MANIFEST_PATH = "data/scanner/manifest.json";
 
 const state = {
   pageKey: String(bootstrap.crypto_page_key || "overview"),
@@ -197,7 +197,7 @@ async function loadManifest() {
     state.manifestPromise = (async () => {
       const candidates = [
         resolveManifestUrl(),
-        new URL(ROOT_FALLBACK_MANIFEST, window.location.origin).toString(),
+        resolveRootManifestUrl(),
       ];
       let lastError = null;
       for (const candidate of candidates) {
@@ -220,7 +220,32 @@ async function loadManifest() {
 }
 
 function resolveManifestUrl() {
-  return new URL(String(bootstrap.scanner_manifest_url || ROOT_FALLBACK_MANIFEST), window.location.href).toString();
+  return new URL(String(bootstrap.scanner_manifest_url || ROOT_FALLBACK_MANIFEST_PATH), window.location.href).toString();
+}
+
+function resolveRootManifestUrl() {
+  return resolveSiteRootUrl(ROOT_FALLBACK_MANIFEST_PATH);
+}
+
+function resolveSiteRootUrl(pathFromRoot) {
+  const basePrefix = String(bootstrap.site_root_prefix || inferSiteRootPrefix());
+  const normalizedBase = basePrefix.endsWith("/") ? basePrefix : `${basePrefix}/`;
+  return new URL(pathFromRoot.replace(/^\/+/, ""), new URL(normalizedBase, window.location.origin)).toString();
+}
+
+function inferSiteRootPrefix() {
+  const pathname = window.location.pathname || "/";
+  const marketsIndex = pathname.indexOf("/markets");
+  if (marketsIndex >= 0) {
+    const prefix = pathname.slice(0, marketsIndex);
+    return prefix ? `${prefix}/` : "/";
+  }
+  const lastSlashIndex = pathname.lastIndexOf("/");
+  if (lastSlashIndex >= 0) {
+    const directory = pathname.slice(0, lastSlashIndex + 1);
+    return directory || "/";
+  }
+  return "/";
 }
 
 function ensureWorker() {

@@ -142,6 +142,7 @@ class MarketPageSpec(TypedDict):
     output_dir: str
     asset_prefix: str
     data_prefix: str
+    root_prefix: str
     page_title: str
     page_description: str
     body_class: str
@@ -185,6 +186,7 @@ def _build_market_page_spec(
     output_dir: str,
     asset_prefix: str,
     data_prefix: str,
+    root_prefix: str,
     page_title: str,
     page_description: str,
     body_class: str,
@@ -201,6 +203,7 @@ def _build_market_page_spec(
         "output_dir": output_dir,
         "asset_prefix": asset_prefix,
         "data_prefix": data_prefix,
+        "root_prefix": root_prefix,
         "page_title": page_title,
         "page_description": page_description,
         "body_class": body_class,
@@ -221,6 +224,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             output_dir=MARKETS_DIRECTORY_NAME,
             asset_prefix="../assets",
             data_prefix="../data",
+            root_prefix="../",
             page_title="newsbot crypto | 오버뷰",
             page_description="newsbot static crypto overview dashboard",
             body_class="market-crypto-page crypto-page-overview",
@@ -243,6 +247,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
             output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto",
             asset_prefix="../../assets",
             data_prefix="../../data",
+            root_prefix="../../",
             page_title="newsbot crypto | 오버뷰",
             page_description="newsbot static crypto overview dashboard",
             body_class="market-crypto-page crypto-page-overview",
@@ -272,6 +277,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
                 output_dir=f"{MARKETS_DIRECTORY_NAME}/crypto/{slug}",
                 asset_prefix="../../../assets",
                 data_prefix="../../../data",
+                root_prefix="../../../",
                 page_title=f"newsbot crypto | {page['label']}",
                 page_description=f"newsbot static crypto {page['label']}",
                 body_class=f"market-crypto-page crypto-page-{slug}",
@@ -2279,6 +2285,7 @@ def _write_static_site(
                 "crypto_page_links": page_spec["crypto_page_links"],
                 "live_worker_url": page_spec["asset_prefix"] + f"/crypto-live-worker.js?v={asset_version}",
                 "scanner_manifest_url": page_spec["data_prefix"] + f"/{SCANNER_DIRECTORY_NAME}/{SCANNER_MANIFEST_FILENAME}",
+                "site_root_prefix": page_spec["root_prefix"],
             },
             ensure_ascii=False,
             separators=(",", ":"),

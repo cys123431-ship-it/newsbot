@@ -5,6 +5,7 @@ import asyncio
 from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
+from pathlib import Path
 
 import pytest
 
@@ -310,6 +311,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert '"crypto_page_key":"overview"' in crypto_markets_html
     assert '"crypto_page_links":' in crypto_markets_html
     assert '"scanner_manifest_url":"' in crypto_markets_html
+    assert '"site_root_prefix":"../../"' in crypto_markets_html
     assert "../../assets/markets.js" in crypto_markets_html
     assert "echarts.min.js" not in crypto_markets_html
     assert '>News<' in crypto_markets_html
@@ -341,6 +343,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert "ensureWorker" in markets_js
     assert "loadLivePayload" in markets_js
     assert "loadFallbackPayload" in markets_js
+    assert "resolveRootManifestUrl" in markets_js
+    assert 'const ROOT_FALLBACK_MANIFEST_PATH = "data/scanner/manifest.json";' in markets_js
     assert "renderSignals" in markets_js
     assert "renderDerivatives" in markets_js
     assert "renderMovers" in markets_js
@@ -928,3 +932,14 @@ def test_allow_static_candidate_still_blocks_naver_wrapper_urls_for_other_source
     )
 
     assert _allow_static_candidate(candidate) is False
+
+
+def test_vercel_config_targets_static_site_output():
+    vercel_config = json.loads(
+        (Path(__file__).resolve().parents[1] / "vercel.json").read_text(encoding="utf-8")
+    )
+
+    assert vercel_config["outputDirectory"] == "site-dist"
+    assert vercel_config["buildCommand"] == "python -m newsbot.site_builder"
+    assert vercel_config["installCommand"].startswith("python -m pip install --upgrade pip")
+    assert any(header["source"] == "/data/(.*)" for header in vercel_config["headers"])

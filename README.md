@@ -22,7 +22,7 @@
 이 저장소는 두 가지 방식으로 사용할 수 있습니다.
 
 - 로컬 서버 모드: FastAPI로 로컬에서 계속 확인
-- 정적 배포 모드: GitHub Actions가 주기적으로 정적 파일을 생성해 GitHub Pages에 배포
+- 정적 배포 모드: 같은 정적 빌드를 GitHub Pages와 Vercel에 각각 배포
 
 ## 로컬 서버 빠른 시작
 
@@ -66,7 +66,21 @@ Windows PowerShell:
 
 결과물은 `site-dist/`에 생성됩니다.
 
-GitHub Actions 워크플로는 `.github/workflows/pages.yml`에 들어 있습니다. `main` 브랜치 push, 수동 실행, 15분 주기 스케줄로 정적 사이트를 갱신합니다.
+GitHub Pages용 코드 배포 워크플로는 `.github/workflows/pages.yml`에 들어 있습니다.
+
+뉴스 갱신용 GitHub Pages 보조 워크플로는 `.github/workflows/news-refresh.yml`에 들어 있습니다.
+
+별도 운영면으로 Vercel도 지원합니다.
+
+- Vercel build output: `site-dist/`
+- Vercel install/build settings: `vercel.json`
+- 운영 설정 가이드: [`docs/vercel-ops.md`](docs/vercel-ops.md)
+
+권장 운영 구조는 아래와 같습니다.
+
+- GitHub Pages: 기존 공개본/백업
+- Vercel: 새 메인 운영면
+- cron-job.org: 12분 주기로 Vercel Deploy Hook 호출
 
 ## 환경 변수
 
@@ -110,3 +124,10 @@ Windows PowerShell:
 - Markets 탭의 미국주식 데이터는 `NEWSBOT_FMP_API_KEY`가 있으면 FMP를 우선 사용하고, 키가 없거나 요청이 실패하면 public Finviz fallback으로 계속 채웁니다.
 - 빌드 결과 기사 수가 너무 적으면 워크플로를 실패시켜 기존 Pages 배포본을 유지합니다.
 - 로컬 비밀값 파일인 `.env`, 텔레그램 세션 파일, 로컬 패키지 폴더는 Git에서 제외됩니다.
+
+## Vercel 운영 메모
+
+- Vercel은 GitHub Pages와 별개로 같은 저장소를 읽는 별도 프로젝트로 붙입니다.
+- 코인 라이브 화면은 Binance 브라우저 조회를 그대로 쓰고, 정적 fallback만 동일 빌드 산출물을 재사용합니다.
+- 코인 fallback manifest 경로는 더 이상 `/newsbot/...` 절대 경로에 고정되지 않으며, GitHub Pages와 Vercel 양쪽에서 같은 스크립트로 동작합니다.
+- 실제 설정 절차는 [`docs/vercel-ops.md`](docs/vercel-ops.md)를 참고하세요.
