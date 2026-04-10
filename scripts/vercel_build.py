@@ -14,7 +14,15 @@ def _python_env(src_dir: Path) -> dict[str, str]:
         if existing
         else str(src_dir)
     )
+    env["NEWSBOT_ENABLE_SCHEDULER"] = "false"
+    env["NEWSBOT_BOOTSTRAP_ON_STARTUP"] = "false"
     env["NEWSBOT_TELEGRAM_INPUT_ENABLED"] = "false"
+    env.setdefault("NEWSBOT_REQUEST_TIMEOUT_SEC", "8")
+    env.setdefault("NEWSBOT_MAX_RETRIES", "2")
+    env.setdefault("NEWSBOT_STATIC_FETCH_CONCURRENCY", "8")
+    env.setdefault("NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH", "20")
+    env.setdefault("NEWSBOT_STATIC_MAX_TOTAL_ARTICLES", "2000")
+    env.setdefault("NEWSBOT_STATIC_ARCHIVE_URL", "https://newsbot9.vercel.app/data/site-data.json")
     return env
 
 
@@ -41,6 +49,12 @@ def main() -> int:
     _run_step(
         "building static site",
         [sys.executable, "-m", "newsbot.site_builder"],
+        repo_root=repo_root,
+        src_dir=src_dir,
+    )
+    _run_step(
+        "validating built site",
+        [sys.executable, str(repo_root / "scripts" / "validate_site_dist.py")],
         repo_root=repo_root,
         src_dir=src_dir,
     )

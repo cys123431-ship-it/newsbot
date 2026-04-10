@@ -1,16 +1,13 @@
-name: Refresh News Site
+name: Refresh News Backup Site
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 * * * *"
 
 concurrency:
   group: news-refresh
   cancel-in-progress: true
 
 permissions:
-  actions: write
   contents: read
   pages: write
   id-token: write
@@ -22,7 +19,7 @@ jobs:
     env:
       NEWSBOT_ENABLE_SCHEDULER: "false"
       NEWSBOT_BOOTSTRAP_ON_STARTUP: "false"
-      NEWSBOT_TELEGRAM_INPUT_ENABLED: "true"
+      NEWSBOT_TELEGRAM_INPUT_ENABLED: "false"
       NEWSBOT_REQUEST_TIMEOUT_SEC: "8"
       NEWSBOT_MAX_RETRIES: "2"
       NEWSBOT_STATIC_FETCH_CONCURRENCY: "8"
@@ -33,7 +30,7 @@ jobs:
       NEWSBOT_NAVER_CLIENT_SECRET: ${{ secrets.NEWSBOT_NAVER_CLIENT_SECRET }}
       NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH: "20"
       NEWSBOT_STATIC_MAX_TOTAL_ARTICLES: "2000"
-      NEWSBOT_STATIC_ARCHIVE_URL: "https://cys123431-ship-it.github.io/newsbot/data/site-data.json"
+      NEWSBOT_STATIC_ARCHIVE_URL: "https://newsbot9.vercel.app/data/site-data.json"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -81,44 +78,3 @@ jobs:
       - name: Deploy artifact
         id: deployment
         uses: actions/deploy-pages@v4
-
-  continue-chain:
-    needs: deploy
-    if: ${{ needs.deploy.result == 'success' }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Hold cadence for the next refresh window
-        run: sleep 720
-
-      - name: Dispatch the next news refresh run
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const workflowId = 'news-refresh.yml';
-            const currentRunId = Number(process.env.GITHUB_RUN_ID);
-            const defaultRef = context.payload.repository?.default_branch || 'main';
-            const { data } = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: workflowId,
-              per_page: 20,
-            });
-            const otherActive = data.workflow_runs.find(
-              (run) =>
-                run.id !== currentRunId &&
-                ['queued', 'in_progress'].includes(run.status),
-            );
-            if (otherActive) {
-              core.info(`Another refresh run is already active: ${otherActive.html_url}`);
-              return;
-            }
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: workflowId,
-              ref: defaultRef,
-            });
-            core.info('Queued the next news refresh run to keep the cadence warm.');

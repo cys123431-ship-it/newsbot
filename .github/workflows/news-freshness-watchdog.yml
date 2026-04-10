@@ -2,54 +2,44 @@ name: Watch News Freshness
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "11,26,41,56 * * * *"
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
   watchdog:
     runs-on: ubuntu-latest
     steps:
-      - name: Check live news freshness and trigger refresh when stale
+      - name: Check Vercel and GitHub Pages news freshness
         uses: actions/github-script@v7
         with:
           script: |
-            const siteDataUrl = 'https://cys123431-ship-it.github.io/newsbot/data/site-data.json';
-            const response = await fetch(siteDataUrl, { cache: 'no-store' });
-            if (!response.ok) {
-              core.setFailed(`Failed to fetch site-data.json: ${response.status}`);
-              return;
+            const targets = [
+              { name: 'Vercel', url: 'https://newsbot9.vercel.app/data/site-data.json', maxAgeMinutes: 15 },
+              { name: 'GitHub Pages', url: 'https://cys123431-ship-it.github.io/newsbot/data/site-data.json', maxAgeMinutes: 60 },
+            ];
+            let failures = 0;
+            for (const target of targets) {
+              const response = await fetch(target.url, { cache: 'no-store' });
+              if (!response.ok) {
+                core.error(`${target.name}: failed to fetch site-data.json (${response.status})`);
+                failures += 1;
+                continue;
+              }
+              const payload = await response.json();
+              const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
+              if (!generatedAt || Number.isNaN(generatedAt.getTime())) {
+                core.error(`${target.name}: site-data.json is missing generated_at`);
+                failures += 1;
+                continue;
+              }
+              const ageMinutes = (Date.now() - generatedAt.getTime()) / 60000;
+              core.info(`${target.name}: generated_at=${payload.generated_at} ageMinutes=${ageMinutes.toFixed(1)}`);
+              if (ageMinutes > target.maxAgeMinutes) {
+                core.error(`${target.name}: freshness exceeded ${target.maxAgeMinutes} minutes.`);
+                failures += 1;
+              }
             }
-            const payload = await response.json();
-            const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
-            if (!generatedAt || Number.isNaN(generatedAt.getTime())) {
-              core.setFailed('site-data.json is missing generated_at');
-              return;
+            if (failures > 0) {
+              core.setFailed(`Freshness check failed for ${failures} target(s).`);
             }
-            const ageMinutes = (Date.now() - generatedAt.getTime()) / 60000;
-            core.info(`site-data generated_at=${payload.generated_at} ageMinutes=${ageMinutes.toFixed(1)}`);
-            if (ageMinutes <= 30) {
-              core.info('News feed freshness is healthy.');
-              return;
-            }
-            const { data: runs } = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'news-refresh.yml',
-              per_page: 10,
-            });
-            const activeRun = runs.workflow_runs.find((run) => ['queued', 'in_progress'].includes(run.status));
-            if (activeRun) {
-              core.info(`Refresh already active: ${activeRun.html_url}`);
-              return;
-            }
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'news-refresh.yml',
-              ref: context.ref.replace('refs/heads/', ''),
-            });
-            core.info('Triggered news-refresh.yml because live news data is stale.');

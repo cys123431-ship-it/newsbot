@@ -132,3 +132,11 @@ Windows PowerShell:
 - 코인 라이브 화면은 Binance 브라우저 조회를 그대로 쓰고, 정적 fallback만 동일 빌드 산출물을 재사용합니다.
 - 코인 fallback manifest 경로는 더 이상 `/newsbot/...` 절대 경로에 고정되지 않으며, GitHub Pages와 Vercel 양쪽에서 같은 스크립트로 동작합니다.
 - 실제 설정 절차는 [`docs/vercel-ops.md`](docs/vercel-ops.md)를 참고하세요.
+## Deployment Notes
+
+- Primary news surface: `https://newsbot9.vercel.app/`
+- Backup news surface: `https://cys123431-ship-it.github.io/newsbot/`
+- Vercel freshness is owned by `cron-job.org -> Vercel Deploy Hook`
+- GitHub Actions no longer own the recurring news cadence
+- Public static builds keep `NEWSBOT_TELEGRAM_INPUT_ENABLED=false`
+- Backup GitHub Pages builds seed from `https://newsbot9.vercel.app/data/site-data.json`
