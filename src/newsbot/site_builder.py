@@ -820,24 +820,29 @@ async def collect_site_payload(
         ]
         source_results = await asyncio.gather(*tasks)
 
-    gathered_articles: list[StaticArticle] = []
-    analysis_articles: list[AnalysisArticle] = []
-    for result in source_results:
-        statuses.append(result.status)
-        gathered_articles.extend(result.display_articles)
-        analysis_articles.extend(result.analysis_articles)
+        gathered_articles: list[StaticArticle] = []
+        analysis_articles: list[AnalysisArticle] = []
+        for result in source_results:
+            statuses.append(result.status)
+            gathered_articles.extend(result.display_articles)
+            analysis_articles.extend(result.analysis_articles)
 
-    deduped_articles, evicted_articles = dedupe_static_articles(
-        [
-            *[
-                article
-                for article in (archive_articles or [])
-                if article.source_key not in BLOCKED_SOURCE_KEYS
+        deduped_articles, evicted_articles = dedupe_static_articles(
+            [
+                *[
+                    article
+                    for article in (archive_articles or [])
+                    if article.source_key not in BLOCKED_SOURCE_KEYS
+                ],
+                *gathered_articles,
             ],
-            *gathered_articles,
-        ],
-        max_total=settings.static_max_total_articles,
-    )
+            max_total=settings.static_max_total_articles,
+        )
+        deduped_articles = await _backfill_static_article_thumbnails(
+            deduped_articles,
+            client=client,
+            source_definitions=source_definitions,
+        )
     published_counts = Counter(article.source_key for article in deduped_articles)
     for status in statuses:
         status.published_count = published_counts.get(status.source_key, 0)
@@ -885,6 +890,82 @@ async def collect_site_payload(
             f"minimum is {settings.static_min_articles_to_publish}."
         )
     return payload, evicted_articles, analysis_articles
+
+
+async def _backfill_static_article_thumbnails(
+    articles: list[StaticArticle],
+    *,
+    client: httpx.AsyncClient,
+    source_definitions: list[SourceDefinition] | None = None,
+    limit: int = THUMBNAIL_HEALTH_SAMPLE_SIZE,
+) -> list[StaticArticle]:
+    if not articles or limit <= 0:
+        return articles
+
+    definitions_by_key = {
+        definition.source_key: definition
+        for definition in (source_definitions or get_source_definitions())
+    }
+    grouped_candidates: dict[str, tuple[SourceDefinition, list[tuple[int, ArticleCandidate]]]] = {}
+    for index, article in enumerate(articles[:limit]):
+        if str(article.thumbnail_url or "").strip():
+            continue
+        if not article.canonical_url.startswith(("http://", "https://")):
+            continue
+        source_definition = definitions_by_key.get(article.source_key)
+        if source_definition is None:
+            source_definition = SourceDefinition(
+                source_key=article.source_key,
+                name=article.source_name,
+                adapter_type="rss",
+                category=article.primary_category,
+                poll_interval_sec=300,
+                base_url=article.canonical_url,
+                trust_level=article.trust_level,
+                allow_page_fetch=True,
+            )
+        if not source_definition.allow_page_fetch:
+            continue
+        candidate = ArticleCandidate(
+            source_key=article.source_key,
+            source_name=article.source_name,
+            title=article.title,
+            url=article.canonical_url,
+            published_at=article.published_at,
+            language=article.language,
+            trust_level=article.trust_level,
+        )
+        bucket = grouped_candidates.setdefault(
+            source_definition.source_key,
+            (source_definition, []),
+        )
+        bucket[1].append((index, candidate))
+
+    if not grouped_candidates:
+        return articles
+
+    await asyncio.gather(
+        *[
+            hydrate_candidate_thumbnails(
+                [candidate for _, candidate in rows],
+                source_definition=source_definition,
+                client=client,
+            )
+            for source_definition, rows in grouped_candidates.values()
+        ]
+    )
+
+    updated_articles = list(articles)
+    for source_definition, rows in grouped_candidates.values():
+        del source_definition
+        for index, candidate in rows:
+            if not candidate.thumbnail_url:
+                continue
+            updated_articles[index] = replace(
+                updated_articles[index],
+                thumbnail_url=candidate.thumbnail_url,
+            )
+    return updated_articles
 
 
 async def _collect_source(

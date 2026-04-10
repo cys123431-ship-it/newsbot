@@ -7,12 +7,14 @@ from datetime import datetime
 from datetime import timezone
 from pathlib import Path
 
+import httpx
 import pytest
 
 from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
+from newsbot.site_builder import _backfill_static_article_thumbnails
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import _merge_articles
 from newsbot.site_builder import collect_site_payload
@@ -193,6 +195,57 @@ def test_merge_articles_preserves_thumbnail_from_non_preferred_article():
 
     assert merged.source_key == "archive-source"
     assert merged.thumbnail_url == "https://img.example.com/fresh.jpg"
+
+
+def test_backfill_static_article_thumbnails_recovers_archive_thumbnails():
+    article = StaticArticle.from_public_dict(
+        {
+            "title": "Archive story missing thumbnail",
+            "canonical_url": "https://example.com/story",
+            "source_key": "archive-source",
+            "source_name": "Archive Source",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+    source_definition = SourceDefinition(
+        source_key="archive-source",
+        name="Archive Source",
+        adapter_type="rss",
+        category="crypto",
+        poll_interval_sec=300,
+        base_url="https://example.com",
+        trust_level=70,
+        allow_page_fetch=True,
+    )
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html; charset=utf-8"},
+            text="""
+            <html>
+              <head>
+                <meta property="og:image" content="/images/archive-hero.jpg" />
+              </head>
+            </html>
+            """,
+        )
+
+    async def run():
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await _backfill_static_article_thumbnails(
+                [article],
+                client=client,
+                source_definitions=[source_definition],
+            )
+
+    hydrated_articles = asyncio.run(run())
+
+    assert hydrated_articles[0].thumbnail_url == "https://example.com/images/archive-hero.jpg"
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):
