@@ -136,7 +136,7 @@ Windows PowerShell:
 
 - Primary news surface: `https://newsbot9.vercel.app/`
 - Backup news surface: `https://cys123431-ship-it.github.io/newsbot/`
-- Vercel freshness is owned by `cron-job.org -> Vercel Deploy Hook`
-- GitHub Actions no longer own the recurring news cadence
+- Vercel freshness is triggered by `Trigger Vercel Refresh -> Vercel Deploy Hook`
+- GitHub Actions only send a lightweight hook ping; Vercel owns the actual build
 - Public static builds keep `NEWSBOT_TELEGRAM_INPUT_ENABLED=false`
 - Backup GitHub Pages builds seed from `https://newsbot9.vercel.app/data/site-data.json`

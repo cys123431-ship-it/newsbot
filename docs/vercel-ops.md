@@ -39,7 +39,7 @@ Recommended `NEWSBOT_STATIC_ARCHIVE_URL`:
 
 Use the production URL as the single archive seed for both Vercel and backup builds. If the URL has no prior archive yet, the static build will still proceed without archive seeding.
 
-## Deploy Hook + External Scheduler
+## Deploy Hook Scheduler
 
 Use a Vercel Deploy Hook instead of Vercel Hobby Cron.
 
@@ -49,7 +49,9 @@ Use a Vercel Deploy Hook instead of Vercel Hobby Cron.
 4. Point it to the `main` branch.
 5. Copy the generated hook URL.
 
-Then configure `cron-job.org`:
+By default this repository now includes `.github/workflows/vercel-refresh.yml`, a very light GitHub Actions scheduler that only sends a `POST` to the deploy hook every 12 minutes. It does not build the site inside GitHub Actions; Vercel still owns the actual build.
+
+If you prefer, you can still replace that lightweight scheduler with `cron-job.org` later:
 
 - Method: `POST`
 - Target URL: the Vercel Deploy Hook URL
@@ -59,11 +61,7 @@ Then configure `cron-job.org`:
 
 The deploy hook does not need a custom request body.
 
-GitHub Actions should not own the Vercel freshness cadence. Keep GitHub Actions for:
-
-- push-based GitHub Pages backup deploys
-- manual backup rebuilds
-- manual freshness diagnostics
+GitHub Actions should stay light here. Keep heavy news freshness work off Actions and let Vercel own the build itself.
 
 ## Verification Checklist
 
@@ -84,7 +82,7 @@ If the news timestamp stalls:
 
 1. Check the latest Vercel deployment log for `python -m newsbot.site_builder`.
 2. Confirm all required environment variables are still present.
-3. Confirm `cron-job.org` shows successful `POST` executions.
+3. Confirm `Trigger Vercel Refresh` or `cron-job.org` shows successful `POST` executions.
 4. Confirm `NEWSBOT_STATIC_ARCHIVE_URL` still points to `https://newsbot9.vercel.app/data/site-data.json`.
 5. Run `.github/workflows/news-freshness-watchdog.yml` manually to compare Vercel and GitHub Pages freshness.
 

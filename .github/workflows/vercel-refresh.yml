@@ -1,0 +1,32 @@
+name: Trigger Vercel Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,19,31,43,55 * * * *"
+
+concurrency:
+  group: vercel-refresh-hook
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Ensure deploy hook secret is configured
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL secret is not configured."
+            exit 1
+          fi
+
+      - name: Trigger Vercel production deployment
+        run: |
+          response=$(curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL")
+          echo "$response"
