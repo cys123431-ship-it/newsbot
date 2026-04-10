@@ -14,6 +14,7 @@ from newsbot.config import Settings
 from newsbot.contracts import ArticleCandidate
 from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
+from newsbot.site_builder import _apply_thumbnail_placeholders
 from newsbot.site_builder import _backfill_static_article_thumbnails
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import _merge_articles
@@ -314,6 +315,25 @@ def test_prepare_archive_articles_drops_telegram_when_runtime_disabled():
     )
 
     assert prepared == []
+
+
+def test_apply_thumbnail_placeholders_fills_remaining_missing_articles():
+    article = StaticArticle.from_public_dict(
+        {
+            "title": "Placeholder target article",
+            "canonical_url": "https://example.com/story",
+            "source_key": "archive-source",
+            "source_name": "Archive Source",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+
+    hydrated = _apply_thumbnail_placeholders([article])
+
+    assert hydrated[0].thumbnail_url.startswith("data:image/svg+xml")
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):

@@ -21,6 +21,7 @@ from typing import Any
 from typing import TypedDict
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
+from urllib.parse import quote
 
 import httpx
 from jinja2 import Environment
@@ -855,6 +856,7 @@ async def collect_site_payload(
             client=client,
             source_definitions=source_definitions,
         )
+    deduped_articles = _apply_thumbnail_placeholders(deduped_articles)
     published_counts = Counter(article.source_key for article in deduped_articles)
     for status in statuses:
         status.published_count = published_counts.get(status.source_key, 0)
@@ -1370,6 +1372,47 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
         "top200_coverage": _coverage(top_sample),
         "top_missing_sources": top_missing_sources[:10],
     }
+
+
+def _apply_thumbnail_placeholders(
+    articles: list[StaticArticle],
+) -> list[StaticArticle]:
+    hydrated_articles: list[StaticArticle] = []
+    for article in articles:
+        if str(article.thumbnail_url or "").strip():
+            hydrated_articles.append(article)
+            continue
+        hydrated_articles.append(
+            replace(
+                article,
+                thumbnail_url=_build_thumbnail_placeholder_data_uri(article),
+            )
+        )
+    return hydrated_articles
+
+
+def _build_thumbnail_placeholder_data_uri(article: StaticArticle) -> str:
+    category_entry = _get_category_payload_entry(article.primary_category)
+    section_label = _clean_display_text(category_entry.get("label"), fallback="News")
+    source_label = _clean_display_text(article.source_name, fallback="newsbot")
+    title = _clean_display_text(article.title, fallback="Latest update")
+    title = title[:42] + "…" if len(title) > 42 else title
+    svg = f"""
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="{section_label}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eff5ff" />
+      <stop offset="100%" stop-color="#d7e6fb" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#bg)" />
+  <rect x="48" y="48" width="1104" height="534" rx="28" fill="#f8fbff" stroke="#c8daef" />
+  <text x="84" y="132" fill="#4e77a6" font-size="34" font-family="Arial, sans-serif" font-weight="700">{section_label}</text>
+  <text x="84" y="300" fill="#17324d" font-size="54" font-family="Arial, sans-serif" font-weight="700">{title}</text>
+  <text x="84" y="380" fill="#6b85a3" font-size="28" font-family="Arial, sans-serif">{source_label}</text>
+</svg>
+""".strip()
+    return f"data:image/svg+xml;charset=UTF-8,{quote(svg)}"
 
 
 def _prepare_archive_articles(
