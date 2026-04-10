@@ -13,7 +13,7 @@ This repository now supports two separate public deployment surfaces:
 - Install Command:
   - Leave blank and let Vercel auto-install from the repo root `requirements.txt`
 - Build Command:
-  - `PYTHONPATH=src python -m newsbot.site_builder`
+  - `python scripts/vercel_build.py`
 - Output Directory:
   - `site-dist`
 

@@ -941,9 +941,13 @@ def test_vercel_config_targets_static_site_output():
     requirements_text = (
         (Path(__file__).resolve().parents[1] / "requirements.txt").read_text(encoding="utf-8")
     )
+    vercel_build_script = (
+        (Path(__file__).resolve().parents[1] / "scripts" / "vercel_build.py").read_text(encoding="utf-8")
+    )
 
     assert vercel_config["outputDirectory"] == "site-dist"
-    assert vercel_config["buildCommand"] == "PYTHONPATH=src python -m newsbot.site_builder"
+    assert vercel_config["buildCommand"] == "python scripts/vercel_build.py"
     assert "installCommand" not in vercel_config
     assert any(header["source"] == "/data/(.*)" for header in vercel_config["headers"])
     assert "jinja2>=" in requirements_text
+    assert "sys.path.insert" in vercel_build_script
