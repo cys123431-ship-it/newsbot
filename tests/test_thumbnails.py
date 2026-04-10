@@ -10,11 +10,15 @@ from newsbot.services.thumbnails import hydrate_candidate_thumbnails
 from newsbot.source_registry import SourceDefinition
 
 
-def _source_definition(*, allow_page_fetch: bool = False) -> SourceDefinition:
+def _source_definition(
+    *,
+    allow_page_fetch: bool = False,
+    adapter_type: str = "rss",
+) -> SourceDefinition:
     return SourceDefinition(
         source_key="sample-source",
         name="Sample Source",
-        adapter_type="rss",
+        adapter_type=adapter_type,
         category="crypto",
         poll_interval_sec=300,
         base_url="https://example.com",
@@ -61,3 +65,42 @@ def test_hydrate_candidate_thumbnails_normalizes_existing_thumbnail_urls():
     asyncio.run(run())
 
     assert candidate.thumbnail_url == "https://images.example.com/thumb.jpg?x=1&y=2"
+
+
+def test_hydrate_candidate_thumbnails_fetches_page_for_telegram_sources():
+    candidate = ArticleCandidate(
+        source_key="telegram-dada-news2",
+        source_name="Telegram @dada_news2",
+        title="Telegram linked article",
+        url="https://example.com/news/1",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://example.com/news/1"
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html; charset=utf-8"},
+            text="""
+            <html>
+              <head>
+                <meta property="og:image" content="/images/hero.jpg" />
+              </head>
+            </html>
+            """,
+        )
+
+    async def run() -> None:
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            await hydrate_candidate_thumbnails(
+                [candidate],
+                source_definition=_source_definition(
+                    allow_page_fetch=True,
+                    adapter_type="telegram_channel",
+                ),
+                client=client,
+            )
+
+    asyncio.run(run())
+
+    assert candidate.thumbnail_url == "https://example.com/images/hero.jpg"

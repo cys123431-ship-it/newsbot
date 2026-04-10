@@ -19,8 +19,18 @@ def test_env_telegram_channels_are_added_to_source_definitions(monkeypatch):
     assert "telegram-env-fresh-news" in env_sources
     assert env_sources["telegram-env-fresh-news"].config["channel"] == "fresh_news"
     assert env_sources["telegram-env-fresh-news"].config["hub"] == "global"
+    assert env_sources["telegram-env-fresh-news"].allow_page_fetch is True
     assert "telegram-env-market-watch" in env_sources
     assert env_sources["telegram-env-market-watch"].config["channel"] == "market_watch"
+    assert env_sources["telegram-env-market-watch"].allow_page_fetch is True
+
+
+def test_builtin_telegram_sources_allow_page_fetch():
+    definitions = {definition.source_key: definition for definition in get_source_definitions()}
+
+    assert definitions["telegram-dada-news2"].allow_page_fetch is True
+    assert definitions["telegram-news-kor"].allow_page_fetch is True
+    assert definitions["telegram-claw-summary"].allow_page_fetch is True
 
 
 def test_source_registry_exposes_large_kr_and_us_hubs():

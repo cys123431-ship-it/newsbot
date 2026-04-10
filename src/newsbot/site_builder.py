@@ -73,6 +73,8 @@ SCANNER_MANIFEST_FILENAME = "manifest.json"
 SCANNER_DIRECTORY_NAME = "scanner"
 SCANNER_DETAIL_DIRECTORY_NAME = "patterns"
 STATIC_FEED_PAGE_SIZE = 12
+THUMBNAIL_HEALTH_SAMPLE_SIZE = 200
+THUMBNAIL_HEALTH_WARNING_THRESHOLD = 0.75
 ANALYSIS_TOP_ITEM_LIMIT = 12
 ANALYSIS_REPEAT_LIMIT = 20
 ANALYSIS_SAMPLE_LIMIT = 30
@@ -430,6 +432,36 @@ def validate_site_output(output_dir: Path) -> None:
     site_data_path = output_dir / "data" / "site-data.json"
     if not site_data_path.exists():
         raise FileNotFoundError(f"Missing site data payload: {site_data_path}")
+    try:
+        site_data_payload = json.loads(site_data_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid site data payload JSON: {site_data_path}") from exc
+    if not isinstance(site_data_payload, dict):
+        raise ValueError(f"Site data payload must be a JSON object: {site_data_path}")
+
+    thumbnail_health = site_data_payload.get("thumbnail_health")
+    if not isinstance(thumbnail_health, dict):
+        raise ValueError(
+            f"Site data payload missing thumbnail_health summary: {site_data_path}"
+        )
+    for key in ("overall_coverage", "top200_coverage", "top_missing_sources"):
+        if key not in thumbnail_health:
+            raise ValueError(
+                f"Site data payload missing thumbnail_health.{key}: {site_data_path}"
+            )
+    top200_coverage = thumbnail_health.get("top200_coverage") or {}
+    top200_ratio = float(top200_coverage.get("ratio") or 0.0)
+    if top200_ratio < THUMBNAIL_HEALTH_WARNING_THRESHOLD:
+        top_missing_sources = thumbnail_health.get("top_missing_sources") or []
+        preview_sources = ", ".join(
+            str(entry.get("source_key") or "?")
+            for entry in top_missing_sources[:5]
+            if isinstance(entry, dict)
+        )
+        print(
+            "Warning: top-200 thumbnail coverage is low "
+            f"({top200_ratio:.1%}). Top missing sources: {preview_sources or 'n/a'}"
+        )
 
     scanner_dir = output_dir / "data" / SCANNER_DIRECTORY_NAME
     manifest = _validate_scanner_manifest_tree(scanner_dir)
@@ -844,6 +876,7 @@ async def collect_site_payload(
         "categories": category_payload,
         "sources": source_options,
         "source_statuses": [status.to_public_dict() for status in statuses],
+        "thumbnail_health": _build_thumbnail_health(deduped_articles),
         "articles": [article.to_public_dict() for article in deduped_articles],
     }
     if payload["article_count"] < settings.static_min_articles_to_publish:
@@ -1099,7 +1132,16 @@ def _merge_articles(current: StaticArticle, incoming: StaticArticle) -> StaticAr
     merged_sources = tuple(
         sorted(set(current.source_names or (current.source_name,)) | set(incoming.source_names or (incoming.source_name,)))
     )
-    return replace(preferred, source_names=merged_sources)
+    merged_thumbnail_url = (
+        preferred.thumbnail_url
+        or current.thumbnail_url
+        or incoming.thumbnail_url
+    )
+    return replace(
+        preferred,
+        source_names=merged_sources,
+        thumbnail_url=merged_thumbnail_url,
+    )
 
 
 def _within_dedupe_window(left: StaticArticle, right: StaticArticle) -> bool:
@@ -1155,6 +1197,67 @@ def _analysis_article_sort_key(article: AnalysisArticle) -> tuple[int, str, str]
         article.source_name.lower(),
         article.title.lower(),
     )
+
+
+def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
+    def _coverage(rows: list[StaticArticle]) -> dict[str, Any]:
+        total = len(rows)
+        with_thumbnail = sum(
+            1 for article in rows if str(article.thumbnail_url or "").strip()
+        )
+        ratio = round((with_thumbnail / total), 4) if total else 0.0
+        return {
+            "with_thumbnail": with_thumbnail,
+            "without_thumbnail": max(total - with_thumbnail, 0),
+            "total": total,
+            "ratio": ratio,
+        }
+
+    top_sample = articles[:THUMBNAIL_HEALTH_SAMPLE_SIZE]
+    source_rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for article in top_sample:
+        source_key = str(article.source_key or "").strip()
+        source_name = str(article.source_name or source_key).strip() or source_key
+        row = source_rows.setdefault(
+            (source_key, source_name),
+            {
+                "source_key": source_key,
+                "source_name": source_name,
+                "missing_count": 0,
+                "total_count": 0,
+            },
+        )
+        row["total_count"] += 1
+        if not str(article.thumbnail_url or "").strip():
+            row["missing_count"] += 1
+
+    top_missing_sources = [
+        {
+            **row,
+            "missing_ratio": round(
+                (row["missing_count"] / row["total_count"]),
+                4,
+            )
+            if row["total_count"]
+            else 0.0,
+        }
+        for row in source_rows.values()
+        if row["missing_count"] > 0
+    ]
+    top_missing_sources.sort(
+        key=lambda row: (
+            -int(row["missing_count"]),
+            -float(row["missing_ratio"]),
+            -int(row["total_count"]),
+            str(row["source_name"]).lower(),
+        )
+    )
+
+    return {
+        "overall_coverage": _coverage(articles),
+        "top200_coverage": _coverage(top_sample),
+        "top_missing_sources": top_missing_sources[:10],
+    }
 
 
 def _empty_analysis_lifetime() -> dict[str, Any]:

@@ -1721,6 +1721,7 @@ BASE_SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/dada_news2",
         trust_level=55,
+        allow_page_fetch=True,
         config={
             "channel": "dada_news2",
             **_meta(
@@ -1738,6 +1739,7 @@ BASE_SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/news_kor",
         trust_level=55,
+        allow_page_fetch=True,
         config={
             "channel": "news_kor",
             **_meta(
@@ -1755,6 +1757,7 @@ BASE_SOURCE_DEFINITIONS = [
         poll_interval_sec=180,
         base_url="https://t.me/clawnewssummary",
         trust_level=55,
+        allow_page_fetch=True,
         config={
             "channel": "clawnewssummary",
             **_meta(
@@ -1821,6 +1824,7 @@ def _build_env_telegram_source(channel: str) -> SourceDefinition:
         poll_interval_sec=180,
         base_url=f"https://t.me/{channel}",
         trust_level=55,
+        allow_page_fetch=True,
         config={
             "channel": channel,
             **_meta(

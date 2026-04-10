@@ -364,7 +364,7 @@ function renderFeaturedStory(article) {
 function renderHeadlineStackItem(article) {
   return `
     <article class="headline-stack-item">
-      <a class="headline-stack-thumb" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+      <a class="headline-stack-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
         ${buildStoryThumb(article)}
       </a>
       <div class="headline-stack-copy">
@@ -384,7 +384,7 @@ function renderHeadlineStackItem(article) {
 function renderStoryRow(article) {
   return `
     <article class="news-row">
-      <a class="story-thumb" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
+      <a class="story-thumb ${article.thumbnail_url ? "" : "is-placeholder"}" href="${escapeHtml(article.canonical_url)}" target="_blank" rel="noreferrer">
         ${buildStoryThumb(article)}
       </a>
       <div class="story-copy">
@@ -818,6 +818,182 @@ async function writeClipboardText(text) {
   textarea.remove();
 }
 
+function renderPagination(pagination) {
+  if (pagination.totalItems === 0 || pagination.totalPages <= 1) {
+    refs.paginationNav.hidden = true;
+    refs.paginationNav.innerHTML = "";
+    return;
+  }
+
+  refs.paginationNav.hidden = false;
+  refs.paginationNav.innerHTML = "";
+  if (state.page > 1) {
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip pagination-step" data-page="${state.page - 1}">이전</button>`,
+    );
+  }
+  getPageTokens(pagination.totalPages, state.page).forEach((token) => {
+    if (token === "ellipsis") {
+      refs.paginationNav.insertAdjacentHTML(
+        "beforeend",
+        '<span class="pagination-chip pagination-ellipsis">…</span>',
+      );
+      return;
+    }
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip ${token === state.page ? "is-active" : ""}" data-page="${token}">${token}</button>`,
+    );
+  });
+  if (state.page < pagination.totalPages) {
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip pagination-step" data-page="${state.page + 1}">다음</button>`,
+    );
+  }
+}
+
+function renderFeed() {
+  const filteredArticles = getArticlesForCurrentScope();
+  const prioritizedArticles = prioritizeArticlesForDisplay(filteredArticles);
+  const pagination = getPaginationMeta(prioritizedArticles.length);
+  const pageArticles = prioritizedArticles.slice(pagination.start, pagination.end);
+  const featured = pageArticles[0] || null;
+  const rest = pageArticles.slice(1);
+  const headlineArticles = rest.slice(0, 4);
+  const streamArticles = rest.slice(4);
+
+  if (!featured) {
+    refs.newsSections.innerHTML = '<div class="empty-state">선택한 조건에 맞는 기사가 없습니다.</div>';
+    refs.statusLine.textContent = "선택한 조건에 맞는 기사가 없습니다.";
+    renderPagination(pagination);
+    return;
+  }
+
+  refs.statusLine.textContent = `${getHubLabel(state.hub)} 허브에서 ${filteredArticles.length}개의 기사를 찾았습니다.`;
+  refs.newsSections.innerHTML = `
+    <div class="news-desktop-lead">
+      ${renderFeaturedStory(featured)}
+      ${
+        headlineArticles.length
+          ? `
+            <aside class="headline-stack">
+              <div class="headline-stack-head">
+                <p class="rail-kicker">Top stories</p>
+                <h3>바로 읽을 핵심 기사</h3>
+              </div>
+              ${headlineArticles.map((article) => renderHeadlineStackItem(article)).join("")}
+            </aside>
+          `
+          : ""
+      }
+    </div>
+    <div class="news-desktop-stream">
+      <div class="news-list">
+        ${streamArticles.map((article) => renderStoryRow(article)).join("")}
+      </div>
+      ${renderSideRail(prioritizedArticles)}
+    </div>
+  `;
+  renderPagination(pagination);
+}
+
+async function copyCurrentView() {
+  const rows = Array.from(
+    refs.newsSections.querySelectorAll(
+      ".featured-story-card, .headline-stack-item, .news-row",
+    ),
+  );
+  const lines = rows.flatMap((row) => {
+    const title =
+      row.querySelector(".news-title, .headline-stack-link")?.textContent?.trim() || "";
+    const link =
+      row.querySelector(".news-link, .headline-stack-link")?.getAttribute("href") || "";
+    const meta =
+      row.querySelector(".news-meta-line, .story-meta-line")?.textContent?.trim() || "";
+    return [title, meta, link, ""].filter(Boolean);
+  });
+  const text = lines.join("\n").trim();
+  if (!text) {
+    setCopyButtonState("복사할 뉴스 없음", "error");
+    return;
+  }
+  try {
+    await writeClipboardText(text);
+    setCopyButtonState("복사 완료", "done");
+  } catch (error) {
+    console.error(error);
+    setCopyButtonState("복사 실패", "error");
+  }
+}
+
+function buildWordHtml(articles, title) {
+  return `
+    <html>
+      <head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        ${articles
+          .map((article) => {
+            const item = buildExportMeta(article);
+            return `
+              <section style="margin-bottom:18px;">
+                <h2 style="margin:0 0 8px;font-size:16px;">${escapeHtml(item.title)}</h2>
+                <p style="margin:0 0 4px;"><strong>허브:</strong> ${escapeHtml(item.hub)}</p>
+                <p style="margin:0 0 4px;"><strong>섹션:</strong> ${escapeHtml(item.category)}</p>
+                <p style="margin:0 0 4px;"><strong>소스:</strong> ${escapeHtml(item.source)}</p>
+                <p style="margin:0 0 4px;"><strong>시각:</strong> ${escapeHtml(item.publishedAt)}</p>
+                <p style="margin:0;"><strong>링크:</strong> <a href="${escapeHtml(item.url)}">${escapeHtml(item.url)}</a></p>
+              </section>
+            `;
+          })
+          .join("")}
+      </body>
+    </html>
+  `;
+}
+
+function buildExcelHtml(articles, title) {
+  return `
+    <html>
+      <head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head>
+      <body>
+        <table border="1">
+          <caption>${escapeHtml(title)}</caption>
+          <thead>
+            <tr>
+              <th>허브</th>
+              <th>섹션</th>
+              <th>소스</th>
+              <th>시각</th>
+              <th>제목</th>
+              <th>링크</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${articles
+              .map((article) => {
+                const item = buildExportMeta(article);
+                return `
+                  <tr>
+                    <td>${escapeHtml(item.hub)}</td>
+                    <td>${escapeHtml(item.category)}</td>
+                    <td>${escapeHtml(item.source)}</td>
+                    <td>${escapeHtml(item.publishedAt)}</td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${escapeHtml(item.url)}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
 let copyButtonResetTimer;
 
 function setCopyButtonState(label, stateName) {
@@ -851,6 +1027,22 @@ function flashButtonState(button, label, stateName) {
     button.textContent = originalLabel;
     button.classList.remove("is-done", "is-error");
   }, 1800);
+}
+
+function setCopyButtonState(label, stateName) {
+  refs.copyAllButton.textContent = label;
+  refs.copyAllButton.classList.remove("is-done", "is-error");
+  if (stateName === "done") {
+    refs.copyAllButton.classList.add("is-done");
+  }
+  if (stateName === "error") {
+    refs.copyAllButton.classList.add("is-error");
+  }
+  window.clearTimeout(copyButtonResetTimer);
+  copyButtonResetTimer = window.setTimeout(() => {
+    refs.copyAllButton.textContent = "현재 화면 복사";
+    refs.copyAllButton.classList.remove("is-done", "is-error");
+  }, 2200);
 }
 
 function render() {
@@ -924,5 +1116,197 @@ refs.paginationNav.addEventListener("click", (event) => {
   render();
   refs.paginationNav.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
+
+function renderPagination(pagination) {
+  if (pagination.totalItems === 0 || pagination.totalPages <= 1) {
+    refs.paginationNav.hidden = true;
+    refs.paginationNav.innerHTML = "";
+    return;
+  }
+
+  refs.paginationNav.hidden = false;
+  refs.paginationNav.innerHTML = "";
+  if (state.page > 1) {
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip pagination-step" data-page="${state.page - 1}">이전</button>`,
+    );
+  }
+  getPageTokens(pagination.totalPages, state.page).forEach((token) => {
+    if (token === "ellipsis") {
+      refs.paginationNav.insertAdjacentHTML(
+        "beforeend",
+        '<span class="pagination-chip pagination-ellipsis">…</span>',
+      );
+      return;
+    }
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip ${token === state.page ? "is-active" : ""}" data-page="${token}">${token}</button>`,
+    );
+  });
+  if (state.page < pagination.totalPages) {
+    refs.paginationNav.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" class="pagination-chip pagination-step" data-page="${state.page + 1}">다음</button>`,
+    );
+  }
+}
+
+function renderFeed() {
+  const filteredArticles = getArticlesForCurrentScope();
+  const prioritizedArticles = prioritizeArticlesForDisplay(filteredArticles);
+  const pagination = getPaginationMeta(prioritizedArticles.length);
+  const pageArticles = prioritizedArticles.slice(pagination.start, pagination.end);
+  const featured = pageArticles[0] || null;
+  const rest = pageArticles.slice(1);
+  const headlineArticles = rest.slice(0, 4);
+  const streamArticles = rest.slice(4);
+
+  if (!featured) {
+    refs.newsSections.innerHTML = '<div class="empty-state">선택한 조건에 맞는 기사가 없습니다.</div>';
+    refs.statusLine.textContent = "선택한 조건에 맞는 기사가 없습니다.";
+    renderPagination(pagination);
+    return;
+  }
+
+  refs.statusLine.textContent = `${getHubLabel(state.hub)} 허브에서 ${filteredArticles.length}개의 기사를 찾았습니다.`;
+  refs.newsSections.innerHTML = `
+    <div class="news-desktop-lead">
+      ${renderFeaturedStory(featured)}
+      ${
+        headlineArticles.length
+          ? `
+            <aside class="headline-stack">
+              <div class="headline-stack-head">
+                <p class="rail-kicker">Top stories</p>
+                <h3>바로 읽을 핵심 기사</h3>
+              </div>
+              ${headlineArticles.map((article) => renderHeadlineStackItem(article)).join("")}
+            </aside>
+          `
+          : ""
+      }
+    </div>
+    <div class="news-desktop-stream">
+      <div class="news-list">
+        ${streamArticles.map((article) => renderStoryRow(article)).join("")}
+      </div>
+      ${renderSideRail(prioritizedArticles)}
+    </div>
+  `;
+  renderPagination(pagination);
+}
+
+async function copyCurrentView() {
+  const rows = Array.from(
+    refs.newsSections.querySelectorAll(
+      ".featured-story-card, .headline-stack-item, .news-row",
+    ),
+  );
+  const lines = rows.flatMap((row) => {
+    const title =
+      row.querySelector(".news-title, .headline-stack-link")?.textContent?.trim() || "";
+    const link =
+      row.querySelector(".news-link, .headline-stack-link")?.getAttribute("href") || "";
+    const meta =
+      row.querySelector(".news-meta-line, .story-meta-line")?.textContent?.trim() || "";
+    return [title, meta, link, ""].filter(Boolean);
+  });
+  const text = lines.join("\n").trim();
+  if (!text) {
+    setCopyButtonState("복사할 뉴스 없음", "error");
+    return;
+  }
+  try {
+    await writeClipboardText(text);
+    setCopyButtonState("복사 완료", "done");
+  } catch (error) {
+    console.error(error);
+    setCopyButtonState("복사 실패", "error");
+  }
+}
+
+function buildWordHtml(articles, title) {
+  return `
+    <html>
+      <head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        ${articles
+          .map((article) => {
+            const item = buildExportMeta(article);
+            return `
+              <section style="margin-bottom:18px;">
+                <h2 style="margin:0 0 8px;font-size:16px;">${escapeHtml(item.title)}</h2>
+                <p style="margin:0 0 4px;"><strong>허브:</strong> ${escapeHtml(item.hub)}</p>
+                <p style="margin:0 0 4px;"><strong>섹션:</strong> ${escapeHtml(item.category)}</p>
+                <p style="margin:0 0 4px;"><strong>소스:</strong> ${escapeHtml(item.source)}</p>
+                <p style="margin:0 0 4px;"><strong>시각:</strong> ${escapeHtml(item.publishedAt)}</p>
+                <p style="margin:0;"><strong>링크:</strong> <a href="${escapeHtml(item.url)}">${escapeHtml(item.url)}</a></p>
+              </section>
+            `;
+          })
+          .join("")}
+      </body>
+    </html>
+  `;
+}
+
+function buildExcelHtml(articles, title) {
+  return `
+    <html>
+      <head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head>
+      <body>
+        <table border="1">
+          <caption>${escapeHtml(title)}</caption>
+          <thead>
+            <tr>
+              <th>허브</th>
+              <th>섹션</th>
+              <th>소스</th>
+              <th>시각</th>
+              <th>제목</th>
+              <th>링크</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${articles
+              .map((article) => {
+                const item = buildExportMeta(article);
+                return `
+                  <tr>
+                    <td>${escapeHtml(item.hub)}</td>
+                    <td>${escapeHtml(item.category)}</td>
+                    <td>${escapeHtml(item.source)}</td>
+                    <td>${escapeHtml(item.publishedAt)}</td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${escapeHtml(item.url)}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function setCopyButtonState(label, stateName) {
+  refs.copyAllButton.textContent = label;
+  refs.copyAllButton.classList.remove("is-done", "is-error");
+  if (stateName === "done") {
+    refs.copyAllButton.classList.add("is-done");
+  }
+  if (stateName === "error") {
+    refs.copyAllButton.classList.add("is-error");
+  }
+  window.clearTimeout(copyButtonResetTimer);
+  copyButtonResetTimer = window.setTimeout(() => {
+    refs.copyAllButton.textContent = "현재 화면 복사";
+    refs.copyAllButton.classList.remove("is-done", "is-error");
+  }, 2200);
+}
 
 render();

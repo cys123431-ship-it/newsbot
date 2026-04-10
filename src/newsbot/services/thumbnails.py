@@ -194,12 +194,9 @@ async def hydrate_candidate_thumbnails(
         return
 
     semaphore = asyncio.Semaphore(max(1, concurrency))
-    should_fetch_page = source_definition.adapter_type == "html_discovery"
     tasks = []
     for candidate in candidates:
         if candidate.thumbnail_url:
-            continue
-        if not should_fetch_page and not candidate.raw_payload:
             continue
         tasks.append(
             _hydrate_thumbnail_from_page(

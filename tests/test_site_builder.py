@@ -14,6 +14,7 @@ from newsbot.contracts import ArticleCandidate
 from newsbot.site_builder import StaticArticle
 from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _extract_analysis_keywords
+from newsbot.site_builder import _merge_articles
 from newsbot.site_builder import collect_site_payload
 from newsbot.site_builder import build_static_site
 from newsbot.site_builder import validate_site_output
@@ -158,6 +159,40 @@ def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(
     assert [article["source_key"] for article in payload["articles"]] == ["coindesk-rss"]
     assert payload["articles"][0]["title"] == '?? ?? ???? ??? "?? ??"'
     assert payload["articles"][0]["thumbnail_url"] == "https://img.example.com/thumb.jpg?x=1&y=2"
+    assert payload["thumbnail_health"]["overall_coverage"]["ratio"] == 1.0
+
+
+def test_merge_articles_preserves_thumbnail_from_non_preferred_article():
+    current = StaticArticle.from_public_dict(
+        {
+            "title": "Shared market headline",
+            "canonical_url": "https://example.com/story",
+            "source_key": "archive-source",
+            "source_name": "Archive Source",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 95,
+            "language": "en",
+        }
+    )
+    incoming = StaticArticle.from_public_dict(
+        {
+            "title": "Shared market headline",
+            "canonical_url": "https://example.com/story",
+            "source_key": "fresh-source",
+            "source_name": "Fresh Source",
+            "thumbnail_url": "https://img.example.com/fresh.jpg",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:01:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+
+    merged = _merge_articles(current, incoming)
+
+    assert merged.source_key == "archive-source"
+    assert merged.thumbnail_url == "https://img.example.com/fresh.jpg"
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):
@@ -355,6 +390,9 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert file_payload["article_count"] >= 2
     assert file_payload["removed_articles_log_path"] == "data/removed-articles.txt"
     assert file_payload["warning_source_count"] == 0
+    assert file_payload["thumbnail_health"]["overall_coverage"]["total"] >= 2
+    assert "top200_coverage" in file_payload["thumbnail_health"]
+    assert "top_missing_sources" in file_payload["thumbnail_health"]
     assert any(hub["key"] == "kr" for hub in file_payload["hubs"])
     assert all(source["source_key"] != "disabled-low-quality" for source in file_payload["sources"])
     assert "thumbnail_url" in file_payload["articles"][0]

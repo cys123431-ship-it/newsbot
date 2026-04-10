@@ -155,7 +155,7 @@
             </div>
             {% for article in headline_articles %}
             <article class="headline-stack-item">
-              <a class="headline-stack-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+              <a class="headline-stack-thumb {% if not article.thumbnail_url %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
                 {% if article.thumbnail_url %}
                 <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
@@ -182,7 +182,7 @@
           <div class="news-list">
             {% for article in stream_articles %}
             <article class="news-row">
-              <a class="story-thumb" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
+              <a class="story-thumb {% if not article.thumbnail_url %}is-placeholder{% endif %}" href="{{ article.canonical_url }}" target="_blank" rel="noreferrer">
                 <span class="story-fallback">{{ article.section_label if article.section_label else article.hub_label }}</span>
                 {% if article.thumbnail_url %}
                 <img src="{{ article.thumbnail_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('a').classList.add('is-placeholder'); this.remove()" />
