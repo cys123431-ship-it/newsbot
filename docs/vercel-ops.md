@@ -11,9 +11,9 @@ This repository now supports two separate public deployment surfaces:
 - Branch: `main`
 - Framework Preset: `Other`
 - Install Command:
-  - Leave blank and let Vercel auto-detect Python dependencies
+  - Leave blank and let Vercel auto-install from the repo root `requirements.txt`
 - Build Command:
-  - `python -m newsbot.site_builder`
+  - `PYTHONPATH=src python -m newsbot.site_builder`
 - Output Directory:
   - `site-dist`
 
