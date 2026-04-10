@@ -857,13 +857,20 @@ class SourceCollectionResult:
 
 
 def list_static_sources(
+    settings: Settings | None = None,
     source_definitions: list[SourceDefinition] | None = None,
 ) -> list[SourceDefinition]:
     definitions = source_definitions or get_source_definitions()
+    active_settings = settings or get_settings()
     return [
         definition
         for definition in definitions
-        if definition.static_enabled and definition.source_key not in BLOCKED_SOURCE_KEYS
+        if definition.static_enabled
+        and definition.source_key not in BLOCKED_SOURCE_KEYS
+        and (
+            active_settings.telegram_runtime_enabled
+            or definition.adapter_type != "telegram_channel"
+        )
     ]
 
 
@@ -874,7 +881,7 @@ async def collect_site_payload(
     source_definitions: list[SourceDefinition] | None = None,
     adapters: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[StaticArticle], list[AnalysisArticle]]:
-    active_sources = list_static_sources(source_definitions)
+    active_sources = list_static_sources(settings, source_definitions)
     active_source_map = {definition.source_key: definition for definition in active_sources}
     active_adapters = adapters or ADAPTERS
     semaphore = asyncio.Semaphore(settings.static_fetch_concurrency)

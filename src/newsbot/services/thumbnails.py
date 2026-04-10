@@ -129,6 +129,8 @@ def _normalize_thumbnail_url(url: str | None, *, base_url: str | None = None) ->
         return None
     if _looks_like_html_fragment(value):
         return None
+    if any(character.isspace() for character in value):
+        return None
     value = _BROKEN_PROTOCOL_RE.sub(r"\1://\2", value)
     if base_url:
         value = urljoin(base_url, value)

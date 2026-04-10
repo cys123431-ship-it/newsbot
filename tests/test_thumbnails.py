@@ -119,6 +119,20 @@ def test_extract_thumbnail_from_html_repairs_single_slash_https_urls():
     assert thumbnail == "https://img.etoday.co.kr/crop/200/120/2320207.jpg"
 
 
+def test_extract_thumbnail_from_payload_rejects_whitespace_only_pseudo_urls():
+    payload = {
+        "thumbnail_url": "https://www.cbsnews.com/live-updates/story/ this should not pass",
+        "content": [{"value": "<div>No image here</div>"}],
+    }
+
+    thumbnail = extract_thumbnail_from_payload(
+        payload,
+        base_url="https://www.cbsnews.com/live-updates/story/",
+    )
+
+    assert thumbnail is None
+
+
 def test_hydrate_candidate_thumbnails_fetches_page_for_telegram_sources():
     candidate = ArticleCandidate(
         source_key="telegram-dada-news2",

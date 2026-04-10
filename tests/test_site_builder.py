@@ -746,19 +746,16 @@ def test_build_static_site_marks_empty_telegram_results_as_warning(tmp_path):
         adapters={"rss": FakeCryptoAdapter(), "telegram_channel": EmptyTelegramAdapter()},
     )
 
-    telegram_status = _source_status(payload, "telegram-dada-news2")
     assert payload["healthy_source_count"] == 1
-    assert payload["warning_source_count"] == 1
+    assert payload["warning_source_count"] == 0
     assert payload["failed_source_count"] == 0
-    assert telegram_status["status"] == "warning"
-    assert telegram_status["fetched_count"] == 0
-    assert telegram_status["message"] == (
-        "No usable external article links found in the latest 20 messages."
+    assert all(
+        status["source_key"] != "telegram-dada-news2"
+        for status in payload["source_statuses"]
     )
 
     html = (tmp_path / "site-dist" / "index.html").read_text(encoding="utf-8")
-    assert "health-row-warning" in html
-    assert "No usable external article links found in the latest 20 messages." in html
+    assert "telegram-dada-news2" not in html
 
 
 def test_build_static_site_marks_empty_telegram_fetch_as_warning(tmp_path):
