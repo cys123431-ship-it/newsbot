@@ -627,6 +627,8 @@ def _thumbnail_kind_from_url(value: str | None) -> str:
         return "placeholder"
     if any(marker in text for marker in ("<", ">", "\r", "\n", "\t")):
         return "placeholder"
+    if any(character.isspace() for character in text):
+        return "placeholder"
     parts = urlsplit(text)
     if parts.scheme in {"http", "https"} and parts.netloc:
         return "real"
