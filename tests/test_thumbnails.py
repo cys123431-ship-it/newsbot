@@ -5,6 +5,7 @@ import asyncio
 import httpx
 
 from newsbot.contracts import ArticleCandidate
+from newsbot.services.thumbnails import extract_thumbnail_from_payload
 from newsbot.services.thumbnails import extract_thumbnail_from_html
 from newsbot.services.thumbnails import hydrate_candidate_thumbnails
 from newsbot.source_registry import SourceDefinition
@@ -65,6 +66,27 @@ def test_hydrate_candidate_thumbnails_normalizes_existing_thumbnail_urls():
     asyncio.run(run())
 
     assert candidate.thumbnail_url == "https://images.example.com/thumb.jpg?x=1&y=2"
+
+
+def test_extract_thumbnail_from_payload_supports_html_content_blocks():
+    payload = {
+        "content": [
+            {
+                "value": """
+                <div>
+                  <img src="/images/feed-hero.jpg" alt="hero" />
+                </div>
+                """,
+            }
+        ]
+    }
+
+    thumbnail = extract_thumbnail_from_payload(
+        payload,
+        base_url="https://example.com/news/1",
+    )
+
+    assert thumbnail == "https://example.com/images/feed-hero.jpg"
 
 
 def test_hydrate_candidate_thumbnails_fetches_page_for_telegram_sources():

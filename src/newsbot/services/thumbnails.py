@@ -28,6 +28,7 @@ _PREFERRED_KEYS = (
     "media_thumbnail",
     "media_content",
     "enclosures",
+    "content",
 )
 _PREFERRED_META_NAMES = (
     "og:image",
@@ -140,7 +141,11 @@ def _extract_from_mapping(raw_payload: Mapping[str, Any], *, base_url: str | Non
 
     for key, value in raw_payload.items():
         lower_key = str(key).strip().lower()
-        if "image" in lower_key or "thumb" in lower_key:
+        if (
+            "image" in lower_key
+            or "thumb" in lower_key
+            or lower_key in {"content", "summary", "description", "html", "value"}
+        ):
             extracted = _extract_thumbnail_candidate(value, base_url=base_url)
             if extracted:
                 return extracted
@@ -149,7 +154,12 @@ def _extract_from_mapping(raw_payload: Mapping[str, Any], *, base_url: str | Non
 
 def _extract_thumbnail_candidate(value: Any, *, base_url: str | None = None) -> str | None:
     if isinstance(value, str):
-        return _normalize_thumbnail_url(value, base_url=base_url)
+        normalized = _normalize_thumbnail_url(value, base_url=base_url)
+        if normalized:
+            return normalized
+        if base_url and "<" in value and ">" in value:
+            return extract_thumbnail_from_html(value, base_url=base_url)
+        return None
     if isinstance(value, Mapping):
         return _extract_from_mapping(value, base_url=base_url)
     if isinstance(value, list | tuple):
