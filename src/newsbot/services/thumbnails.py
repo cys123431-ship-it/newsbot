@@ -47,6 +47,21 @@ _IMG_ATTRIBUTE_KEYS = (
     "data-thumb",
 )
 _LINK_REL_CANDIDATES = {"image_src", "preload", "preconnect"}
+_PAGE_FETCH_HEADERS = {
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+}
 
 
 class _ThumbnailHTMLParser(HTMLParser):
@@ -221,7 +236,7 @@ async def _hydrate_thumbnail_from_page(
         try:
             response = await client.get(
                 candidate.url,
-                headers={"Accept": "text/html,application/xhtml+xml"},
+                headers=_PAGE_FETCH_HEADERS,
             )
             response.raise_for_status()
         except Exception:

@@ -77,6 +77,8 @@ def test_hydrate_candidate_thumbnails_fetches_page_for_telegram_sources():
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "https://example.com/news/1"
+        assert "Mozilla/5.0" in request.headers["User-Agent"]
+        assert request.headers["Accept-Language"].startswith("ko-KR")
         return httpx.Response(
             200,
             headers={"content-type": "text/html; charset=utf-8"},
