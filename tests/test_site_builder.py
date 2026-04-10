@@ -17,6 +17,7 @@ from newsbot.site_builder import _allow_static_candidate
 from newsbot.site_builder import _backfill_static_article_thumbnails
 from newsbot.site_builder import _extract_analysis_keywords
 from newsbot.site_builder import _merge_articles
+from newsbot.site_builder import _prepare_archive_articles
 from newsbot.site_builder import collect_site_payload
 from newsbot.site_builder import build_static_site
 from newsbot.site_builder import validate_site_output
@@ -246,6 +247,73 @@ def test_backfill_static_article_thumbnails_recovers_archive_thumbnails():
     hydrated_articles = asyncio.run(run())
 
     assert hydrated_articles[0].thumbnail_url == "https://example.com/images/archive-hero.jpg"
+
+
+def test_prepare_archive_articles_applies_thumbnail_hints():
+    article = StaticArticle.from_public_dict(
+        {
+            "title": "Archive story missing thumbnail",
+            "canonical_url": "https://example.com/story",
+            "source_key": "archive-source",
+            "source_name": "Archive Source",
+            "primary_category": "crypto",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 70,
+            "language": "en",
+        }
+    )
+    source_definition = SourceDefinition(
+        source_key="archive-source",
+        name="Archive Source",
+        adapter_type="rss",
+        category="crypto",
+        poll_interval_sec=300,
+        base_url="https://example.com",
+        trust_level=70,
+        allow_page_fetch=True,
+    )
+
+    prepared = _prepare_archive_articles(
+        [article],
+        settings=_settings(Path(".")),
+        source_map={"archive-source": source_definition},
+        thumbnail_hints={"https://example.com/story": "https://img.example.com/story.jpg"},
+    )
+
+    assert prepared[0].thumbnail_url == "https://img.example.com/story.jpg"
+
+
+def test_prepare_archive_articles_drops_telegram_when_runtime_disabled():
+    telegram_article = StaticArticle.from_public_dict(
+        {
+            "title": "Telegram mirrored article",
+            "canonical_url": "https://example.com/story",
+            "source_key": "telegram-dada-news2",
+            "source_name": "Telegram @dada_news2",
+            "primary_category": "tech-it",
+            "published_at": "2026-04-10T00:00:00+00:00",
+            "trust_level": 55,
+            "language": "ko",
+        }
+    )
+    source_definition = SourceDefinition(
+        source_key="telegram-dada-news2",
+        name="Telegram @dada_news2",
+        adapter_type="telegram_channel",
+        category=None,
+        poll_interval_sec=180,
+        base_url="https://t.me/dada_news2",
+        trust_level=55,
+    )
+
+    prepared = _prepare_archive_articles(
+        [telegram_article],
+        settings=_settings(Path(".")),
+        source_map={"telegram-dada-news2": source_definition},
+        thumbnail_hints={},
+    )
+
+    assert prepared == []
 
 
 def test_build_static_site_generates_dense_payload_and_files(tmp_path):

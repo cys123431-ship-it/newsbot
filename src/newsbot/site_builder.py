@@ -778,6 +778,7 @@ class SourceCollectionResult:
     display_articles: list[StaticArticle]
     analysis_articles: list[AnalysisArticle]
     status: SourceBuildStatus
+    thumbnail_hints: dict[str, str]
 
 
 def list_static_sources(
@@ -799,6 +800,7 @@ async def collect_site_payload(
     adapters: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[StaticArticle], list[AnalysisArticle]]:
     active_sources = list_static_sources(source_definitions)
+    active_source_map = {definition.source_key: definition for definition in active_sources}
     active_adapters = adapters or ADAPTERS
     semaphore = asyncio.Semaphore(settings.static_fetch_concurrency)
     statuses: list[SourceBuildStatus] = []
@@ -820,24 +822,34 @@ async def collect_site_payload(
         ]
         source_results = await asyncio.gather(*tasks)
 
-        gathered_articles: list[StaticArticle] = []
-        analysis_articles: list[AnalysisArticle] = []
-        for result in source_results:
-            statuses.append(result.status)
-            gathered_articles.extend(result.display_articles)
-            analysis_articles.extend(result.analysis_articles)
+    gathered_articles: list[StaticArticle] = []
+    analysis_articles: list[AnalysisArticle] = []
+    thumbnail_hints: dict[str, str] = {}
+    for result in source_results:
+        statuses.append(result.status)
+        gathered_articles.extend(result.display_articles)
+        analysis_articles.extend(result.analysis_articles)
+        thumbnail_hints.update(result.thumbnail_hints)
 
-        deduped_articles, evicted_articles = dedupe_static_articles(
-            [
-                *[
-                    article
-                    for article in (archive_articles or [])
-                    if article.source_key not in BLOCKED_SOURCE_KEYS
-                ],
-                *gathered_articles,
-            ],
-            max_total=settings.static_max_total_articles,
-        )
+    seeded_archive_articles = _prepare_archive_articles(
+        archive_articles or [],
+        settings=settings,
+        source_map=active_source_map,
+        thumbnail_hints=thumbnail_hints,
+    )
+
+    deduped_articles, evicted_articles = dedupe_static_articles(
+        [
+            *seeded_archive_articles,
+            *gathered_articles,
+        ],
+        max_total=settings.static_max_total_articles,
+    )
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "newsbot-static/0.1"},
+        timeout=settings.request_timeout_sec,
+    ) as client:
         deduped_articles = await _backfill_static_article_thumbnails(
             deduped_articles,
             client=client,
@@ -986,7 +998,12 @@ async def _collect_source(
     if preflight_message is not None:
         status.status = "warning"
         status.message = preflight_message
-        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
+        return SourceCollectionResult(
+            display_articles=[],
+            analysis_articles=[],
+            status=status,
+            thumbnail_hints={},
+        )
 
     adapter = adapters.get(source_definition.adapter_type)
     if adapter is None:
@@ -995,7 +1012,12 @@ async def _collect_source(
             f"Source adapter is not registered for static builds: {source_definition.adapter_type}."
         )
         status.message = status.error
-        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
+        return SourceCollectionResult(
+            display_articles=[],
+            analysis_articles=[],
+            status=status,
+            thumbnail_hints={},
+        )
     try:
         async with semaphore:
             candidates = await _fetch_with_retries(adapter, source_definition, settings, client)
@@ -1008,7 +1030,12 @@ async def _collect_source(
         status.status = "failed"
         status.error = str(exc)
         status.message = status.error
-        return SourceCollectionResult(display_articles=[], analysis_articles=[], status=status)
+        return SourceCollectionResult(
+            display_articles=[],
+            analysis_articles=[],
+            status=status,
+            thumbnail_hints={},
+        )
 
     status.fetched_count = len(candidates)
     if source_definition.adapter_type == "telegram_channel" and status.fetched_count == 0:
@@ -1016,6 +1043,7 @@ async def _collect_source(
         status.message = "No usable external article links found in the latest 20 messages."
     accepted_articles: list[StaticArticle] = []
     analysis_articles: list[AnalysisArticle] = []
+    thumbnail_hints: dict[str, str] = {}
     for candidate in candidates:
         candidate.title = clean_headline(candidate.title)
         if not candidate.title:
@@ -1026,6 +1054,8 @@ async def _collect_source(
         if not _allow_static_candidate(candidate):
             continue
         canonical_url, normalized_title, title_hash = canonicalize_candidate(candidate)
+        if candidate.thumbnail_url:
+            thumbnail_hints[canonical_url] = candidate.thumbnail_url
         accepted_articles.append(
             StaticArticle(
                 title=_clean_display_text(candidate.title),
@@ -1067,6 +1097,7 @@ async def _collect_source(
         display_articles=limited_articles,
         analysis_articles=analysis_articles,
         status=status,
+        thumbnail_hints=thumbnail_hints,
     )
 
 
@@ -1339,6 +1370,39 @@ def _build_thumbnail_health(articles: list[StaticArticle]) -> dict[str, Any]:
         "top200_coverage": _coverage(top_sample),
         "top_missing_sources": top_missing_sources[:10],
     }
+
+
+def _prepare_archive_articles(
+    archive_articles: list[StaticArticle],
+    *,
+    settings: Settings,
+    source_map: dict[str, SourceDefinition],
+    thumbnail_hints: dict[str, str],
+) -> list[StaticArticle]:
+    prepared_articles: list[StaticArticle] = []
+    for article in archive_articles:
+        if article.source_key in BLOCKED_SOURCE_KEYS:
+            continue
+        source_definition = source_map.get(article.source_key)
+        adapter_type = (
+            source_definition.adapter_type
+            if source_definition is not None
+            else (
+                "telegram_channel"
+                if str(article.source_key).startswith("telegram-")
+                else None
+            )
+        )
+        if adapter_type == "telegram_channel" and not settings.telegram_runtime_enabled:
+            continue
+        hinted_thumbnail_url = thumbnail_hints.get(article.canonical_url)
+        if hinted_thumbnail_url and not article.thumbnail_url:
+            prepared_articles.append(
+                replace(article, thumbnail_url=hinted_thumbnail_url)
+            )
+            continue
+        prepared_articles.append(article)
+    return prepared_articles
 
 
 def _empty_analysis_lifetime() -> dict[str, Any]:
