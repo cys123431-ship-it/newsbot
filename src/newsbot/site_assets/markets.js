@@ -515,6 +515,7 @@ function renderMultiTimeframe(payload) {
     renderChipRow(["4h 35", "1h 30", "15m 20", "5m 15"]),
   );
   refs.pageContent.innerHTML = `
+    ${renderMultiTimeframeFeaturedSection(payload.featured_rows || [])}
     <section class="crypto-section">
       <div class="crypto-panel-head">
         <div>
@@ -524,6 +525,25 @@ function renderMultiTimeframe(payload) {
       </div>
       <div class="crypto-mtf-grid">
         ${(payload.rows || []).map((row) => renderMultiTimeframeCard(row)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderMultiTimeframeFeaturedSection(rows) {
+  if (!rows.length) {
+    return "";
+  }
+  return `
+    <section class="crypto-section">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>오버뷰 강력 추천 멀티 타임프레임</strong>
+          <span>오버뷰 강력 추천 코인을 멀티 타임프레임 매트릭스로 먼저 확인합니다.</span>
+        </div>
+      </div>
+      <div class="crypto-mtf-grid">
+        ${rows.map((row) => renderMultiTimeframeCard(row, { featured: true })).join("")}
       </div>
     </section>
   `;
@@ -852,7 +872,9 @@ function renderCompactCard(row) {
   `;
 }
 
-function renderMultiTimeframeCard(row) {
+function renderMultiTimeframeCard(row, options = {}) {
+  const featured = Boolean(options.featured);
+  const featuredSlot = row.featured_slot || null;
   return `
     <article class="crypto-panel">
       <div class="crypto-panel-head">
@@ -861,6 +883,15 @@ function renderMultiTimeframeCard(row) {
           <span>${escapeHtml(row.consensus_label)} · 롱 ${escapeHtml(formatNumber(row.long_weight))} / 숏 ${escapeHtml(formatNumber(row.short_weight))}</span>
         </div>
       </div>
+      ${
+        featured && featuredSlot
+          ? `<div class="crypto-chip-row">
+              ${chip(`오버뷰 ${featuredSlot.timeframe_label || featuredSlot.timeframe || "-"}`)}
+              ${badge(featuredSlot.side_label || "-", sideScore(featuredSlot.side))}
+              ${chip(`기회 ${formatNumber(featuredSlot.opportunity)}`)}
+            </div>`
+          : ""
+      }
       <div class="crypto-mtf-table">
         ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame.key])).join("")}
       </div>

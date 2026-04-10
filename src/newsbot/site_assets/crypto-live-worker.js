@@ -310,6 +310,8 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
       Math.abs(right.agreement_score) - Math.abs(left.agreement_score) ||
       left.symbol.localeCompare(right.symbol),
   );
+  const strongRecommendations = buildStrongRecommendations(analysesByTimeframe);
+  const featuredRows = buildFeaturedMultiTimeframeRows(strongRecommendations, rows);
 
   return {
     page_key: "multi_timeframe",
@@ -326,6 +328,8 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
       bearish: rows.filter((row) => row.consensus_label === "하락 합의").length,
       mixed: rows.filter((row) => row.consensus_label === "혼합").length,
     },
+    strong_recommendations: strongRecommendations,
+    featured_rows: featuredRows,
     rows: rows.slice(0, 60),
   };
 }
@@ -1117,6 +1121,32 @@ function buildStrongRecommendationCard(rows, side, timeframe) {
     change_24h: best.change_24h,
     last_price: best.last_price,
   };
+}
+
+function buildFeaturedMultiTimeframeRows(strongRecommendations, rows) {
+  const rowLookup = Object.fromEntries(rows.map((row) => [row.symbol, row]));
+  const featuredRows = [];
+  for (const timeframe of TIMEFRAMES) {
+    const recommendation = strongRecommendations[timeframe];
+    if (!recommendation) continue;
+    for (const side of ["long", "short"]) {
+      const card = recommendation[side];
+      if (!card || card.empty) continue;
+      const baseRow = rowLookup[card.symbol];
+      if (!baseRow) continue;
+      featuredRows.push({
+        ...baseRow,
+        featured_slot: {
+          timeframe,
+          timeframe_label: recommendation.timeframe_label,
+          side,
+          side_label: card.side_label,
+          opportunity: card.opportunity,
+        },
+      });
+    }
+  }
+  return featuredRows;
 }
 
 async function mapConcurrent(items, concurrency, worker) {
