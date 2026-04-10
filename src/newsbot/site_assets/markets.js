@@ -1247,3 +1247,40 @@ function renderMultiTimeframeCard(row, options = {}) {
     </article>
   `;
 }
+
+function renderMultiTimeframeCard(row, options = {}) {
+  const featured = Boolean(options.featured);
+  const featuredSlot = row.featured_slot || null;
+  const sourceSlots = row.source_slots?.length ? row.source_slots : featuredSlot ? [featuredSlot] : [];
+  const displaySymbol = row.symbol || "후보 없음";
+  const displayConsensus = row.missing ? "데이터 준비 중" : row.consensus_label;
+
+  return `
+    <article class="crypto-panel">
+      <div class="crypto-panel-head">
+        <div>
+          <strong>${escapeHtml(displaySymbol)}</strong>
+          <span>${escapeHtml(displayConsensus)} · 롱 ${escapeHtml(formatNumber(row.long_weight))} / 숏 ${escapeHtml(formatNumber(row.short_weight))}</span>
+        </div>
+      </div>
+      ${
+        featured && sourceSlots.length
+          ? `<div class="crypto-chip-row">
+              ${sourceSlots
+                .map(
+                  (slot) => `
+                    ${chip(`오버뷰 ${slot.timeframe_label || slot.timeframe || "-"}`)}
+                    ${badge(slot.side_label || "-", sideScore(slot.side))}
+                    ${chip(`기회 ${formatNumber(slot.opportunity)}`)}
+                  `,
+                )
+                .join("")}
+            </div>`
+          : ""
+      }
+      <div class="crypto-mtf-table">
+        ${TIMEFRAMES.map((frame) => renderMultiTimeframeRow(frame, row.timeframes?.[frame.key])).join("")}
+      </div>
+    </article>
+  `;
+}

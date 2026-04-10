@@ -1503,3 +1503,59 @@ function estimateLiquidationPressure({ openInterestUsd, change24h, atrPct, longS
   pressure *= 1 + Math.min(skew, 1.5);
   return Math.max(pressure, 0);
 }
+
+function buildFeaturedMultiTimeframeRows(strongRecommendations, rows) {
+  const rowLookup = Object.fromEntries(rows.map((row) => [row.symbol, row]));
+  const featuredRows = [];
+  const featuredBySymbol = new Map();
+
+  for (const timeframe of TIMEFRAMES) {
+    const recommendation = strongRecommendations[timeframe];
+    if (!recommendation) continue;
+
+    for (const side of ["long", "short"]) {
+      const card = recommendation[side];
+      if (!card || card.empty || !card.symbol) {
+        continue;
+      }
+
+      const featuredSlot = {
+        timeframe,
+        timeframe_label: recommendation.timeframe_label,
+        side,
+        side_label: card?.side_label || (side === "long" ? "롱" : "숏"),
+        opportunity: card?.opportunity ?? null,
+      };
+
+      const existing = featuredBySymbol.get(card.symbol);
+      if (existing) {
+        existing.source_slots.push(featuredSlot);
+        continue;
+      }
+
+      const baseRow = rowLookup[card.symbol];
+      const mergedRow = baseRow
+        ? {
+            ...JSON.parse(JSON.stringify(baseRow)),
+            source_slots: [featuredSlot],
+            featured_slot: featuredSlot,
+          }
+        : {
+            symbol: card.symbol,
+            consensus_label: "데이터 준비 중",
+            agreement_score: 0,
+            long_weight: 0,
+            short_weight: 0,
+            timeframes: {},
+            source_slots: [featuredSlot],
+            featured_slot: featuredSlot,
+            missing: true,
+          };
+
+      featuredBySymbol.set(card.symbol, mergedRow);
+      featuredRows.push(mergedRow);
+    }
+  }
+
+  return featuredRows;
+}

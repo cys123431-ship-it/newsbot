@@ -1458,6 +1458,64 @@ async def _scan_all(
         return snapshots, analyses_by_timeframe
 
 
+def _build_featured_multi_timeframe_rows(
+    strong_recommendations: dict[str, dict[str, Any]],
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    row_lookup = {str(row.get("symbol") or ""): row for row in rows}
+    featured_rows: list[dict[str, Any]] = []
+    featured_by_symbol: dict[str, dict[str, Any]] = {}
+
+    for timeframe in TIMEFRAMES:
+        recommendation = strong_recommendations.get(timeframe)
+        if not recommendation:
+            continue
+
+        for side in ("long", "short"):
+            card = recommendation.get(side) or {}
+            symbol = str(card.get("symbol") or "")
+            if not card or card.get("empty") or not symbol:
+                continue
+
+            featured_slot = {
+                "timeframe": timeframe,
+                "timeframe_label": recommendation.get("timeframe_label") or TIMEFRAME_LABELS[timeframe],
+                "side": side,
+                "side_label": card.get("side_label") or ("롱" if side == "long" else "숏"),
+                "opportunity": card.get("opportunity"),
+            }
+
+            existing = featured_by_symbol.get(symbol)
+            if existing:
+                existing.setdefault("source_slots", []).append(featured_slot)
+                continue
+
+            base_row = row_lookup.get(symbol)
+            merged_row = (
+                {
+                    **json.loads(json.dumps(base_row, ensure_ascii=False)),
+                    "source_slots": [featured_slot],
+                    "featured_slot": featured_slot,
+                }
+                if base_row
+                else {
+                    "symbol": symbol,
+                    "consensus_label": "데이터 준비 중",
+                    "agreement_score": 0,
+                    "long_weight": 0,
+                    "short_weight": 0,
+                    "timeframes": {},
+                    "source_slots": [featured_slot],
+                    "featured_slot": featured_slot,
+                    "missing": True,
+                }
+            )
+            featured_by_symbol[symbol] = merged_row
+            featured_rows.append(merged_row)
+
+    return featured_rows
+
+
 def main() -> None:
     _ensure_output_directories()
     existing_snapshots = _load_existing_snapshots()

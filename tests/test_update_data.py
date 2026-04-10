@@ -70,15 +70,75 @@ def test_fallback_analyses_populate_non_pattern_pages():
     mtf_rows = page_payloads["multi-timeframe-top100-5m.json"]["rows"]
     featured_rows = page_payloads["multi-timeframe-top100-5m.json"]["overview_featured_rows"]
     assert mtf_rows
-    assert len(featured_rows) == 8
+    assert featured_rows
+    symbols = [row["symbol"] for row in featured_rows if row.get("symbol")]
+    assert len(symbols) == len(set(symbols))
     assert featured_rows[0]["featured_slot"]["timeframe"] == "5m"
-    assert featured_rows[1]["featured_slot"]["side"] == "short"
+    assert featured_rows[0]["source_slots"]
+    assert featured_rows[0]["featured_slot"] == featured_rows[0]["source_slots"][0]
     assert "side" in mtf_rows[0]["timeframes"]["5m"]
     assert "weight" in mtf_rows[0]["timeframes"]["5m"]
     assert "long_weight" in mtf_rows[0]
     assert "short_weight" in mtf_rows[0]
     assert mtf_rows[0]["consensus_label"] in {"상승 합의", "하락 합의", "혼합"}
     assert detail_payloads["setups/scan-top100-5m/solusdt-gartley-touch.json"]["result"]["symbol"] == "SOLUSDT"
+
+
+def test_build_featured_multi_timeframe_rows_deduplicates_symbols():
+    update_data = _load_update_data_module()
+    strong_recommendations = {
+        "5m": {
+            "timeframe": "5m",
+            "timeframe_label": "5m",
+            "long": {"symbol": "SOLUSDT", "empty": False, "side_label": "롱", "opportunity": 81.2},
+            "short": {"symbol": "XRPUSDT", "empty": False, "side_label": "숏", "opportunity": 72.4},
+        },
+        "15m": {
+            "timeframe": "15m",
+            "timeframe_label": "15m",
+            "long": {"symbol": "SOLUSDT", "empty": False, "side_label": "롱", "opportunity": 79.8},
+            "short": {"symbol": "XRPUSDT", "empty": False, "side_label": "숏", "opportunity": 70.1},
+        },
+        "4h": {
+            "timeframe": "4h",
+            "timeframe_label": "4h",
+            "long": {"symbol": "SOLUSDT", "empty": False, "side_label": "롱", "opportunity": 83.6},
+            "short": {"symbol": "DOGEUSDT", "empty": False, "side_label": "숏", "opportunity": 68.5},
+        },
+    }
+    rows = [
+        {
+            "symbol": "SOLUSDT",
+            "consensus_label": "상승 합의",
+            "agreement_score": 100,
+            "long_weight": 100,
+            "short_weight": 0,
+            "timeframes": {},
+        },
+        {
+            "symbol": "XRPUSDT",
+            "consensus_label": "하락 합의",
+            "agreement_score": -100,
+            "long_weight": 0,
+            "short_weight": 100,
+            "timeframes": {},
+        },
+        {
+            "symbol": "DOGEUSDT",
+            "consensus_label": "하락 합의",
+            "agreement_score": -100,
+            "long_weight": 0,
+            "short_weight": 100,
+            "timeframes": {},
+        },
+    ]
+
+    featured_rows = update_data._build_featured_multi_timeframe_rows(strong_recommendations, rows)
+
+    assert [row["symbol"] for row in featured_rows] == ["SOLUSDT", "XRPUSDT", "DOGEUSDT"]
+    assert [slot["timeframe"] for slot in featured_rows[0]["source_slots"]] == ["5m", "15m", "4h"]
+    assert [slot["timeframe"] for slot in featured_rows[1]["source_slots"]] == ["5m", "15m"]
+    assert featured_rows[0]["featured_slot"] == featured_rows[0]["source_slots"][0]
 
 
 def test_write_json_preserves_generated_at_for_unchanged_detail_payload(tmp_path):
