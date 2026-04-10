@@ -225,8 +225,8 @@ function renderRefreshStrip() {
   refs.refreshSpotlight.classList.toggle("is-fresh", Boolean(isFresh));
   refs.refreshLabel.textContent = isFresh ? "Just Updated" : "Latest Refresh";
   refs.refreshTitle.textContent = isFresh
-    ? "Tracking headline flow from the recent 10-15 minute batch."
-    : "Showing headline flow from the recent 10-15 minute batch.";
+    ? "Tracking headline flow from the latest completed news batch."
+    : "Showing headline flow from the latest completed news batch.";
   refs.refreshTime.textContent = formatDateTime(payload.generated_at);
   refs.refreshTime.dateTime = payload.generated_at;
 }

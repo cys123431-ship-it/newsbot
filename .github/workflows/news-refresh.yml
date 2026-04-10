@@ -3,13 +3,14 @@ name: Refresh News Site
 on:
   workflow_dispatch:
   schedule:
-    - cron: "3,15,27,39,51 * * * *"
+    - cron: "17 * * * *"
 
 concurrency:
   group: news-refresh
   cancel-in-progress: true
 
 permissions:
+  actions: write
   contents: read
   pages: write
   id-token: write
@@ -80,3 +81,44 @@ jobs:
       - name: Deploy artifact
         id: deployment
         uses: actions/deploy-pages@v4
+
+  continue-chain:
+    needs: deploy
+    if: ${{ needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Hold cadence for the next refresh window
+        run: sleep 720
+
+      - name: Dispatch the next news refresh run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowId = 'news-refresh.yml';
+            const currentRunId = Number(process.env.GITHUB_RUN_ID);
+            const defaultRef = context.payload.repository?.default_branch || 'main';
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflowId,
+              per_page: 20,
+            });
+            const otherActive = data.workflow_runs.find(
+              (run) =>
+                run.id !== currentRunId &&
+                ['queued', 'in_progress'].includes(run.status),
+            );
+            if (otherActive) {
+              core.info(`Another refresh run is already active: ${otherActive.html_url}`);
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflowId,
+              ref: defaultRef,
+            });
+            core.info('Queued the next news refresh run to keep the cadence warm.');
