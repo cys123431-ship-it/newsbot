@@ -578,6 +578,7 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
         ("momentum", "momentum"),
         ("volatility", "volatility"),
         ("multi-timeframe", "multi_timeframe"),
+        ("methodology", "methodology"),
     ):
         nested_html = (output_dir / "markets" / "crypto" / slug / "index.html").read_text(encoding="utf-8")
         assert f'"crypto_page_key":"{key}"' in nested_html
@@ -595,6 +596,8 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert "renderDerivatives" in markets_js
     assert "renderMovers" in markets_js
     assert "renderMultiTimeframe" in markets_js
+    assert "renderMethodologyPage" in markets_js
+    assert "상세 분석 기준 보기" in markets_js
     assert "overview_featured_rows" in markets_js
     assert "Live fetch failed" in markets_js
 

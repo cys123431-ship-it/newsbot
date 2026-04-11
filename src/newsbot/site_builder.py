@@ -56,6 +56,8 @@ from newsbot.text_tools import similar_titles
 from newsbot.text_tools import strip_html
 
 
+CRYPTO_GUIDE_PAGE = {"key": "methodology", "label": "분석 기준", "nav": True}
+
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parent.parent
 SITE_TEMPLATE_DIR = PACKAGE_DIR / "site_templates"
@@ -167,13 +169,18 @@ def _build_market_nav_links(
         {"key": "crypto", "label": "Coin", "href": crypto_href},
     ]
 
+
+def _iter_public_crypto_pages() -> tuple[dict[str, Any], ...]:
+    return (*CRYPTO_PAGE_DEFINITIONS, CRYPTO_GUIDE_PAGE)
+
+
 def _build_crypto_page_links(
     *,
     overview_href: str,
     child_prefix: str,
 ) -> list[dict[str, str]]:
     links: list[dict[str, str]] = []
-    for page in CRYPTO_PAGE_DEFINITIONS:
+    for page in _iter_public_crypto_pages():
         if not bool(page.get("nav", True)):
             continue
         slug = page["key"].replace("_", "-")
@@ -269,7 +276,7 @@ def _build_market_page_specs() -> tuple[MarketPageSpec, ...]:
         ),
     ]
 
-    for page in CRYPTO_PAGE_DEFINITIONS:
+    for page in _iter_public_crypto_pages():
         if page["key"] == "overview":
             continue
         slug = page["key"].replace("_", "-")
@@ -476,7 +483,7 @@ def validate_site_output(output_dir: Path) -> None:
     generated_dir = output_dir / "generated" / SCANNER_DIRECTORY_NAME
 
     crypto_page_paths = [output_dir / MARKETS_DIRECTORY_NAME / "crypto" / "index.html"]
-    for page in CRYPTO_PAGE_DEFINITIONS:
+    for page in _iter_public_crypto_pages():
         if page["key"] == "overview":
             continue
         slug = page["key"].replace("_", "-")

@@ -29,6 +29,152 @@ const THEME_STORAGE_KEY = "newsbot:crypto-theme";
 const LIVE_CACHE_TTL_MS = 90 * 1000;
 const REFRESH_COOLDOWN_MS = 45 * 1000;
 const ROOT_FALLBACK_MANIFEST_PATH = "data/scanner/manifest.json";
+const GUIDE_PAGE_ORDER = [
+  "overview",
+  "signals",
+  "derivatives",
+  "movers",
+  "opportunities",
+  "setups",
+  "technical_ratings",
+  "trend",
+  "momentum",
+  "volatility",
+  "multi_timeframe",
+];
+const PAGE_GUIDES = {
+  overview: {
+    label: "오버뷰",
+    brief: "기술·추세·모멘텀·파생·변동성 점수를 묶어 전체 시장을 빠르게 요약합니다.",
+    chips: ["기회 점수", "상위 시그널", "타임프레임별 강력 롱/숏", "실시간 프리뷰"],
+    details: [
+      "오버뷰는 지금 어디서부터 볼지 정하는 첫 화면입니다.",
+      "상위 기회 종목은 opportunity 순위, 상위 시그널은 signal_score 순위로 정리합니다.",
+      "5m·15m·1h·4h마다 롱 1개와 숏 1개를 따로 골라 강력 추천 카드로 보여줍니다.",
+    ],
+    formula: [
+      "상위 기회: opportunity 내림차순",
+      "상위 시그널: signal_score 내림차순",
+      "강력 추천: 타임프레임별 side별 최고 opportunity",
+    ],
+    why: "전체 시장에서 먼저 볼 종목과 다음에 열 페이지를 빠르게 고를 때 적합합니다.",
+  },
+  signals: {
+    label: "시그널",
+    brief: "Funding, OI, 롱/숏 비율과 RSI, MACD, Bollinger, VWAP를 함께 보고 이상치 강도를 정리합니다.",
+    chips: ["Funding", "Open Interest", "Long/Short", "RSI", "MACD", "Bollinger", "VWAP"],
+    details: [
+      "파생 이상치와 기술적 가속도가 동시에 강한 종목을 위로 올리는 화면입니다.",
+      "Funding과 OI가 과열됐는지, RSI와 MACD가 같은 방향으로 힘을 주는지 함께 봅니다.",
+    ],
+    formula: ["signal_score = 파생 45% + |모멘텀 편향| 30% + |기술 점수| 25%"],
+    why: "급하게 뜨거워진 종목이나 지금 시그널이 붙는 종목을 빠르게 찾을 때 좋습니다.",
+  },
+  derivatives: {
+    label: "파생지표",
+    brief: "Funding, OI, 롱/숏 비율, 청산 압력을 중심으로 군중 포지셔닝이 어디로 쏠렸는지 봅니다.",
+    chips: ["Funding", "Open Interest", "Long/Short", "Liquidation"],
+    details: [
+      "파생지표는 가격 자체보다 포지션 밀집과 과열도를 읽는 화면입니다.",
+      "거래대금과 OI가 충분히 큰 종목을 우선 보면서, Funding과 롱/숏 비율 편향을 같이 반영합니다.",
+    ],
+    formula: ["derivatives_rank = 파생 점수 50% + 정규화 OI 30% + 정규화 거래대금 20%"],
+    why: "숏 과밀·롱 과밀, 청산 압력, OI 집중처럼 군중 포지션 흐름을 볼 때 적합합니다.",
+  },
+  movers: {
+    label: "급등락",
+    brief: "24시간 변동률만 보지 않고 거래대금과 변동성까지 묶어 실제로 움직이는 종목을 올립니다.",
+    chips: ["24h 변동률", "거래대금", "BB Width", "ATR%", "압축/돌파"],
+    details: [
+      "단순 급등락 순위가 아니라 거래가 붙고 변동성도 살아 있는 종목을 우선합니다.",
+      "볼린저 압축 해제나 상·하방 돌파가 보이는 종목을 함께 걸러냅니다.",
+    ],
+    formula: ["movers_rank = |24h 변동률| 45% + 정규화 거래대금 30% + 변동성 점수 25%"],
+    why: "지금 실제로 크게 움직이는 종목이나 막 돌파가 붙는 종목을 찾을 때 유용합니다.",
+  },
+  opportunities: {
+    label: "기회 랭킹",
+    brief: "기술·추세·모멘텀·파생·변동성을 합친 종합 점수로 지금 우선 볼 종목을 정렬합니다.",
+    chips: ["기술", "추세", "모멘텀", "파생", "변동성", "방향 합의"],
+    details: [
+      "기회 랭킹은 코인 섹션의 메인 종합 점수 화면입니다.",
+      "롱/숏 후보를 같은 공식을 기준으로 평가하고, 상단에서 각각 따로 볼 수 있게 분리합니다.",
+    ],
+    formula: [
+      "opportunity = |기술| 28% + 추세 강도 20% + 모멘텀 강도 16% + 파생 18% + 변동성 8% + 방향 합의 10%",
+    ],
+    why: "여러 탭을 다 보지 않고도 지금 가장 강한 후보를 우선순위로 정리하고 싶을 때 좋습니다.",
+  },
+  setups: {
+    label: "워치리스트",
+    brief: "기회 점수에 즉시성 신호를 더해 지금 눈여겨볼 만한 종목을 카드형으로 보여줍니다.",
+    chips: ["기회 점수", "변동성", "파생 온도", "돌파", "압축", "다이버전스"],
+    details: [
+      "워치리스트는 단순 상위 랭킹보다 '지금 볼 가치'에 초점을 맞춘 화면입니다.",
+      "돌파·압축·다이버전스 같은 즉시성 신호가 있는 종목에 가산점을 줍니다.",
+    ],
+    formula: ["watchlist_score = opportunity 55% + volatility 20% + derivatives 15% + recency flag 10%"],
+    why: "나중에 볼 목록이 아니라 당장 차트를 열어볼 후보를 정리할 때 적합합니다.",
+  },
+  technical_ratings: {
+    label: "테크니컬 레이팅",
+    brief: "이동평균 계열과 오실레이터 계열을 합쳐 Strong Buy ~ Strong Sell로 분류합니다.",
+    chips: ["MA bias", "Oscillator bias", "VWAP gap"],
+    details: [
+      "이 페이지는 기술적 방향성만 따로 깔끔하게 보고 싶을 때 쓰는 분류 화면입니다.",
+      "추세·모멘텀 세부 설명보다 전체 기술 점수의 강약과 방향을 더 분명히 보여줍니다.",
+    ],
+    formula: ["technical_rank = |기술 점수| 75% + |이동평균 점수| 25%"],
+    why: "Strong Buy, Buy, Neutral, Sell, Strong Sell 분류를 빠르게 확인할 때 좋습니다.",
+  },
+  trend: {
+    label: "추세",
+    brief: "EMA 크로스, Supertrend, ADX-DMI, Ichimoku를 함께 봐서 추세 강도와 방향을 판단합니다.",
+    chips: ["EMA20/50/200", "Supertrend", "ADX-DMI", "Ichimoku"],
+    details: [
+      "추세 화면은 방향보다도 추세가 얼마나 정렬돼 있는지를 중요하게 봅니다.",
+      "ADX와 DI 차이로 추세 강도를 보강하고, EMA와 Ichimoku 편향을 같이 확인합니다.",
+    ],
+    formula: ["trend_rank = 추세 강도 70% + |추세 편향| 30%"],
+    why: "강한 상승 추세, 강한 하락 추세, 전환 후보를 구분해 보고 싶을 때 적합합니다.",
+  },
+  momentum: {
+    label: "모멘텀",
+    brief: "RSI, Stoch RSI, MACD, ROC 중심으로 가속도와 과매수·과매도 상태를 판단합니다.",
+    chips: ["RSI", "Stoch RSI", "MACD", "ROC"],
+    details: [
+      "모멘텀 화면은 지금 힘이 붙는지, 힘이 꺾이는지를 읽는 데 초점을 둡니다.",
+      "다이버전스 후보와 과매수·과매도 구간도 함께 보여줘서 과열 여부를 같이 볼 수 있습니다.",
+    ],
+    formula: ["momentum_rank = 모멘텀 강도 65% + |모멘텀 편향| 35%"],
+    why: "상승 가속과 하락 가속, 과열과 침체를 빠르게 비교할 때 유용합니다.",
+  },
+  volatility: {
+    label: "변동성",
+    brief: "볼린저 밴드 폭, ATR%, 압축, 확장, 돌파 신호를 묶어 폭발 직전과 진행 중인 움직임을 구분합니다.",
+    chips: ["BB Width", "ATR%", "압축", "확장", "돌파"],
+    details: [
+      "변동성 화면은 이미 크게 움직인 종목과 곧 움직일 종목을 함께 보는 용도입니다.",
+      "압축 구간, 상방 돌파, 하방 돌파, 확장 상태를 같은 규칙으로 분류합니다.",
+    ],
+    formula: ["volatility_rank = 변동성 점수 70% + 돌파/압축 보너스 30%"],
+    why: "스퀴즈 해제, 확장 초입, 돌파 진행 상태를 빠르게 보고 싶을 때 적합합니다.",
+  },
+  multi_timeframe: {
+    label: "멀티 타임프레임",
+    brief: "5m, 15m, 1h, 4h를 따로 계산한 뒤 가중치로 합산해 프레임 합의도를 계산합니다.",
+    chips: ["5m 15", "15m 20", "1h 30", "4h 35", "상승 합의", "하락 합의", "혼합"],
+    details: [
+      "짧은 프레임만 강한 종목과 큰 프레임까지 같이 맞는 종목을 구분하는 화면입니다.",
+      "4h와 1h 비중을 더 높게 둬서, 짧은 프레임 잡음보다 큰 흐름을 더 중요하게 반영합니다.",
+    ],
+    formula: [
+      "합의 가중치 = 5m 15 + 15m 20 + 1h 30 + 4h 35",
+      "롱 가중치 65 이상이면 상승 합의, 숏 가중치 65 이상이면 하락 합의, 그 외는 혼합",
+    ],
+    why: "한 프레임만 강한 종목이 아니라 여러 시간대가 같이 맞는 종목을 찾을 때 가장 유용합니다.",
+  },
+};
 
 const state = {
   pageKey: String(bootstrap.crypto_page_key || "overview"),
@@ -102,6 +248,10 @@ async function loadPage(force) {
   try {
     if (state.pageKey === "patterns") {
       renderPatternsDeprecated();
+      return;
+    }
+    if (state.pageKey === "methodology") {
+      renderMethodologyPage();
       return;
     }
 
@@ -269,6 +419,108 @@ function renderPageTabs() {
     .join("");
 }
 
+function getPageGuide(pageKey) {
+  return PAGE_GUIDES[pageKey] || null;
+}
+
+function getPageHref(pageKey) {
+  const tabs = Array.isArray(bootstrap.crypto_page_links) ? bootstrap.crypto_page_links : [];
+  const match = tabs.find((tab) => tab.key === pageKey);
+  return match ? String(match.href || "") : "";
+}
+
+function renderPagePrimer(pageKey) {
+  const guide = getPageGuide(pageKey);
+  if (!guide) {
+    return "";
+  }
+  const detailHref = getPageHref("methodology");
+  return renderSection(
+    `${guide.label}는 이렇게 봅니다`,
+    guide.brief,
+    `
+      ${guide.chips?.length ? renderChipRow(guide.chips) : ""}
+      <div class="crypto-methodology-copy">
+        ${guide.formula?.[0] ? `<p><strong>핵심 기준</strong> ${escapeHtml(guide.formula[0])}</p>` : ""}
+        ${guide.why ? `<p><strong>이럴 때 유용합니다</strong> ${escapeHtml(guide.why)}</p>` : ""}
+        ${
+          detailHref && pageKey !== "methodology"
+            ? `<div class="crypto-methodology-actions">
+                <a class="scanner-link-button is-muted" href="${escapeHtml(detailHref)}">상세 분석 기준 보기</a>
+              </div>`
+            : ""
+        }
+      </div>
+    `,
+  );
+}
+
+function renderMethodologyPage() {
+  state.source = "guide";
+  state.generatedAt = null;
+  state.lastLoadedAt = new Date().toISOString();
+  state.pageLabel = String(bootstrap.crypto_page_label || "분석 기준");
+  refs.statusLine.textContent = "각 코인 버튼의 분석 기준을 안내합니다.";
+  refs.progressBar.style.width = "100%";
+  renderMetaSummary();
+  refs.activeScan.innerHTML = chip("이 페이지는 데이터 조회가 아니라 각 분석 탭의 기준을 설명하는 안내 페이지입니다.");
+  refs.pageHighlights.innerHTML = renderSection(
+    "코인 버튼 해설",
+    "각 탭이 어떤 근거로 코인을 분석하는지 짧게 이해할 수 있도록 정리했습니다.",
+    `
+      ${renderChipRow(["기준 지표", "정렬 공식", "활용 포인트"])}
+      <div class="crypto-methodology-copy">
+        <p>오버뷰, 시그널, 파생지표, 급등락, 기회 랭킹처럼 화면 목적이 달라서 정렬 기준도 각각 다릅니다.</p>
+        <p>아래에서 각 페이지가 어떤 지표를 보고 어떤 점수로 순위를 매기는지 바로 확인할 수 있습니다.</p>
+      </div>
+    `,
+  );
+  refs.pageControls.innerHTML = renderSection(
+    "페이지 바로가기",
+    "설명을 읽고 바로 해당 페이지로 이동할 수 있습니다.",
+    `
+      <div class="crypto-compact-grid">
+        ${GUIDE_PAGE_ORDER.map((pageKey) => {
+          const guide = getPageGuide(pageKey);
+          const href = getPageHref(pageKey);
+          if (!guide || !href) {
+            return "";
+          }
+          return renderRouteCard(href, guide.label, guide.brief);
+        }).join("")}
+      </div>
+    `,
+  );
+  refs.pageContent.innerHTML = GUIDE_PAGE_ORDER.map((pageKey) => renderMethodologySection(pageKey)).join("");
+}
+
+function renderMethodologySection(pageKey) {
+  const guide = getPageGuide(pageKey);
+  if (!guide) {
+    return "";
+  }
+  const href = getPageHref(pageKey);
+  return renderSection(
+    `${guide.label} 상세 기준`,
+    guide.brief,
+    `
+      ${guide.chips?.length ? renderChipRow(guide.chips) : ""}
+      <div class="crypto-methodology-copy">
+        ${(guide.details || []).map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        ${(guide.formula || []).map((line) => `<p><strong>정렬 기준</strong> ${escapeHtml(line)}</p>`).join("")}
+        ${guide.why ? `<p><strong>언제 보기 좋은가</strong> ${escapeHtml(guide.why)}</p>` : ""}
+        ${
+          href
+            ? `<div class="crypto-methodology-actions">
+                <a class="scanner-link-button" href="${escapeHtml(href)}">${escapeHtml(guide.label)} 페이지 열기</a>
+              </div>`
+            : ""
+        }
+      </div>
+    `,
+  );
+}
+
 function renderLoadingState() {
   refs.statusLine.textContent = "실시간 시장 데이터를 준비하고 있습니다.";
   refs.progressBar.style.width = "18%";
@@ -337,6 +589,7 @@ function renderPayload(payload, options = {}) {
 
 function renderOverview(payload) {
   refs.pageHighlights.innerHTML = [
+    renderPagePrimer("overview"),
     renderStatCards(payload.summary_cards || []),
     renderStrongRecommendationSection(payload.strong_recommendations || {}),
   ].join("");
@@ -356,7 +609,10 @@ function renderOverview(payload) {
 }
 
 function renderSignals(payload) {
-  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.anomaly_counts);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("signals"),
+    renderCombinedHighlights(payload.summary_cards, payload.anomaly_counts),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "Signal Lens",
     "RSI, MACD, Bollinger, VWAP, funding, open interest, and positioning in one screen.",
@@ -374,7 +630,10 @@ function renderSignals(payload) {
 }
 
 function renderDerivatives(payload) {
-  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.counts);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("derivatives"),
+    renderCombinedHighlights(payload.summary_cards, payload.counts),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "파생지표 포커스",
     "Funding, OI, 롱/숏, 청산 압력 편차를 한 번에 봅니다.",
@@ -392,7 +651,10 @@ function renderDerivatives(payload) {
 }
 
 function renderMovers(payload) {
-  refs.pageHighlights.innerHTML = renderCombinedHighlights(payload.summary_cards, payload.counts);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("movers"),
+    renderCombinedHighlights(payload.summary_cards, payload.counts),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "급등락/돌파 관찰",
     "24시간 변동률, 거래량, 볼린저 압축/돌파 여부 중심으로 정렬합니다.",
@@ -410,7 +672,10 @@ function renderMovers(payload) {
 }
 
 function renderOpportunities(payload) {
-  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("opportunities"),
+    renderStatCards(payload.summary_cards || []),
+  ].join("");
   refs.pageControls.innerHTML = [
     renderSection(
       "롱/숏 상위 랭킹",
@@ -430,7 +695,10 @@ function renderOpportunities(payload) {
 }
 
 function renderSetups(payload) {
-  refs.pageHighlights.innerHTML = renderStatCards(payload.summary_cards || []);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("setups"),
+    renderStatCards(payload.summary_cards || []),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "워치리스트 해석",
     "즉시성 신호와 기회 점수를 함께 반영한 후보를 카드형으로 정리했습니다.",
@@ -440,7 +708,10 @@ function renderSetups(payload) {
 }
 
 function renderTechnicalRatings(payload) {
-  refs.pageHighlights.innerHTML = renderCountGrid(payload.distribution || []);
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("technical_ratings"),
+    renderCountGrid(payload.distribution || []),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "테크니컬 분류",
     "이동평균 계열과 오실레이터 계열을 합쳐 Strong Buy ~ Strong Sell 로 분류합니다.",
@@ -457,7 +728,10 @@ function renderTechnicalRatings(payload) {
 }
 
 function renderTrend(payload) {
-  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("trend"),
+    renderCountGrid(payload.counts || {}),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "추세 판정",
     "EMA 크로스, Supertrend, ADX-DMI, Ichimoku 편향을 함께 봅니다.",
@@ -474,7 +748,10 @@ function renderTrend(payload) {
 }
 
 function renderMomentum(payload) {
-  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("momentum"),
+    renderCountGrid(payload.counts || {}),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "모멘텀 판정",
     "RSI, Stoch RSI, MACD, ROC 중심으로 과매수·과매도와 다이버전스를 봅니다.",
@@ -491,7 +768,10 @@ function renderMomentum(payload) {
 }
 
 function renderVolatility(payload) {
-  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("volatility"),
+    renderCountGrid(payload.counts || {}),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "변동성 판정",
     "볼린저 밴드 폭, ATR%, 압축, 확장, 돌파 신호를 중심으로 봅니다.",
@@ -508,7 +788,10 @@ function renderVolatility(payload) {
 }
 
 function renderMultiTimeframe(payload) {
-  refs.pageHighlights.innerHTML = renderCountGrid(payload.counts || {});
+  refs.pageHighlights.innerHTML = [
+    renderPagePrimer("multi_timeframe"),
+    renderCountGrid(payload.counts || {}),
+  ].join("");
   refs.pageControls.innerHTML = renderSection(
     "프레임 합의도",
     "4h 35 · 1h 30 · 15m 20 · 5m 15 가중치로 롱/숏 합의를 계산합니다.",
@@ -599,9 +882,19 @@ function renderMetaSummary() {
   const elapsedMinutes = state.lastLoadedAt
     ? Math.max(0, Math.round((Date.now() - new Date(state.lastLoadedAt).getTime()) / 60000))
     : null;
+  const sourceLabel =
+    state.source === "live"
+      ? "Binance 실시간"
+      : state.source === "fallback"
+        ? "배치 fallback"
+        : state.source === "deprecated"
+          ? "보관함"
+          : state.source === "guide"
+            ? "분석 기준 안내"
+            : "준비 중";
   refs.summaryMeta.innerHTML = [
     chip(`최근 불러온 시각(한국시간) ${formatSeoulDateTime(state.lastLoadedAt)}`),
-    chip(`데이터 소스 ${state.source === "live" ? "Binance 실시간" : state.source === "fallback" ? "배치 fallback" : state.source === "deprecated" ? "보관함" : "준비 중"}`),
+    chip(`데이터 소스 ${sourceLabel}`),
     chip(elapsedMinutes === null ? "경과 시간 계산 중" : `경과 시간 ${formatElapsed(elapsedMinutes)}`),
     chip(state.universeKey),
     chip(state.pageLabel),
@@ -981,6 +1274,9 @@ function buildStatusLine(payload) {
   if (state.source === "fallback") {
     return "실시간 조회 실패, 최근 배치 데이터 표시 중";
   }
+  if (state.source === "guide") {
+    return "각 코인 탭의 분석 기준을 설명하는 페이지입니다.";
+  }
   if (payload?.deprecated) {
     return "패턴은 보관함으로 이동했습니다.";
   }
@@ -1120,6 +1416,11 @@ function formatElapsed(minutes) {
 }
 
 function updateCooldownText() {
+  if (state.pageKey === "methodology") {
+    refs.refreshButton.disabled = true;
+    refs.cooldownText.textContent = "이 페이지는 설명 페이지라 실시간 새로고침이 필요 없습니다.";
+    return;
+  }
   const remaining = Math.max(0, Math.ceil((state.cooldownUntil - Date.now()) / 1000));
   refs.refreshButton.disabled = state.loading || remaining > 0;
   refs.cooldownText.textContent =
