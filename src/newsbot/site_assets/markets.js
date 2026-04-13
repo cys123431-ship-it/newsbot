@@ -181,6 +181,7 @@ const state = {
   pageLabel: String(bootstrap.crypto_page_label || "오버뷰"),
   universeKey: localStorage.getItem(`${LOCAL_CACHE_PREFIX}universe`) || "top100",
   timeframe: localStorage.getItem(`${LOCAL_CACHE_PREFIX}timeframe`) || "5m",
+  surface: resolveDeploymentSurface(),
   loading: false,
   source: "loading",
   manifest: null,
@@ -191,6 +192,7 @@ const state = {
   lastLoadedAt: null,
   generatedAt: null,
   liveCoverageNote: "",
+  fallbackMeta: null,
   theme: readThemePreference(),
 };
 
@@ -235,7 +237,7 @@ function bindEvents() {
 
   window.setInterval(updateCooldownText, 1000);
   window.setInterval(() => {
-    if (!state.loading && state.source === "live") {
+    if (!state.loading && (state.source === "live" || state.source === "fallback")) {
       renderMetaSummary();
     }
   }, 30 * 1000);
@@ -260,6 +262,7 @@ async function loadPage(force) {
     state.generatedAt = livePayload.generated_at || new Date().toISOString();
     state.lastLoadedAt = new Date().toISOString();
     state.liveCoverageNote = String(livePayload.coverage_note || "");
+    state.fallbackMeta = null;
     renderPayload(livePayload);
   } catch (liveError) {
     try {
@@ -268,14 +271,20 @@ async function loadPage(force) {
       state.generatedAt = fallbackPayload.generated_at || null;
       state.lastLoadedAt = new Date().toISOString();
       state.liveCoverageNote = "";
+      state.fallbackMeta = {
+        reason:
+          String(fallbackPayload.fallback_reason || "").trim() ||
+          "실시간 Binance 요청 실패 또는 제한으로 배치 fallback 데이터를 표시합니다.",
+        generatedAt: fallbackPayload.fallback_generated_at || fallbackPayload.generated_at || null,
+      };
       renderPayload(fallbackPayload, {
-        warning:
-          "실시간 조회에 실패해 최근 배치 데이터를 표시 중입니다. 잠시 뒤 다시 시도하면 라이브 데이터로 복귀할 수 있습니다.",
+        warning: state.fallbackMeta.reason,
       });
     } catch (fallbackError) {
       state.source = "error";
       state.generatedAt = null;
       state.lastLoadedAt = new Date().toISOString();
+      state.fallbackMeta = null;
       renderErrorState(liveError, fallbackError);
     }
   } finally {
@@ -336,7 +345,14 @@ async function loadFallbackPayload() {
   if (!response.ok) {
     throw new Error(`Fallback dataset request failed: ${response.status}`);
   }
-  return response.json();
+  const payload = await response.json();
+  return {
+    ...payload,
+    data_origin: payload.data_origin || payload.data_source || "batch_fallback",
+    fallback_reason:
+      payload.fallback_reason || "실시간 Binance 요청 실패 또는 제한으로 배치 fallback 데이터를 표시합니다.",
+    fallback_generated_at: payload.fallback_generated_at || payload.generated_at || null,
+  };
 }
 
 async function loadManifest() {
@@ -396,6 +412,38 @@ function inferSiteRootPrefix() {
     return directory || "/";
   }
   return "/";
+}
+
+function resolveDeploymentSurface() {
+  const configured = String(bootstrap.deployment_surface || "").trim().toLowerCase();
+  if (configured) {
+    return configured;
+  }
+  const hostname = String(window.location.hostname || "").toLowerCase();
+  if (hostname.includes("github.io")) {
+    return "backup";
+  }
+  if (hostname.includes("vercel.app")) {
+    return "primary";
+  }
+  return "local";
+}
+
+function formatDeploymentSurfaceLabel(surface) {
+  if (surface === "primary") {
+    return "주 운영면 Vercel";
+  }
+  if (surface === "backup") {
+    return "백업면 GitHub Pages";
+  }
+  return "로컬 빌드";
+}
+
+function buildSurfaceWarning() {
+  if (state.surface === "backup") {
+    return "GitHub Pages 백업면에서는 fallback 스냅샷이 더 오래될 수 있습니다.";
+  }
+  return "";
 }
 
 function ensureWorker() {
@@ -524,8 +572,14 @@ function renderMethodologySection(pageKey) {
 function renderLoadingState() {
   refs.statusLine.textContent = "실시간 시장 데이터를 준비하고 있습니다.";
   refs.progressBar.style.width = "18%";
-  refs.summaryMeta.innerHTML = chip("실시간 데이터를 준비 중입니다.");
-  refs.activeScan.innerHTML = chip("Binance 실시간 데이터를 불러오고 있습니다.");
+  refs.summaryMeta.innerHTML = [
+    chip("실시간 데이터를 준비 중입니다."),
+    chip(formatDeploymentSurfaceLabel(state.surface)),
+  ].join("");
+  refs.activeScan.innerHTML = [
+    chip("Binance 실시간 데이터를 불러오고 있습니다."),
+    state.surface === "backup" ? chip(buildSurfaceWarning()) : "",
+  ].join("");
   refs.pageHighlights.innerHTML = renderSkeletonGrid(4);
   refs.pageControls.innerHTML = renderSkeletonGrid(2);
   refs.pageContent.innerHTML = renderSkeletonGrid(3);
@@ -895,6 +949,7 @@ function renderMetaSummary() {
   refs.summaryMeta.innerHTML = [
     chip(`최근 불러온 시각(한국시간) ${formatSeoulDateTime(state.lastLoadedAt)}`),
     chip(`데이터 소스 ${sourceLabel}`),
+    chip(formatDeploymentSurfaceLabel(state.surface)),
     chip(elapsedMinutes === null ? "경과 시간 계산 중" : `경과 시간 ${formatElapsed(elapsedMinutes)}`),
     chip(state.universeKey),
     chip(state.pageLabel),
@@ -902,13 +957,20 @@ function renderMetaSummary() {
 }
 
 function renderActiveScan(payload, warning) {
+  const backupWarning = buildSurfaceWarning();
+  const fallbackGeneratedAt =
+    payload?.fallback_generated_at || state.fallbackMeta?.generatedAt || payload?.generated_at || null;
   const line =
     state.source === "live"
       ? `실시간 조회 성공 · ${escapeHtml(payload.coverage_note || `${payload.symbols_scanned || 0}개 심볼 계산`)} · ${escapeHtml(payload.timeframe_label || state.timeframe)}`
       : state.source === "fallback"
-        ? `실시간 조회 실패, 최근 배치 데이터 표시 중 · 배치 기준 ${escapeHtml(formatSeoulDateTime(payload.generated_at))}`
+        ? `실시간 조회 실패, 최근 배치 데이터 표시 중 · 배치 기준 ${escapeHtml(formatSeoulDateTime(fallbackGeneratedAt))}`
         : "데이터 준비 중";
-  refs.activeScan.innerHTML = [chip(line), warning ? chip(warning) : ""].join("");
+  refs.activeScan.innerHTML = [
+    chip(line),
+    warning ? chip(warning) : "",
+    backupWarning ? chip(backupWarning) : "",
+  ].join("");
 }
 
 function renderCombinedHighlights(summaryCards, counts) {
@@ -1272,7 +1334,7 @@ function buildStatusLine(payload) {
     return "실시간 조회 성공";
   }
   if (state.source === "fallback") {
-    return "실시간 조회 실패, 최근 배치 데이터 표시 중";
+    return state.fallbackMeta?.reason || "실시간 조회 실패, 최근 배치 데이터 표시 중";
   }
   if (state.source === "guide") {
     return "각 코인 탭의 분석 기준을 설명하는 페이지입니다.";

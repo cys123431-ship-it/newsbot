@@ -58,6 +58,9 @@ def test_fallback_analyses_populate_non_pattern_pages():
     assert len(page_payloads["opportunities-top100-5m.json"]["rows"]) >= 1
     assert page_payloads["opportunities-top100-5m.json"]["long_rows"]
     assert page_payloads["opportunities-top100-5m.json"]["short_rows"]
+    assert page_payloads["signals-top100-5m.json"]["data_origin"] == "batch_fallback"
+    assert page_payloads["signals-top100-5m.json"]["fallback_generated_at"] == generated_at
+    assert "fallback_reason" in page_payloads["signals-top100-5m.json"]
     assert len(page_payloads["overview-top100-5m.json"]["top_opportunities"]) >= 1
     assert len(page_payloads["overview-top100-5m.json"]["top_signals"]) >= 1
     assert "universe_score" in page_payloads["overview-top100-5m.json"]["top_opportunities"][0]

@@ -15,8 +15,9 @@ permissions:
 jobs:
   trigger:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     env:
+      SITE_DATA_URL: https://newsbot9.vercel.app/data/site-data.json
       VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
     steps:
       - name: Ensure deploy hook secret is configured
@@ -26,7 +27,79 @@ jobs:
             exit 1
           fi
 
+      - name: Capture current generated_at
+        id: before
+        run: |
+          previous_generated_at=$(python - <<'PY'
+          import json
+          import urllib.request
+
+          url = "https://newsbot9.vercel.app/data/site-data.json"
+          try:
+              with urllib.request.urlopen(url, timeout=20) as response:
+                  payload = json.load(response)
+          except Exception:
+              print("")
+          else:
+              print(str(payload.get("generated_at") or ""))
+          PY
+          )
+          echo "generated_at=$previous_generated_at" >> "$GITHUB_OUTPUT"
+          echo "Previous generated_at: ${previous_generated_at:-<missing>}"
+
       - name: Trigger Vercel production deployment
         run: |
           response=$(curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL")
           echo "$response"
+
+      - name: Wait for a fresher production site-data.json
+        env:
+          PREVIOUS_GENERATED_AT: ${{ steps.before.outputs.generated_at }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+          import urllib.request
+          from datetime import datetime
+
+          site_data_url = os.environ["SITE_DATA_URL"]
+          previous_raw = os.environ.get("PREVIOUS_GENERATED_AT", "").strip()
+
+          def parse_timestamp(value: str) -> datetime | None:
+              if not value:
+                  return None
+              try:
+                  return datetime.fromisoformat(value.replace("Z", "+00:00"))
+              except ValueError:
+                  return None
+
+          previous_generated_at = parse_timestamp(previous_raw)
+          deadline = time.time() + (10 * 60)
+          attempt = 0
+
+          while time.time() < deadline:
+              attempt += 1
+              try:
+                  with urllib.request.urlopen(site_data_url, timeout=20) as response:
+                      payload = json.load(response)
+                  current_raw = str(payload.get("generated_at") or "").strip()
+                  current_generated_at = parse_timestamp(current_raw)
+                  print(f"Attempt {attempt}: generated_at={current_raw or '<missing>'}")
+              except Exception as exc:
+                  print(f"Attempt {attempt}: fetch failed: {exc}")
+                  time.sleep(30)
+                  continue
+
+              if current_generated_at and (
+                  previous_generated_at is None or current_generated_at > previous_generated_at
+              ):
+                  print("Verified fresher Vercel site-data.json.")
+                  sys.exit(0)
+
+              time.sleep(30)
+
+          print("Vercel deploy hook was triggered, but site-data.json did not become fresher within 10 minutes.")
+          sys.exit(1)
+          PY

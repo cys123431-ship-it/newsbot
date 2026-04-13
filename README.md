@@ -137,6 +137,10 @@ Windows PowerShell:
 - Primary news surface: `https://newsbot9.vercel.app/`
 - Backup news surface: `https://cys123431-ship-it.github.io/newsbot/`
 - Vercel freshness is triggered by `Trigger Vercel Refresh -> Vercel Deploy Hook`
+- `Trigger Vercel Refresh` now verifies that `site-data.json.generated_at` actually advances after the hook fires
+- `Watch News Freshness` now runs on a schedule and auto-triggers the deploy hook again if Vercel becomes stale
 - GitHub Actions only send a lightweight hook ping; Vercel owns the actual build
 - Public static builds keep `NEWSBOT_TELEGRAM_INPUT_ENABLED=false`
 - Backup GitHub Pages builds seed from `https://newsbot9.vercel.app/data/site-data.json`
+- `scripts/vercel_build.py` builds news-first by default and only refreshes crypto fallback data when `NEWSBOT_REFRESH_SCANNER_FALLBACK=true`
+- `Refresh Crypto Fallback Data` now runs as a slower hourly auxiliary job so fallback snapshots do not stay frozen forever

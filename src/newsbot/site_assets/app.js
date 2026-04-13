@@ -14,6 +14,10 @@ const refs = {
   refreshLabel: document.getElementById("refresh-label"),
   refreshTitle: document.getElementById("refresh-title"),
   refreshTime: document.getElementById("refresh-time"),
+  contentLatestTime: document.getElementById("content-latest-time"),
+  freshFetchPill: document.getElementById("fresh-fetch-pill"),
+  archiveSeedPill: document.getElementById("archive-seed-pill"),
+  surfacePill: document.getElementById("surface-pill"),
   statusLine: document.getElementById("status-line"),
   newsSections: document.getElementById("news-sections"),
   paginationNav: document.getElementById("pagination-nav"),
@@ -97,6 +101,20 @@ function formatDateTime(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(parsed);
+}
+
+function formatDeploymentSurface(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "primary") {
+    return "Primary: Vercel";
+  }
+  if (normalized === "backup") {
+    return "Backup: GitHub Pages";
+  }
+  if (normalized === "local") {
+    return "Surface: Local build";
+  }
+  return `Surface: ${normalized || "unknown"}`;
 }
 
 function getStartOfDay(date) {
@@ -251,17 +269,45 @@ function splitLeadArticles(pageArticles) {
 
 function renderRefreshStrip() {
   const generatedAt = parsePublishedAt(payload.generated_at);
+  const latestContentAt = parsePublishedAt(payload.content_latest_published_at);
   const ageMinutes = generatedAt
     ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 60000))
     : null;
   const isFresh = ageMinutes !== null && ageMinutes <= 15;
+  const deploymentSurface = String(payload.deployment_surface || "local").trim().toLowerCase();
+  const freshFetchCount = Number.parseInt(payload.fresh_fetch_count || "0", 10) || 0;
+  const archiveSeededCount = Number.parseInt(payload.archive_seeded_count || "0", 10) || 0;
   refs.refreshSpotlight.classList.toggle("is-fresh", Boolean(isFresh));
-  refs.refreshLabel.textContent = isFresh ? "Just Updated" : "Latest Refresh";
-  refs.refreshTitle.textContent = isFresh
-    ? "Tracking headline flow from the latest completed news batch."
-    : "Showing headline flow from the latest completed news batch.";
+  refs.refreshSpotlight.classList.toggle("is-backup", deploymentSurface === "backup");
+  refs.refreshLabel.textContent =
+    deploymentSurface === "backup"
+      ? "Backup Surface"
+      : isFresh
+        ? "Just Updated"
+        : "Latest Refresh";
+  refs.refreshTitle.textContent =
+    deploymentSurface === "backup"
+      ? "Showing headline flow from the latest completed backup batch."
+      : isFresh
+        ? "Tracking headline flow from the latest completed news batch."
+        : "Showing headline flow from the latest completed news batch.";
   refs.refreshTime.textContent = formatDateTime(payload.generated_at);
   refs.refreshTime.dateTime = payload.generated_at;
+  if (refs.contentLatestTime) {
+    refs.contentLatestTime.textContent = formatDateTime(payload.content_latest_published_at);
+    refs.contentLatestTime.dateTime = latestContentAt
+      ? latestContentAt.toISOString()
+      : "";
+  }
+  if (refs.freshFetchPill) {
+    refs.freshFetchPill.textContent = `${freshFetchCount} fresh fetches`;
+  }
+  if (refs.archiveSeedPill) {
+    refs.archiveSeedPill.textContent = `${archiveSeededCount} archive-seeded`;
+  }
+  if (refs.surfacePill) {
+    refs.surfacePill.textContent = formatDeploymentSurface(deploymentSurface);
+  }
 }
 
 function renderHubFilters() {

@@ -2,6 +2,8 @@ name: Watch News Freshness
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "11,26,41,56 * * * *"
 
 permissions:
   contents: read
@@ -9,37 +11,103 @@ permissions:
 jobs:
   watchdog:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SITE_DATA_URL: https://newsbot9.vercel.app/data/site-data.json
+      VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
     steps:
-      - name: Check Vercel and GitHub Pages news freshness
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const targets = [
-              { name: 'Vercel', url: 'https://newsbot9.vercel.app/data/site-data.json', maxAgeMinutes: 15 },
-              { name: 'GitHub Pages', url: 'https://cys123431-ship-it.github.io/newsbot/data/site-data.json', maxAgeMinutes: 60 },
-            ];
-            let failures = 0;
-            for (const target of targets) {
-              const response = await fetch(target.url, { cache: 'no-store' });
-              if (!response.ok) {
-                core.error(`${target.name}: failed to fetch site-data.json (${response.status})`);
-                failures += 1;
-                continue;
-              }
-              const payload = await response.json();
-              const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
-              if (!generatedAt || Number.isNaN(generatedAt.getTime())) {
-                core.error(`${target.name}: site-data.json is missing generated_at`);
-                failures += 1;
-                continue;
-              }
-              const ageMinutes = (Date.now() - generatedAt.getTime()) / 60000;
-              core.info(`${target.name}: generated_at=${payload.generated_at} ageMinutes=${ageMinutes.toFixed(1)}`);
-              if (ageMinutes > target.maxAgeMinutes) {
-                core.error(`${target.name}: freshness exceeded ${target.maxAgeMinutes} minutes.`);
-                failures += 1;
-              }
-            }
-            if (failures > 0) {
-              core.setFailed(`Freshness check failed for ${failures} target(s).`);
-            }
+      - name: Check freshness and trigger remediation when stale
+        id: freshness
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.request
+          from datetime import datetime, timezone
+
+          url = os.environ["SITE_DATA_URL"]
+          max_age_minutes = 20
+
+          def fail(message: str) -> None:
+              print(message)
+              sys.exit(1)
+
+          try:
+              with urllib.request.urlopen(url, timeout=20) as response:
+                  payload = json.load(response)
+          except Exception as exc:
+              fail(f"Failed to fetch site-data.json: {exc}")
+
+          generated_at_raw = str(payload.get("generated_at") or "").strip()
+          if not generated_at_raw:
+              fail("site-data.json is missing generated_at")
+
+          try:
+              generated_at = datetime.fromisoformat(generated_at_raw.replace("Z", "+00:00"))
+          except ValueError:
+              fail(f"Invalid generated_at: {generated_at_raw}")
+
+          age_minutes = (datetime.now(timezone.utc) - generated_at).total_seconds() / 60
+          print(f"generated_at={generated_at_raw}")
+          print(f"age_minutes={age_minutes:.1f}")
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as handle:
+              handle.write(f"generated_at={generated_at_raw}\n")
+              handle.write(f"age_minutes={age_minutes:.2f}\n")
+              handle.write(f"should_trigger={'true' if age_minutes > max_age_minutes else 'false'}\n")
+          PY
+
+      - name: Trigger Vercel remediation deployment
+        if: steps.freshness.outputs.should_trigger == 'true'
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL secret is not configured."
+            exit 1
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+
+      - name: Verify freshness recovered
+        if: steps.freshness.outputs.should_trigger == 'true'
+        env:
+          PREVIOUS_GENERATED_AT: ${{ steps.freshness.outputs.generated_at }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+          import urllib.request
+          from datetime import datetime
+
+          url = os.environ["SITE_DATA_URL"]
+          previous_raw = os.environ.get("PREVIOUS_GENERATED_AT", "").strip()
+          previous_generated_at = datetime.fromisoformat(previous_raw.replace("Z", "+00:00"))
+          deadline = time.time() + (10 * 60)
+
+          while time.time() < deadline:
+              try:
+                  with urllib.request.urlopen(url, timeout=20) as response:
+                      payload = json.load(response)
+                  current_raw = str(payload.get("generated_at") or "").strip()
+                  current_generated_at = datetime.fromisoformat(current_raw.replace("Z", "+00:00"))
+                  print(f"Current generated_at={current_raw}")
+              except Exception as exc:
+                  print(f"Freshness re-check failed: {exc}")
+                  time.sleep(30)
+                  continue
+
+              if current_generated_at > previous_generated_at:
+                  print("Freshness recovered after remediation trigger.")
+                  sys.exit(0)
+              time.sleep(30)
+
+          print("Freshness watchdog triggered remediation, but Vercel site-data.json stayed stale.")
+          sys.exit(1)
+          PY
+
+      - name: Report healthy freshness
+        if: steps.freshness.outputs.should_trigger != 'true'
+        run: |
+          echo "Vercel news freshness is healthy (age_minutes=${{ steps.freshness.outputs.age_minutes }})."

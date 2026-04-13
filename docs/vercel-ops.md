@@ -49,7 +49,11 @@ Use a Vercel Deploy Hook instead of Vercel Hobby Cron.
 4. Point it to the `main` branch.
 5. Copy the generated hook URL.
 
-By default this repository now includes `.github/workflows/vercel-refresh.yml`, a very light GitHub Actions scheduler that only sends a `POST` to the deploy hook every 12 minutes. It does not build the site inside GitHub Actions; Vercel still owns the actual build.
+By default this repository now includes `.github/workflows/vercel-refresh.yml`, a very light GitHub Actions scheduler that sends a `POST` to the deploy hook every 12 minutes and then verifies that `https://newsbot9.vercel.app/data/site-data.json` actually becomes fresher. It does not build the site inside GitHub Actions; Vercel still owns the actual build.
+
+The repository also includes `.github/workflows/news-freshness-watchdog.yml`, which now runs on a schedule and re-triggers the deploy hook if the Vercel surface becomes stale for more than 20 minutes.
+
+Crypto fallback snapshots are refreshed separately by `.github/workflows/data-cron.yml` on a slower hourly cadence, so Vercel news freshness is no longer blocked on regenerating scanner artifacts every deploy.
 
 If you prefer, you can still replace that lightweight scheduler with `cron-job.org` later:
 
@@ -62,6 +66,8 @@ If you prefer, you can still replace that lightweight scheduler with `cron-job.o
 The deploy hook does not need a custom request body.
 
 GitHub Actions should stay light here. Keep heavy news freshness work off Actions and let Vercel own the build itself.
+
+`scripts/vercel_build.py` now defaults to a news-first build path. It runs `newsbot.site_builder` and validation on every Vercel deployment, but only refreshes crypto fallback snapshots when `NEWSBOT_REFRESH_SCANNER_FALLBACK=true`.
 
 ## Verification Checklist
 
@@ -84,7 +90,7 @@ If the news timestamp stalls:
 2. Confirm all required environment variables are still present.
 3. Confirm `Trigger Vercel Refresh` or `cron-job.org` shows successful `POST` executions.
 4. Confirm `NEWSBOT_STATIC_ARCHIVE_URL` still points to `https://newsbot9.vercel.app/data/site-data.json`.
-5. Run `.github/workflows/news-freshness-watchdog.yml` manually to compare Vercel and GitHub Pages freshness.
+5. Check whether `Watch News Freshness` auto-remediation runs are failing, and only fall back to manual execution if needed.
 
 If the coin fallback breaks on Vercel but not on GitHub Pages:
 

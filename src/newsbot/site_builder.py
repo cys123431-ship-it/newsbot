@@ -446,6 +446,15 @@ def validate_site_output(output_dir: Path) -> None:
         raise ValueError(f"Invalid site data payload JSON: {site_data_path}") from exc
     if not isinstance(site_data_payload, dict):
         raise ValueError(f"Site data payload must be a JSON object: {site_data_path}")
+    for key in (
+        "generated_at",
+        "content_latest_published_at",
+        "fresh_fetch_count",
+        "archive_seeded_count",
+        "deployment_surface",
+    ):
+        if key not in site_data_payload:
+            raise ValueError(f"Site data payload missing {key}: {site_data_path}")
 
     thumbnail_health = site_data_payload.get("thumbnail_health")
     if not isinstance(thumbnail_health, dict):
@@ -899,7 +908,7 @@ async def collect_site_payload(
     async with httpx.AsyncClient(
         follow_redirects=True,
         headers={"User-Agent": "newsbot-static/0.1"},
-        timeout=settings.request_timeout_sec,
+        timeout=settings.static_source_timeout_sec,
     ) as client:
         tasks = [
             _collect_source(
@@ -939,7 +948,7 @@ async def collect_site_payload(
     async with httpx.AsyncClient(
         follow_redirects=True,
         headers={"User-Agent": "newsbot-static/0.1"},
-        timeout=settings.request_timeout_sec,
+        timeout=settings.static_page_fetch_timeout_sec,
     ) as client:
         deduped_articles = await _backfill_static_article_thumbnails(
             deduped_articles,
@@ -947,6 +956,25 @@ async def collect_site_payload(
             source_definitions=source_definitions,
         )
     deduped_articles = _apply_thumbnail_placeholders(deduped_articles)
+    fresh_urls = {
+        article.canonical_url
+        for article in gathered_articles
+        if article.canonical_url
+    }
+    archive_urls = {
+        article.canonical_url
+        for article in seeded_archive_articles
+        if article.canonical_url
+    }
+    published_urls = {
+        article.canonical_url
+        for article in deduped_articles
+        if article.canonical_url
+    }
+    latest_published_at = max(
+        (article.published_at for article in deduped_articles if article.published_at is not None),
+        default=None,
+    )
     published_counts = Counter(article.source_key for article in deduped_articles)
     for status in statuses:
         status.published_count = published_counts.get(status.source_key, 0)
@@ -973,6 +1001,12 @@ async def collect_site_payload(
 
     payload = {
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "content_latest_published_at": latest_published_at.isoformat() if latest_published_at else None,
+        "fresh_fetch_count": sum(1 for url in published_urls if url in fresh_urls),
+        "archive_seeded_count": sum(
+            1 for url in published_urls if url in archive_urls and url not in fresh_urls
+        ),
+        "deployment_surface": settings.deployment_surface,
         "article_count": len(deduped_articles),
         "removed_article_count": len(evicted_articles),
         "removed_articles_log_path": f"data/{REMOVED_ARTICLES_LOG_FILENAME}",
@@ -2670,6 +2704,10 @@ def _write_static_site(
     html = template.render(
         article_count=payload["article_count"],
         generated_at=payload["generated_at"],
+        content_latest_published_at=payload.get("content_latest_published_at"),
+        fresh_fetch_count=payload.get("fresh_fetch_count", 0),
+        archive_seeded_count=payload.get("archive_seeded_count", 0),
+        deployment_surface=payload.get("deployment_surface", "local"),
         asset_version=asset_version,
         hubs=payload["hubs"],
         categories=payload["categories"],
@@ -2698,6 +2736,7 @@ def _write_static_site(
                 "live_worker_url": page_spec["asset_prefix"] + f"/crypto-live-worker.js?v={asset_version}",
                 "scanner_manifest_url": page_spec["data_prefix"] + f"/{SCANNER_DIRECTORY_NAME}/{SCANNER_MANIFEST_FILENAME}",
                 "site_root_prefix": page_spec["root_prefix"],
+                "deployment_surface": payload.get("deployment_surface", "local"),
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -2787,7 +2826,7 @@ def _load_archive_articles(settings: Settings, output_dir: Path) -> list[StaticA
     if payload is None and settings.static_archive_url:
         payload = _load_archive_payload_from_url(
             settings.static_archive_url,
-            timeout_seconds=settings.request_timeout_sec,
+            timeout_seconds=settings.static_archive_timeout_sec,
         )
     if not payload:
         return []
@@ -2822,7 +2861,7 @@ def _load_removed_article_log(settings: Settings, output_dir: Path) -> str:
         if log_url:
             text = _load_text_from_url(
                 log_url,
-                timeout_seconds=settings.request_timeout_sec,
+                timeout_seconds=settings.static_archive_timeout_sec,
             )
     return text or ""
 
@@ -2838,7 +2877,7 @@ def _load_analysis_state(settings: Settings, output_dir: Path) -> dict[str, Any]
     if payload is None and analysis_archive_url:
         payload = _load_archive_payload_from_url(
             analysis_archive_url,
-            timeout_seconds=settings.request_timeout_sec,
+            timeout_seconds=settings.static_archive_timeout_sec,
         )
     return payload if isinstance(payload, dict) else None
 
@@ -2862,7 +2901,7 @@ def _load_markets_archives(
             if related_url:
                 payload = _load_archive_payload_from_url(
                     related_url,
-                    timeout_seconds=settings.request_timeout_sec,
+                    timeout_seconds=settings.static_archive_timeout_sec,
                 )
         archives[key] = payload if isinstance(payload, dict) else None
     return archives

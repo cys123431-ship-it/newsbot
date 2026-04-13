@@ -17,9 +17,13 @@ def _python_env(src_dir: Path) -> dict[str, str]:
     env["NEWSBOT_ENABLE_SCHEDULER"] = "false"
     env["NEWSBOT_BOOTSTRAP_ON_STARTUP"] = "false"
     env["NEWSBOT_TELEGRAM_INPUT_ENABLED"] = "false"
-    env.setdefault("NEWSBOT_REQUEST_TIMEOUT_SEC", "8")
+    env.setdefault("NEWSBOT_DEPLOYMENT_SURFACE", "primary")
+    env.setdefault("NEWSBOT_REQUEST_TIMEOUT_SEC", "10")
     env.setdefault("NEWSBOT_MAX_RETRIES", "2")
-    env.setdefault("NEWSBOT_STATIC_FETCH_CONCURRENCY", "8")
+    env.setdefault("NEWSBOT_STATIC_FETCH_CONCURRENCY", "6")
+    env.setdefault("NEWSBOT_STATIC_SOURCE_TIMEOUT_SEC", "12")
+    env.setdefault("NEWSBOT_STATIC_PAGE_FETCH_TIMEOUT_SEC", "6")
+    env.setdefault("NEWSBOT_STATIC_ARCHIVE_TIMEOUT_SEC", "5")
     env.setdefault("NEWSBOT_STATIC_MIN_ARTICLES_TO_PUBLISH", "20")
     env.setdefault("NEWSBOT_STATIC_MAX_TOTAL_ARTICLES", "2000")
     env.setdefault("NEWSBOT_STATIC_ARCHIVE_URL", "https://newsbot9.vercel.app/data/site-data.json")
@@ -40,12 +44,19 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     src_dir = repo_root / "src"
 
-    _run_step(
-        "refreshing crypto fallback datasets",
-        [sys.executable, str(repo_root / "scripts" / "update_data.py")],
-        repo_root=repo_root,
-        src_dir=src_dir,
-    )
+    refresh_scanner_fallback = os.getenv("NEWSBOT_REFRESH_SCANNER_FALLBACK", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if refresh_scanner_fallback:
+        _run_step(
+            "refreshing crypto fallback datasets",
+            [sys.executable, str(repo_root / "scripts" / "update_data.py")],
+            repo_root=repo_root,
+            src_dir=src_dir,
+        )
     _run_step(
         "building static site",
         [sys.executable, "-m", "newsbot.site_builder"],

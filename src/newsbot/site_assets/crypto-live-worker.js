@@ -2,7 +2,10 @@
 
 const BINANCE_BASE_URL = "https://fapi.binance.com";
 const KLINE_LIMIT = 220;
-const REQUEST_CONCURRENCY = 10;
+const REQUEST_CONCURRENCY = 8;
+const UNIVERSE_SHORTLIST_LIMIT = 150;
+const FETCH_TIMEOUT_MS = 6_500;
+const FETCH_RETRY_COUNT = 1;
 const TIMEFRAMES = ["5m", "15m", "1h", "4h"];
 const TIMEFRAME_WEIGHTS = { "5m": 15, "15m": 20, "1h": 30, "4h": 35 };
 const TIMEFRAME_LABELS = {
@@ -19,8 +22,10 @@ const UNIVERSE_WEIGHT_OPEN_INTEREST = 0.35;
 
 const CACHE_TTL_MS = 90_000;
 const universeCache = new Map();
+const universePromiseCache = new Map();
 const pageCache = new Map();
 const analysisCache = new Map();
+const analysisPromiseCache = new Map();
 
 self.onmessage = async (event) => {
   const message = event.data || {};
@@ -77,135 +82,153 @@ async function loadUniverse(universeKey, force = false) {
   if (!force && cached && Date.now() - cached.storedAt <= CACHE_TTL_MS) {
     return cached.data;
   }
+  if (!force && universePromiseCache.has(universeKey)) {
+    return universePromiseCache.get(universeKey);
+  }
 
-  const [exchangeInfo, tickerRows, premiumRows] = await Promise.all([
-    fetchJson("/fapi/v1/exchangeInfo"),
-    fetchJson("/fapi/v1/ticker/24hr"),
-    fetchJson("/fapi/v1/premiumIndex"),
-  ]);
+  const promise = (async () => {
+    const [exchangeInfo, tickerRows, premiumRows] = await Promise.all([
+      fetchJson("/fapi/v1/exchangeInfo"),
+      fetchJson("/fapi/v1/ticker/24hr"),
+      fetchJson("/fapi/v1/premiumIndex"),
+    ]);
 
-  const tradableSymbols = new Set(
-    (Array.isArray(exchangeInfo?.symbols) ? exchangeInfo.symbols : [])
-      .filter(
-        (row) =>
-          row?.status === "TRADING" &&
-          row?.contractType === "PERPETUAL" &&
-          row?.quoteAsset === "USDT",
+    const tradableSymbols = new Set(
+      (Array.isArray(exchangeInfo?.symbols) ? exchangeInfo.symbols : [])
+        .filter(
+          (row) =>
+            row?.status === "TRADING" &&
+            row?.contractType === "PERPETUAL" &&
+            row?.quoteAsset === "USDT",
+        )
+        .map((row) => String(row.symbol || "").toUpperCase()),
+    );
+
+    const premiumLookup = {};
+    for (const row of Array.isArray(premiumRows) ? premiumRows : []) {
+      const symbol = String(row.symbol || "").toUpperCase();
+      if (!symbol.endsWith("USDT") || symbol.endsWith("BUSD") || !tradableSymbols.has(symbol)) {
+        continue;
+      }
+      premiumLookup[symbol] = safeNumber(row.lastFundingRate) * 100;
+    }
+
+    const tickerLookup = {};
+    for (const row of Array.isArray(tickerRows) ? tickerRows : []) {
+      const symbol = String(row.symbol || "").toUpperCase();
+      if (!symbol.endsWith("USDT") || symbol.endsWith("BUSD")) {
+        continue;
+      }
+      if (!tradableSymbols.has(symbol)) {
+        continue;
+      }
+      const quoteVolume = safeNumber(row.quoteVolume);
+      if (quoteVolume <= 0) {
+        continue;
+      }
+      tickerLookup[symbol] = {
+        symbol,
+        last_price: safeNumber(row.lastPrice),
+        change_24h: safeNumber(row.priceChangePercent),
+        quote_volume: quoteVolume,
+        count: safeNumber(row.count),
+      };
+    }
+
+    const shortlistedSymbols = Object.values(tickerLookup)
+      .sort(
+        (left, right) =>
+          right.quote_volume - left.quote_volume || left.symbol.localeCompare(right.symbol),
       )
-      .map((row) => String(row.symbol || "").toUpperCase()),
-  );
+      .slice(0, Math.max(preset.limit, UNIVERSE_SHORTLIST_LIMIT))
+      .map((row) => row.symbol);
 
-  const premiumLookup = {};
-  for (const row of Array.isArray(premiumRows) ? premiumRows : []) {
-    const symbol = String(row.symbol || "").toUpperCase();
-    if (!symbol.endsWith("USDT") || symbol.endsWith("BUSD") || !tradableSymbols.has(symbol)) {
-      continue;
-    }
-    premiumLookup[symbol] = safeNumber(row.lastFundingRate) * 100;
-  }
+    const openInterestLookup = await loadOpenInterestUsd(shortlistedSymbols, tickerLookup);
+    const normalizedQuoteLookup = normalizeMetricLookup(
+      Object.fromEntries(
+        shortlistedSymbols.map((symbol) => [symbol, safeNumber(tickerLookup[symbol]?.quote_volume)]),
+      ),
+    );
+    const normalizedOpenInterestLookup = normalizeMetricLookup(openInterestLookup);
+    let scoredSymbols = shortlistedSymbols
+      .filter((symbol) => safeNumber(openInterestLookup[symbol]) > 0)
+      .map((symbol) => {
+        const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
+        const normalizedOpenInterestUsd = safeNumber(normalizedOpenInterestLookup[symbol]);
+        const universeScore = round(
+          (normalizedQuoteVolume * UNIVERSE_WEIGHT_QUOTE_VOLUME) +
+            (normalizedOpenInterestUsd * UNIVERSE_WEIGHT_OPEN_INTEREST),
+          2,
+        );
+        tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
+        tickerLookup[symbol].normalized_open_interest_usd = round(normalizedOpenInterestUsd, 2);
+        tickerLookup[symbol].universe_score = universeScore;
+        tickerLookup[symbol].open_interest_usd = round(safeNumber(openInterestLookup[symbol]), 2);
+        return { symbol, universeScore };
+      });
 
-  const tickerLookup = {};
-  for (const row of Array.isArray(tickerRows) ? tickerRows : []) {
-    const symbol = String(row.symbol || "").toUpperCase();
-    if (!symbol.endsWith("USDT") || symbol.endsWith("BUSD")) {
-      continue;
+    if (!scoredSymbols.length) {
+      scoredSymbols = shortlistedSymbols.map((symbol) => {
+        const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
+        const universeScore = round(normalizedQuoteVolume, 2);
+        tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
+        tickerLookup[symbol].normalized_open_interest_usd = 0;
+        tickerLookup[symbol].universe_score = universeScore;
+        tickerLookup[symbol].open_interest_usd = 0;
+        return { symbol, universeScore };
+      });
     }
-    if (!tradableSymbols.has(symbol)) {
-      continue;
-    }
-    const quoteVolume = safeNumber(row.quoteVolume);
-    if (quoteVolume <= 0) {
-      continue;
-    }
-    tickerLookup[symbol] = {
-      symbol,
-      last_price: safeNumber(row.lastPrice),
-      change_24h: safeNumber(row.priceChangePercent),
-      quote_volume: quoteVolume,
-      count: safeNumber(row.count),
+
+    const universeScoreLookup = Object.fromEntries(
+      scoredSymbols.map((entry) => [entry.symbol, entry.universeScore]),
+    );
+    const symbols = scoredSymbols
+      .sort(
+        (left, right) =>
+          right.universeScore - left.universeScore ||
+          tickerLookup[right.symbol].quote_volume - tickerLookup[left.symbol].quote_volume ||
+          left.symbol.localeCompare(right.symbol),
+      )
+      .slice(0, preset.limit)
+      .map((entry) => entry.symbol);
+
+    const data = {
+      universeKey,
+      preset,
+      symbols,
+      tickerLookup,
+      premiumLookup,
+      openInterestLookup,
+      normalizedQuoteLookup,
+      normalizedOpenInterestLookup,
+      universeScoreLookup,
     };
+    universeCache.set(universeKey, { storedAt: Date.now(), data });
+    return data;
+  })();
+
+  universePromiseCache.set(universeKey, promise);
+  try {
+    return await promise;
+  } finally {
+    if (universePromiseCache.get(universeKey) === promise) {
+      universePromiseCache.delete(universeKey);
+    }
   }
-
-  const openInterestLookup = await loadOpenInterestUsd(Object.keys(tickerLookup), tickerLookup);
-  const normalizedQuoteLookup = normalizeMetricLookup(
-    Object.fromEntries(
-      Object.entries(tickerLookup).map(([symbol, row]) => [symbol, row.quote_volume]),
-    ),
-  );
-  const normalizedOpenInterestLookup = normalizeMetricLookup(openInterestLookup);
-  let scoredSymbols = Object.keys(tickerLookup)
-    .filter((symbol) => safeNumber(openInterestLookup[symbol]) > 0)
-    .map((symbol) => {
-      const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
-      const normalizedOpenInterestUsd = safeNumber(normalizedOpenInterestLookup[symbol]);
-      const universeScore = round(
-        (normalizedQuoteVolume * UNIVERSE_WEIGHT_QUOTE_VOLUME) +
-          (normalizedOpenInterestUsd * UNIVERSE_WEIGHT_OPEN_INTEREST),
-        2,
-      );
-      tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
-      tickerLookup[symbol].normalized_open_interest_usd = round(normalizedOpenInterestUsd, 2);
-      tickerLookup[symbol].universe_score = universeScore;
-      tickerLookup[symbol].open_interest_usd = round(safeNumber(openInterestLookup[symbol]), 2);
-      return { symbol, universeScore };
-    });
-
-  if (!scoredSymbols.length) {
-    scoredSymbols = Object.keys(tickerLookup).map((symbol) => {
-      const normalizedQuoteVolume = safeNumber(normalizedQuoteLookup[symbol]);
-      const universeScore = round(normalizedQuoteVolume, 2);
-      tickerLookup[symbol].normalized_quote_volume = round(normalizedQuoteVolume, 2);
-      tickerLookup[symbol].normalized_open_interest_usd = 0;
-      tickerLookup[symbol].universe_score = universeScore;
-      tickerLookup[symbol].open_interest_usd = 0;
-      return { symbol, universeScore };
-    });
-  }
-
-  const universeScoreLookup = Object.fromEntries(scoredSymbols.map((entry) => [entry.symbol, entry.universeScore]));
-  const symbols = scoredSymbols
-    .sort(
-      (left, right) =>
-        right.universeScore - left.universeScore ||
-        tickerLookup[right.symbol].quote_volume - tickerLookup[left.symbol].quote_volume ||
-        left.symbol.localeCompare(right.symbol),
-    )
-    .slice(0, preset.limit)
-    .map((entry) => entry.symbol);
-
-  const data = {
-    universeKey,
-    preset,
-    symbols,
-    tickerLookup,
-    premiumLookup,
-    openInterestLookup,
-    normalizedQuoteLookup,
-    normalizedOpenInterestLookup,
-    universeScoreLookup,
-  };
-  universeCache.set(universeKey, { storedAt: Date.now(), data });
-  return data;
 }
 
 async function buildOverviewPayload({ generatedAt, universeKey, timeframe, universe, force }) {
   const symbols = universe.symbols.slice(0, universe.preset.limit);
-  const [analyses, analysesByTimeframe] = await Promise.all([
-    getAnalysesForTimeframe({
-      timeframe,
-      universe,
-      universeKey,
-      symbols,
-      force,
-    }),
-    loadAnalysesByTimeframe({
-      timeframes: TIMEFRAMES,
-      universe,
-      universeKey,
-      symbols,
-      force,
-    }),
-  ]);
+  const analysesByTimeframe = await loadAnalysesByTimeframe({
+    timeframes: TIMEFRAMES,
+    universe,
+    universeKey,
+    symbols,
+    force,
+  });
+  const analyses = Array.isArray(analysesByTimeframe[timeframe])
+    ? analysesByTimeframe[timeframe]
+    : [];
 
   const payload = buildPayloadForPage({
     pageKey: "overview",
@@ -318,6 +341,9 @@ async function buildMultiTimeframePayload({ generatedAt, universeKey, universe, 
     page_label: "멀티 타임프레임",
     generated_at: generatedAt,
     data_source: "binance_live",
+    data_origin: "live_binance",
+    fallback_reason: null,
+    fallback_generated_at: null,
     universe_key: universeKey,
     universe_label: universe.preset.label,
     timeframe: "5m",
@@ -352,41 +378,55 @@ async function loadAnalysesByTimeframe({ timeframes, universe, universeKey, symb
 }
 
 async function getAnalysesForTimeframe({ timeframe, universe, universeKey, symbols, force = false }) {
-  const cacheKey = [universeKey, timeframe, symbols.length].join("|");
+  const cacheKey = [universeKey, timeframe, symbols.join(",")].join("|");
   const cached = analysisCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.storedAt <= CACHE_TTL_MS) {
     return cached.analyses;
   }
-
-  const contextPromise = loadSymbolContexts(symbols, universe, timeframe);
-  const candlesPromise = loadCandles(symbols, timeframe);
-  const [contexts, candleResult] = await Promise.all([contextPromise, candlesPromise]);
-  const analyses = [];
-  for (const symbol of symbols) {
-    const candles = candleResult.candlesBySymbol[symbol] || [];
-    if (candles.length < 60) {
-      continue;
-    }
-    const context = contexts[symbol] || {};
-    const analysis = buildSymbolAnalysis({
-      symbol,
-      timeframe,
-      candles,
-      ticker: universe.tickerLookup[symbol],
-      fundingRate: universe.premiumLookup[symbol],
-      openInterestUsd: context.open_interest_usd,
-      longShortRatio: context.long_short_ratio,
-    });
-    analysis.normalized_quote_volume = round(safeNumber(universe.normalizedQuoteLookup[symbol]), 2);
-    analysis.normalized_open_interest_usd = round(
-      safeNumber(universe.normalizedOpenInterestLookup[symbol]),
-      2,
-    );
-    analysis.universe_score = round(safeNumber(universe.universeScoreLookup[symbol]), 2);
-    analyses.push(analysis);
+  if (!force && analysisPromiseCache.has(cacheKey)) {
+    return analysisPromiseCache.get(cacheKey);
   }
-  analysisCache.set(cacheKey, { storedAt: Date.now(), analyses });
-  return analyses;
+
+  const promise = (async () => {
+    const contextPromise = loadSymbolContexts(symbols, universe, timeframe);
+    const candlesPromise = loadCandles(symbols, timeframe);
+    const [contexts, candleResult] = await Promise.all([contextPromise, candlesPromise]);
+    const analyses = [];
+    for (const symbol of symbols) {
+      const candles = candleResult.candlesBySymbol[symbol] || [];
+      if (candles.length < 60) {
+        continue;
+      }
+      const context = contexts[symbol] || {};
+      const analysis = buildSymbolAnalysis({
+        symbol,
+        timeframe,
+        candles,
+        ticker: universe.tickerLookup[symbol],
+        fundingRate: universe.premiumLookup[symbol],
+        openInterestUsd: context.open_interest_usd,
+        longShortRatio: context.long_short_ratio,
+      });
+      analysis.normalized_quote_volume = round(safeNumber(universe.normalizedQuoteLookup[symbol]), 2);
+      analysis.normalized_open_interest_usd = round(
+        safeNumber(universe.normalizedOpenInterestLookup[symbol]),
+        2,
+      );
+      analysis.universe_score = round(safeNumber(universe.universeScoreLookup[symbol]), 2);
+      analyses.push(analysis);
+    }
+    analysisCache.set(cacheKey, { storedAt: Date.now(), analyses });
+    return analyses;
+  })();
+
+  analysisPromiseCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    if (analysisPromiseCache.get(cacheKey) === promise) {
+      analysisPromiseCache.delete(cacheKey);
+    }
+  }
 }
 
 async function loadOpenInterestUsd(symbols, tickerLookup) {
@@ -520,6 +560,9 @@ function buildPayloadForPage({
     page_label: pageLabelMap[pageKey] || pageKey,
     generated_at: generatedAt,
     data_source: "binance_live",
+    data_origin: "live_binance",
+    fallback_reason: null,
+    fallback_generated_at: null,
     universe_key: universeKey,
     universe_label: universe.preset.label,
     timeframe,
@@ -1198,11 +1241,45 @@ async function fetchJson(path, params = undefined) {
       }
     }
   }
-  const response = await fetch(url.toString(), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Binance request failed: ${response.status} ${path}`);
+  let lastError = null;
+  for (let attempt = 0; attempt <= FETCH_RETRY_COUNT; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url.toString(), {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        if ((response.status === 429 || response.status >= 500) && attempt < FETCH_RETRY_COUNT) {
+          await sleep(250 * (attempt + 1));
+          continue;
+        }
+        throw new Error(`Binance request failed: ${response.status} ${path}`);
+      }
+      return response.json();
+    } catch (error) {
+      lastError = error;
+      const isRetryable =
+        error?.name === "AbortError" ||
+        /network/i.test(String(error?.message || "")) ||
+        /failed to fetch/i.test(String(error?.message || ""));
+      if (attempt < FETCH_RETRY_COUNT && isRetryable) {
+        await sleep(250 * (attempt + 1));
+        continue;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  return response.json();
+  throw lastError || new Error(`Binance request failed: ${path}`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function safeNumber(value, fallback = 0) {

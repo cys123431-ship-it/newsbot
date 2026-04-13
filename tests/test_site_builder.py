@@ -165,6 +165,10 @@ def test_collect_site_payload_cleans_archive_titles_and_filters_blocked_sources(
     assert payload["articles"][0]["title"] == '?? ?? ???? ??? "?? ??"'
     assert payload["articles"][0]["thumbnail_url"] == "https://img.example.com/thumb.jpg?x=1&y=2"
     assert payload["thumbnail_health"]["overall_coverage"]["ratio"] == 1.0
+    assert payload["content_latest_published_at"] == "2026-04-05T10:00:00+00:00"
+    assert payload["fresh_fetch_count"] == 0
+    assert payload["archive_seeded_count"] == 1
+    assert payload["deployment_surface"] == "local"
 
 
 def test_merge_articles_preserves_thumbnail_from_non_preferred_article():
@@ -605,6 +609,10 @@ def test_build_static_site_generates_dense_payload_and_files(tmp_path):
     assert file_payload["article_count"] >= 2
     assert file_payload["removed_articles_log_path"] == "data/removed-articles.txt"
     assert file_payload["warning_source_count"] == 0
+    assert "content_latest_published_at" in file_payload
+    assert "fresh_fetch_count" in file_payload
+    assert "archive_seeded_count" in file_payload
+    assert "deployment_surface" in file_payload
     assert file_payload["thumbnail_health"]["overall_coverage"]["total"] >= 2
     assert "top200_coverage" in file_payload["thumbnail_health"]
     assert "placeholder_top200_count" in file_payload["thumbnail_health"]

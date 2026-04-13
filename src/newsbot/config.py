@@ -74,6 +74,18 @@ class Settings:
         default_factory=lambda: _int_env("NEWSBOT_REQUEST_TIMEOUT_SEC", 10)
     )
     max_retries: int = field(default_factory=lambda: _int_env("NEWSBOT_MAX_RETRIES", 3))
+    static_source_timeout_sec: int = field(
+        default_factory=lambda: _int_env(
+            "NEWSBOT_STATIC_SOURCE_TIMEOUT_SEC",
+            _int_env("NEWSBOT_REQUEST_TIMEOUT_SEC", 10),
+        )
+    )
+    static_page_fetch_timeout_sec: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_PAGE_FETCH_TIMEOUT_SEC", 6)
+    )
+    static_archive_timeout_sec: int = field(
+        default_factory=lambda: _int_env("NEWSBOT_STATIC_ARCHIVE_TIMEOUT_SEC", 5)
+    )
     auto_disable_after_failures: int = field(
         default_factory=lambda: _int_env("NEWSBOT_AUTO_DISABLE_AFTER_FAILURES", 5)
     )
@@ -169,6 +181,9 @@ class Settings:
     )
     markets_max_coins: int = field(
         default_factory=lambda: _int_env("NEWSBOT_MARKETS_MAX_COINS", 120)
+    )
+    deployment_surface: str = field(
+        default_factory=lambda: (os.getenv("NEWSBOT_DEPLOYMENT_SURFACE", "local").strip().lower() or "local")
     )
 
     @property

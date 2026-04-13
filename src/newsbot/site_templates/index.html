@@ -28,12 +28,26 @@
         <div class="news-appbar-meta">
           <span class="summary-pill">{{ article_count }} articles</span>
           <span class="summary-pill">Approx. 10-15 minute batch cadence</span>
+          <span id="surface-pill" class="summary-pill">{{ deployment_surface }}</span>
         </div>
       </div>
       <div id="refresh-spotlight" class="refresh-strip">
         <span id="refresh-label" class="refresh-badge">Latest refresh</span>
         <strong id="refresh-title">Tracking headline flow from the latest completed news batch.</strong>
         <time id="refresh-time" datetime="{{ generated_at }}">{{ generated_at }}</time>
+        <div class="refresh-meta">
+          <span class="refresh-meta-item">
+            <span>Latest article</span>
+            <time
+              id="content-latest-time"
+              datetime="{{ content_latest_published_at if content_latest_published_at else generated_at }}"
+            >
+              {{ content_latest_published_at if content_latest_published_at else generated_at }}
+            </time>
+          </span>
+          <span id="fresh-fetch-pill" class="summary-pill">{{ fresh_fetch_count }} fresh</span>
+          <span id="archive-seed-pill" class="summary-pill">{{ archive_seeded_count }} archive-seeded</span>
+        </div>
       </div>
     </header>
 

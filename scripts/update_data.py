@@ -42,6 +42,7 @@ TIMEFRAMES = ("5m", "15m", "1h", "4h")
 REQUEST_TIMEOUT = float(os.getenv("NEWSBOT_REQUEST_TIMEOUT_SEC", "10"))
 REQUEST_CONCURRENCY = max(1, int(os.getenv("NEWSBOT_STATIC_FETCH_CONCURRENCY", "8")))
 KLINE_LIMIT = 220
+UNIVERSE_SHORTLIST_LIMIT = 150
 TIMEFRAME_MINUTES = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
 TIMEFRAME_WEIGHTS = {"5m": 15, "15m": 20, "1h": 30, "4h": 35}
 UNIVERSE_WEIGHT_QUOTE_VOLUME = 0.65
@@ -252,16 +253,26 @@ async def _load_universe(
             continue
         ticker_lookup[symbol] = row
 
-    open_interest_lookup = await _load_open_interest_lookup(client, list(ticker_lookup), ticker_lookup)
+    shortlisted_symbols = [
+        row["symbol"]
+        for row in sorted(
+            ticker_lookup.values(),
+            key=lambda item: (-_safe_float(item.get("quote_volume")), item["symbol"]),
+        )[: max(UNIVERSE_PRESETS[UNIVERSE_KEY]["limit"], UNIVERSE_SHORTLIST_LIMIT)]
+    ]
+
+    open_interest_lookup = await _load_open_interest_lookup(client, shortlisted_symbols, ticker_lookup)
     normalized_quote_lookup = _normalize_lookup(
         {
             symbol: row["quote_volume"]
             for symbol, row in ticker_lookup.items()
+            if symbol in shortlisted_symbols
         }
     )
     normalized_open_interest_lookup = _normalize_lookup(open_interest_lookup)
     scored_symbols = []
-    for symbol, row in ticker_lookup.items():
+    for symbol in shortlisted_symbols:
+        row = ticker_lookup[symbol]
         open_interest_usd = _safe_float(open_interest_lookup.get(symbol))
         if open_interest_usd <= 0:
             continue
@@ -279,13 +290,14 @@ async def _load_universe(
         scored_symbols.append(symbol)
 
     if not scored_symbols:
-        for symbol, row in ticker_lookup.items():
+        for symbol in shortlisted_symbols:
+            row = ticker_lookup[symbol]
             normalized_quote = normalized_quote_lookup.get(symbol, 0.0)
             row["open_interest_usd"] = 0.0
             row["normalized_quote_volume"] = round(normalized_quote, 2)
             row["normalized_open_interest_usd"] = 0.0
             row["universe_score"] = round(normalized_quote, 2)
-        scored_symbols = list(ticker_lookup)
+        scored_symbols = shortlisted_symbols
 
     ordered_symbols = sorted(
         scored_symbols,
@@ -1267,6 +1279,16 @@ def _build_page_payloads(
             "volatility": volatility_payload,
             "multi_timeframe": multi_timeframe_payload,
         }
+
+        for page_key, payload in payload_by_page.items():
+            if page_key == "patterns":
+                continue
+            payload.setdefault("data_origin", "batch_fallback")
+            payload.setdefault(
+                "fallback_reason",
+                "실시간 Binance 요청 실패 또는 제한 시 표시하는 최근 배치 fallback 데이터입니다.",
+            )
+            payload.setdefault("fallback_generated_at", generated_at)
 
         for page_key, payload in payload_by_page.items():
             if page_key == "patterns":
