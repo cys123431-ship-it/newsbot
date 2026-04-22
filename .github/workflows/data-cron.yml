@@ -2,6 +2,8 @@ name: Refresh Crypto Fallback Data
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "23 * * * *"
 
 concurrency:
   group: crypto-fallback-refresh
