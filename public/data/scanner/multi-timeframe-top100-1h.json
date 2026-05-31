@@ -1,7 +1,7 @@
 {
   "page_key": "multi_timeframe",
   "page_label": "멀티 타임프레임",
-  "generated_at": "2026-05-31T16:37:42+00:00",
+  "generated_at": "2026-05-31T18:18:29+00:00",
   "data_source": "batch_fallback",
   "universe_key": "top100",
   "universe_label": "Top 100 Symbols",
@@ -9,19 +9,19 @@
   "timeframe_label": "1h",
   "coverage_note": "멀티 타임프레임 배치 집계 10/10개 심볼 기준",
   "counts": {
-    "bullish": 5,
+    "bullish": 3,
     "bearish": 5,
-    "mixed": 0
+    "mixed": 2
   },
   "overview_featured_rows": [
     {
       "symbol": "SOLUSDT",
       "last_price": 80.06,
       "change_24h": 3.6,
-      "agreement_score": 100,
-      "consensus_label": "상승 합의",
-      "long_weight": 100,
-      "short_weight": 0,
+      "agreement_score": -10,
+      "consensus_label": "혼합",
+      "long_weight": 45,
+      "short_weight": 55,
       "primary": {
         "symbol": "SOLUSDT",
         "timeframe": "1h",
@@ -34,23 +34,23 @@
         "long_short_ratio": 1.01,
         "liquidation_pressure_usd": 97874.51,
         "scores": {
-          "moving_average": 100,
-          "oscillator": -11.4,
-          "technical": 58.3,
-          "trend": 90.1,
-          "trend_bias": 86.3,
-          "momentum": 5.5,
-          "momentum_bias": -5.5,
-          "volatility": 90.2,
+          "moving_average": 54.0,
+          "oscillator": -36.0,
+          "technical": 23.9,
+          "trend": 61.9,
+          "trend_bias": 47.1,
+          "momentum": 27.0,
+          "momentum_bias": -27.0,
+          "volatility": 90.3,
           "derivatives": 14.4,
           "derivatives_bias": 9.9,
-          "opportunity": 72.8,
-          "setup_bias": 55.3
+          "opportunity": 69.8,
+          "setup_bias": 21.8
         },
         "labels": {
-          "technical_rating": "Strong Buy",
+          "technical_rating": "Buy",
           "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
+          "momentum_bias": "과매도",
           "volatility_state": "압축",
           "derivatives_bias": "중립",
           "setup_bias": "롱 우위"
@@ -61,38 +61,38 @@
           "squeeze": true,
           "breakout_up": false,
           "breakout_down": false,
-          "divergence_candidate": true,
+          "divergence_candidate": false,
           "supertrend": "bullish",
-          "ichimoku_bias": "bullish"
+          "ichimoku_bias": "neutral"
         },
         "indicators": {
-          "ema20": 79.852,
-          "ema50": 79.521,
-          "ema200": 78.77,
-          "rsi14": 90.65,
+          "ema20": 80.116,
+          "ema50": 79.905,
+          "ema200": 78.754,
+          "rsi14": 48.31,
           "stoch_rsi": 0.0,
-          "macd_line": 0.1973,
-          "macd_signal": 0.2025,
-          "macd_histogram": -0.0052,
-          "bollinger_lower": 79.539,
-          "bollinger_mid": 79.864,
-          "bollinger_upper": 80.189,
-          "bb_width": 0.81,
-          "atr14": 0.41391,
-          "atr_pct": 0.52,
-          "adx14": 96.44,
-          "plus_di": 9.59,
-          "minus_di": 0.11,
-          "supertrend_value": 78.832,
-          "vwap": 78.647,
-          "close_vs_vwap_pct": 1.8,
-          "roc12": 0.32,
+          "macd_line": 0.08444,
+          "macd_signal": 0.10171,
+          "macd_histogram": -0.01727,
+          "bollinger_lower": 79.98,
+          "bollinger_mid": 80.134,
+          "bollinger_upper": 80.288,
+          "bb_width": 0.38,
+          "atr14": 0.43374,
+          "atr_pct": 0.54,
+          "adx14": 99.98,
+          "plus_di": 6.16,
+          "minus_di": 0.0,
+          "supertrend_value": 79.025,
+          "vwap": 78.598,
+          "close_vs_vwap_pct": 1.86,
+          "roc12": -0.08,
           "ichimoku": {
-            "tenkan": 79.997,
-            "kijun": 79.699,
-            "span_a": 79.848,
-            "span_b": 79.373,
-            "bias": "bullish"
+            "tenkan": 80.232,
+            "kijun": 80.1,
+            "span_a": 80.166,
+            "span_b": 79.933,
+            "bias": "neutral"
           }
         },
         "pattern": {
@@ -192,9 +192,7 @@
           ]
         },
         "flags": [
-          "기술 Strong Buy",
-          "볼린저 압축",
-          "다이버전스 후보"
+          "볼린저 압축"
         ],
         "data_origin": "fallback_synthetic",
         "normalized_quote_volume": 0.0,
@@ -205,40 +203,40 @@
         "5m": {
           "side": "long",
           "side_label": "롱",
-          "technical_rating": "Strong Buy",
+          "technical_rating": "Buy",
           "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 75.9,
+          "momentum_bias": "과매도",
+          "opportunity": 70.6,
           "weight": 15,
           "pattern": "Gartley"
         },
         "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
           "momentum_bias": "과매도",
-          "opportunity": 70.0,
+          "opportunity": 66.1,
           "weight": 20,
           "pattern": "Gartley"
         },
         "1h": {
           "side": "long",
           "side_label": "롱",
-          "technical_rating": "Strong Buy",
+          "technical_rating": "Buy",
           "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 72.8,
+          "momentum_bias": "과매도",
+          "opportunity": 69.8,
           "weight": 30,
           "pattern": "Gartley"
         },
         "4h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
           "momentum_bias": "과매도",
-          "opportunity": 69.7,
+          "opportunity": 66.1,
           "weight": 35,
           "pattern": "Gartley"
         }
@@ -249,21 +247,7 @@
           "timeframe_label": "5m",
           "side": "long",
           "side_label": "롱",
-          "opportunity": 75.9
-        },
-        {
-          "timeframe": "15m",
-          "timeframe_label": "15m",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 70.0
-        },
-        {
-          "timeframe": "4h",
-          "timeframe_label": "4h",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 69.7
+          "opportunity": 70.6
         }
       ],
       "featured_slot": {
@@ -271,17 +255,17 @@
         "timeframe_label": "5m",
         "side": "long",
         "side_label": "롱",
-        "opportunity": 75.9
+        "opportunity": 70.6
       }
     },
     {
       "symbol": "ETHUSDT",
       "last_price": 3315.0,
       "change_24h": -2.7,
-      "agreement_score": -100,
+      "agreement_score": -40,
       "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
+      "long_weight": 30,
+      "short_weight": 70,
       "primary": {
         "symbol": "ETHUSDT",
         "timeframe": "1h",
@@ -294,181 +278,25 @@
         "long_short_ratio": 0.955,
         "liquidation_pressure_usd": 147744.0,
         "scores": {
-          "moving_average": -54.0,
-          "oscillator": 43.2,
-          "technical": -20.3,
-          "trend": 62.1,
-          "trend_bias": -47.3,
-          "momentum": 34.8,
-          "momentum_bias": 34.8,
-          "volatility": 90.0,
+          "moving_average": -12.0,
+          "oscillator": 56.5,
+          "technical": 8.4,
+          "trend": 22.6,
+          "trend_bias": -10.3,
+          "momentum": 46.6,
+          "momentum_bias": 46.6,
+          "volatility": 90.2,
           "derivatives": 28.1,
           "derivatives_bias": 18.8,
-          "opportunity": 39.3,
-          "setup_bias": -18.7
+          "opportunity": 29.9,
+          "setup_bias": 9.5
         },
         "labels": {
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
           "momentum_bias": "과매수",
           "volatility_state": "압축",
           "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": false,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "neutral"
-        },
-        "indicators": {
-          "ema20": 3311.23,
-          "ema50": 3319.29,
-          "ema200": 3353.26,
-          "rsi14": 58.17,
-          "stoch_rsi": 100.0,
-          "macd_line": -2.34385,
-          "macd_signal": -2.89679,
-          "macd_histogram": 0.55294,
-          "bollinger_lower": 3306.29,
-          "bollinger_mid": 3311.09,
-          "bollinger_upper": 3315.88,
-          "bb_width": 0.29,
-          "atr14": 16.163,
-          "atr_pct": 0.49,
-          "adx14": 99.45,
-          "plus_di": 0.01,
-          "minus_di": 6.74,
-          "supertrend_value": 3358.04,
-          "vwap": 3358.16,
-          "close_vs_vwap_pct": -1.29,
-          "roc12": 0.08,
-          "ichimoku": {
-            "tenkan": 3308.97,
-            "kijun": 3311.29,
-            "span_a": 3310.13,
-            "span_b": 3322.02,
-            "bias": "neutral"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "볼린저 압축"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 71.2,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 68.6,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 39.3,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 50.7,
-          "weight": 35,
-          "pattern": ""
-        }
-      },
-      "source_slots": [
-        {
-          "timeframe": "5m",
-          "timeframe_label": "5m",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 71.2
-        },
-        {
-          "timeframe": "15m",
-          "timeframe_label": "15m",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 68.6
-        }
-      ],
-      "featured_slot": {
-        "timeframe": "5m",
-        "timeframe_label": "5m",
-        "side": "short",
-        "side_label": "숏",
-        "opportunity": 71.2
-      }
-    },
-    {
-      "symbol": "BTCUSDT",
-      "last_price": 68320.0,
-      "change_24h": 1.8,
-      "agreement_score": 30,
-      "consensus_label": "상승 합의",
-      "long_weight": 65,
-      "short_weight": 35,
-      "primary": {
-        "symbol": "BTCUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 68320.0,
-        "change_24h": 1.8,
-        "quote_volume": 9450000000.0,
-        "funding_rate": -0.0096,
-        "open_interest_usd": 3850000000.0,
-        "long_short_ratio": 0.74,
-        "liquidation_pressure_usd": 238140.0,
-        "scores": {
-          "moving_average": 100,
-          "oscillator": 57.1,
-          "technical": 78.6,
-          "trend": 89.8,
-          "trend_bias": 85.8,
-          "momentum": 52.9,
-          "momentum_bias": 52.9,
-          "volatility": 90.1,
-          "derivatives": 44.7,
-          "derivatives_bias": 38.0,
-          "opportunity": 73.7,
-          "setup_bias": 76.0
-        },
-        "labels": {
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "숏 과밀",
           "setup_bias": "롱 우위"
         },
         "side": "long",
@@ -478,42 +306,41 @@
           "breakout_up": true,
           "breakout_down": false,
           "divergence_candidate": false,
-          "supertrend": "bullish",
+          "supertrend": "bearish",
           "ichimoku_bias": "bullish"
         },
         "indicators": {
-          "ema20": 67987.72,
-          "ema50": 67813.95,
-          "ema200": 67643.79,
-          "rsi14": 98.51,
+          "ema20": 3307.23,
+          "ema50": 3310.56,
+          "ema200": 3351.57,
+          "rsi14": 88.76,
           "stoch_rsi": 100.0,
-          "macd_line": 134.03373,
-          "macd_signal": 122.75029,
-          "macd_histogram": 11.28344,
-          "bollinger_lower": 67749.47,
-          "bollinger_mid": 67987.97,
-          "bollinger_upper": 68226.47,
-          "bb_width": 0.7,
-          "atr14": 347.699,
-          "atr_pct": 0.51,
-          "adx14": 90.82,
-          "plus_di": 8.77,
-          "minus_di": 0.24,
-          "supertrend_value": 67058.67,
-          "vwap": 67602.98,
-          "close_vs_vwap_pct": 1.06,
-          "roc12": 0.55,
+          "macd_line": 0.39916,
+          "macd_signal": -0.26117,
+          "macd_histogram": 0.66034,
+          "bollinger_lower": 3303.15,
+          "bollinger_mid": 3306.9,
+          "bollinger_upper": 3310.64,
+          "bb_width": 0.23,
+          "atr14": 17.657,
+          "atr_pct": 0.53,
+          "adx14": 27.13,
+          "plus_di": 1.73,
+          "minus_di": 2.65,
+          "supertrend_value": 3354.27,
+          "vwap": 3356.58,
+          "close_vs_vwap_pct": -1.24,
+          "roc12": 0.25,
           "ichimoku": {
-            "tenkan": 68072.04,
-            "kijun": 67876.75,
-            "span_a": 67974.4,
-            "span_b": 67704.35,
+            "tenkan": 3306.08,
+            "kijun": 3306.33,
+            "span_a": 3306.21,
+            "span_b": 3306.88,
             "bias": "bullish"
           }
         },
         "pattern": null,
         "flags": [
-          "기술 Strong Buy",
           "볼린저 압축",
           "상방 돌파"
         ],
@@ -524,648 +351,72 @@
       },
       "timeframes": {
         "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 73.2,
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 71.0,
           "weight": 15,
           "pattern": ""
         },
         "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "하락 추세",
           "momentum_bias": "과매수",
-          "opportunity": 65.2,
+          "opportunity": 39.5,
           "weight": 20,
           "pattern": ""
         },
         "1h": {
           "side": "long",
           "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
           "momentum_bias": "과매수",
-          "opportunity": 73.7,
+          "opportunity": 29.9,
           "weight": 30,
           "pattern": ""
         },
         "4h": {
           "side": "short",
           "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "혼조",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 46.0,
+          "opportunity": 63.5,
           "weight": 35,
           "pattern": ""
         }
       },
       "source_slots": [
         {
-          "timeframe": "1h",
-          "timeframe_label": "1h",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 73.7
+          "timeframe": "5m",
+          "timeframe_label": "5m",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 71.0
         }
       ],
       "featured_slot": {
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "side": "long",
-        "side_label": "롱",
-        "opportunity": 73.7
+        "timeframe": "5m",
+        "timeframe_label": "5m",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 71.0
       }
     },
     {
-      "symbol": "AVAXUSDT",
-      "last_price": 38.14,
-      "change_24h": -5.4,
-      "agreement_score": -100,
-      "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
-      "primary": {
-        "symbol": "AVAXUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 38.14,
-        "change_24h": -5.4,
-        "quote_volume": 254000000.0,
-        "funding_rate": -0.0096,
-        "open_interest_usd": 164000000.0,
-        "long_short_ratio": 0.85,
-        "liquidation_pressure_usd": 27894.01,
-        "scores": {
-          "moving_average": -100,
-          "oscillator": -58.3,
-          "technical": -83.1,
-          "trend": 91.2,
-          "trend_bias": -87.8,
-          "momentum": 58.7,
-          "momentum_bias": -58.7,
-          "volatility": 90.5,
-          "derivatives": 12.3,
-          "derivatives_bias": 30.9,
-          "opportunity": 70.4,
-          "setup_bias": -79.9
-        },
-        "labels": {
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "volatility_state": "압축",
-          "derivatives_bias": "숏 과밀",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": true,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "bearish"
-        },
-        "indicators": {
-          "ema20": 38.515,
-          "ema50": 38.648,
-          "ema200": 39.22,
-          "rsi14": 0.04,
-          "stoch_rsi": 0.0,
-          "macd_line": -0.08484,
-          "macd_signal": -0.06144,
-          "macd_histogram": -0.0234,
-          "bollinger_lower": 38.328,
-          "bollinger_mid": 38.534,
-          "bollinger_upper": 38.74,
-          "bb_width": 1.07,
-          "atr14": 0.22982,
-          "atr_pct": 0.6,
-          "adx14": 99.1,
-          "plus_di": 0.02,
-          "minus_di": 12.95,
-          "supertrend_value": 38.999,
-          "vwap": 39.3,
-          "close_vs_vwap_pct": -2.95,
-          "roc12": -1.14,
-          "ichimoku": {
-            "tenkan": 38.382,
-            "kijun": 38.453,
-            "span_a": 38.417,
-            "span_b": 38.573,
-            "bias": "bearish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Sell",
-          "볼린저 압축",
-          "하방 돌파"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 36.9,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 65.8,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.4,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.1,
-          "weight": 35,
-          "pattern": ""
-        }
-      },
-      "source_slots": [
-        {
-          "timeframe": "1h",
-          "timeframe_label": "1h",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 70.4
-        },
-        {
-          "timeframe": "4h",
-          "timeframe_label": "4h",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 70.1
-        }
-      ],
-      "featured_slot": {
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "side": "short",
-        "side_label": "숏",
-        "opportunity": 70.4
-      }
-    }
-  ],
-  "featured_rows": [
-    {
-      "symbol": "SOLUSDT",
-      "last_price": 80.06,
-      "change_24h": 3.6,
+      "symbol": "BTCUSDT",
+      "last_price": 68320.0,
+      "change_24h": 1.8,
       "agreement_score": 100,
       "consensus_label": "상승 합의",
       "long_weight": 100,
       "short_weight": 0,
       "primary": {
-        "symbol": "SOLUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 80.06,
-        "change_24h": 3.6,
-        "quote_volume": 1280000000.0,
-        "funding_rate": -0.0048,
-        "open_interest_usd": 987000000.0,
-        "long_short_ratio": 1.01,
-        "liquidation_pressure_usd": 97874.51,
-        "scores": {
-          "moving_average": 100,
-          "oscillator": -11.4,
-          "technical": 58.3,
-          "trend": 90.1,
-          "trend_bias": 86.3,
-          "momentum": 5.5,
-          "momentum_bias": -5.5,
-          "volatility": 90.2,
-          "derivatives": 14.4,
-          "derivatives_bias": 9.9,
-          "opportunity": 72.8,
-          "setup_bias": 55.3
-        },
-        "labels": {
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "롱 우위"
-        },
-        "side": "long",
-        "side_label": "롱",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": false,
-          "divergence_candidate": true,
-          "supertrend": "bullish",
-          "ichimoku_bias": "bullish"
-        },
-        "indicators": {
-          "ema20": 79.852,
-          "ema50": 79.521,
-          "ema200": 78.77,
-          "rsi14": 90.65,
-          "stoch_rsi": 0.0,
-          "macd_line": 0.1973,
-          "macd_signal": 0.2025,
-          "macd_histogram": -0.0052,
-          "bollinger_lower": 79.539,
-          "bollinger_mid": 79.864,
-          "bollinger_upper": 80.189,
-          "bb_width": 0.81,
-          "atr14": 0.41391,
-          "atr_pct": 0.52,
-          "adx14": 96.44,
-          "plus_di": 9.59,
-          "minus_di": 0.11,
-          "supertrend_value": 78.832,
-          "vwap": 78.647,
-          "close_vs_vwap_pct": 1.8,
-          "roc12": 0.32,
-          "ichimoku": {
-            "tenkan": 79.997,
-            "kijun": 79.699,
-            "span_a": 79.848,
-            "span_b": 79.373,
-            "bias": "bullish"
-          }
-        },
-        "pattern": {
-          "pattern": "Gartley",
-          "status": "touch",
-          "status_label": "Realtime Touch",
-          "score": 75.6,
-          "score_breakdown": {
-            "ratio_fit": 31.4,
-            "geometry": 18.3,
-            "reaction": 12.0,
-            "indicators": 14.5
-          },
-          "summary": "Gartley 패턴이 PRZ 구간에 진입했고 실시간 터치 상태로 분류되었습니다.",
-          "preview_image": "generated/scanner/scan-top100-1h/solusdt-gartley-touch.svg",
-          "detail_page": "crypto/setups/scan-top100-1h/solusdt-gartley-touch/",
-          "legacy_detail_page": "patterns/1h/solusdt-gartley-touch/",
-          "detail_data_path": "setups/scan-top100-1h/solusdt-gartley-touch.json",
-          "side": "bullish",
-          "side_label": "Bullish (매수)",
-          "prz": {
-            "lower": 79.9831,
-            "upper": 80.0527,
-            "center": 80.018,
-            "distance_pct": 0.052
-          },
-          "targets": {
-            "tp1": 80.2336,
-            "tp2": 80.3714
-          },
-          "stop": {
-            "value": 79.1411,
-            "label": "1.13 XA"
-          },
-          "points": {
-            "X": {
-              "price": 79.92,
-              "timestamp": "2026-04-04T07:45:00+00:00",
-              "index": 24
-            },
-            "A": {
-              "price": 80.54,
-              "timestamp": "2026-04-04T08:30:00+00:00",
-              "index": 38
-            },
-            "B": {
-              "price": 80.15,
-              "timestamp": "2026-04-04T08:55:00+00:00",
-              "index": 49
-            },
-            "C": {
-              "price": 80.42,
-              "timestamp": "2026-04-04T09:30:00+00:00",
-              "index": 63
-            },
-            "D": {
-              "price": 80.06,
-              "timestamp": "2026-04-04T10:30:00+00:00",
-              "index": 79
-            }
-          },
-          "ratios": {
-            "xab": 0.629,
-            "abc": 0.692,
-            "bcd": 1.333,
-            "xad": 0.774
-          },
-          "indicator_flags": [
-            {
-              "key": "rsi",
-              "label": "RSI",
-              "status": "pass",
-              "value": "41.5",
-              "note": "과매도/과매수 구간 접근"
-            },
-            {
-              "key": "macd",
-              "label": "MACD",
-              "status": "pass",
-              "value": "0.0038",
-              "note": "히스토그램 반전 확인"
-            },
-            {
-              "key": "bollinger",
-              "label": "Bollinger",
-              "status": "pass",
-              "value": "79.98 ~ 80.62",
-              "note": "밴드 극단값 근접"
-            },
-            {
-              "key": "vwap",
-              "label": "VWAP",
-              "status": "pass",
-              "value": "80.17",
-              "note": "VWAP 회복/이탈 흐름"
-            }
-          ]
-        },
-        "flags": [
-          "기술 Strong Buy",
-          "볼린저 압축",
-          "다이버전스 후보"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 75.9,
-          "weight": 15,
-          "pattern": "Gartley"
-        },
-        "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.0,
-          "weight": 20,
-          "pattern": "Gartley"
-        },
-        "1h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 72.8,
-          "weight": 30,
-          "pattern": "Gartley"
-        },
-        "4h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 69.7,
-          "weight": 35,
-          "pattern": "Gartley"
-        }
-      },
-      "source_slots": [
-        {
-          "timeframe": "5m",
-          "timeframe_label": "5m",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 75.9
-        },
-        {
-          "timeframe": "15m",
-          "timeframe_label": "15m",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 70.0
-        },
-        {
-          "timeframe": "4h",
-          "timeframe_label": "4h",
-          "side": "long",
-          "side_label": "롱",
-          "opportunity": 69.7
-        }
-      ],
-      "featured_slot": {
-        "timeframe": "5m",
-        "timeframe_label": "5m",
-        "side": "long",
-        "side_label": "롱",
-        "opportunity": 75.9
-      }
-    },
-    {
-      "symbol": "ETHUSDT",
-      "last_price": 3315.0,
-      "change_24h": -2.7,
-      "agreement_score": -100,
-      "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
-      "primary": {
-        "symbol": "ETHUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 3315.0,
-        "change_24h": -2.7,
-        "quote_volume": 4280000000.0,
-        "funding_rate": -0.0072,
-        "open_interest_usd": 1920000000.0,
-        "long_short_ratio": 0.955,
-        "liquidation_pressure_usd": 147744.0,
-        "scores": {
-          "moving_average": -54.0,
-          "oscillator": 43.2,
-          "technical": -20.3,
-          "trend": 62.1,
-          "trend_bias": -47.3,
-          "momentum": 34.8,
-          "momentum_bias": 34.8,
-          "volatility": 90.0,
-          "derivatives": 28.1,
-          "derivatives_bias": 18.8,
-          "opportunity": 39.3,
-          "setup_bias": -18.7
-        },
-        "labels": {
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": false,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "neutral"
-        },
-        "indicators": {
-          "ema20": 3311.23,
-          "ema50": 3319.29,
-          "ema200": 3353.26,
-          "rsi14": 58.17,
-          "stoch_rsi": 100.0,
-          "macd_line": -2.34385,
-          "macd_signal": -2.89679,
-          "macd_histogram": 0.55294,
-          "bollinger_lower": 3306.29,
-          "bollinger_mid": 3311.09,
-          "bollinger_upper": 3315.88,
-          "bb_width": 0.29,
-          "atr14": 16.163,
-          "atr_pct": 0.49,
-          "adx14": 99.45,
-          "plus_di": 0.01,
-          "minus_di": 6.74,
-          "supertrend_value": 3358.04,
-          "vwap": 3358.16,
-          "close_vs_vwap_pct": -1.29,
-          "roc12": 0.08,
-          "ichimoku": {
-            "tenkan": 3308.97,
-            "kijun": 3311.29,
-            "span_a": 3310.13,
-            "span_b": 3322.02,
-            "bias": "neutral"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "볼린저 압축"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 71.2,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 68.6,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 39.3,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 50.7,
-          "weight": 35,
-          "pattern": ""
-        }
-      },
-      "source_slots": [
-        {
-          "timeframe": "5m",
-          "timeframe_label": "5m",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 71.2
-        },
-        {
-          "timeframe": "15m",
-          "timeframe_label": "15m",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 68.6
-        }
-      ],
-      "featured_slot": {
-        "timeframe": "5m",
-        "timeframe_label": "5m",
-        "side": "short",
-        "side_label": "숏",
-        "opportunity": 71.2
-      }
-    },
-    {
-      "symbol": "BTCUSDT",
-      "last_price": 68320.0,
-      "change_24h": 1.8,
-      "agreement_score": 30,
-      "consensus_label": "상승 합의",
-      "long_weight": 65,
-      "short_weight": 35,
-      "primary": {
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "timeframe_label": "1h",
@@ -1178,17 +429,17 @@
         "liquidation_pressure_usd": 238140.0,
         "scores": {
           "moving_average": 100,
-          "oscillator": 57.1,
-          "technical": 78.6,
-          "trend": 89.8,
-          "trend_bias": 85.8,
-          "momentum": 52.9,
-          "momentum_bias": 52.9,
-          "volatility": 90.1,
+          "oscillator": 56.6,
+          "technical": 78.1,
+          "trend": 88.9,
+          "trend_bias": 84.6,
+          "momentum": 52.0,
+          "momentum_bias": 52.0,
+          "volatility": 90.2,
           "derivatives": 44.7,
           "derivatives_bias": 38.0,
-          "opportunity": 73.7,
-          "setup_bias": 76.0
+          "opportunity": 73.2,
+          "setup_bias": 75.2
         },
         "labels": {
           "technical_rating": "Strong Buy",
@@ -1209,32 +460,32 @@
           "ichimoku_bias": "bullish"
         },
         "indicators": {
-          "ema20": 67987.72,
-          "ema50": 67813.95,
-          "ema200": 67643.79,
-          "rsi14": 98.51,
+          "ema20": 68126.59,
+          "ema50": 68048.15,
+          "ema200": 67762.9,
+          "rsi14": 96.44,
           "stoch_rsi": 100.0,
-          "macd_line": 134.03373,
-          "macd_signal": 122.75029,
-          "macd_histogram": 11.28344,
-          "bollinger_lower": 67749.47,
-          "bollinger_mid": 67987.97,
-          "bollinger_upper": 68226.47,
-          "bb_width": 0.7,
-          "atr14": 347.699,
-          "atr_pct": 0.51,
-          "adx14": 90.82,
-          "plus_di": 8.77,
-          "minus_di": 0.24,
-          "supertrend_value": 67058.67,
-          "vwap": 67602.98,
-          "close_vs_vwap_pct": 1.06,
-          "roc12": 0.55,
+          "macd_line": 76.69226,
+          "macd_signal": 68.03199,
+          "macd_histogram": 8.66027,
+          "bollinger_lower": 67977.68,
+          "bollinger_mid": 68125.52,
+          "bollinger_upper": 68273.35,
+          "bb_width": 0.43,
+          "atr14": 352.009,
+          "atr_pct": 0.52,
+          "adx14": 82.14,
+          "plus_di": 6.12,
+          "minus_di": 0.38,
+          "supertrend_value": 67420.85,
+          "vwap": 67717.77,
+          "close_vs_vwap_pct": 0.89,
+          "roc12": 0.32,
           "ichimoku": {
-            "tenkan": 68072.04,
-            "kijun": 67876.75,
-            "span_a": 67974.4,
-            "span_b": 67704.35,
+            "tenkan": 68156.11,
+            "kijun": 68025.45,
+            "span_a": 68090.78,
+            "span_b": 67967.29,
             "bias": "bullish"
           }
         },
@@ -1253,229 +504,76 @@
         "5m": {
           "side": "long",
           "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 41.3,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 73.9,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
           "technical_rating": "Strong Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매수",
           "opportunity": 73.2,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 65.2,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 73.7,
           "weight": 30,
           "pattern": ""
         },
         "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "혼조",
-          "momentum_bias": "과매도",
-          "opportunity": 46.0,
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 65.1,
           "weight": 35,
           "pattern": ""
         }
       },
       "source_slots": [
         {
+          "timeframe": "15m",
+          "timeframe_label": "15m",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 73.9
+        },
+        {
           "timeframe": "1h",
           "timeframe_label": "1h",
           "side": "long",
           "side_label": "롱",
-          "opportunity": 73.7
+          "opportunity": 73.2
         }
       ],
       "featured_slot": {
-        "timeframe": "1h",
-        "timeframe_label": "1h",
+        "timeframe": "15m",
+        "timeframe_label": "15m",
         "side": "long",
         "side_label": "롱",
-        "opportunity": 73.7
+        "opportunity": 73.9
       }
     },
-    {
-      "symbol": "AVAXUSDT",
-      "last_price": 38.14,
-      "change_24h": -5.4,
-      "agreement_score": -100,
-      "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
-      "primary": {
-        "symbol": "AVAXUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 38.14,
-        "change_24h": -5.4,
-        "quote_volume": 254000000.0,
-        "funding_rate": -0.0096,
-        "open_interest_usd": 164000000.0,
-        "long_short_ratio": 0.85,
-        "liquidation_pressure_usd": 27894.01,
-        "scores": {
-          "moving_average": -100,
-          "oscillator": -58.3,
-          "technical": -83.1,
-          "trend": 91.2,
-          "trend_bias": -87.8,
-          "momentum": 58.7,
-          "momentum_bias": -58.7,
-          "volatility": 90.5,
-          "derivatives": 12.3,
-          "derivatives_bias": 30.9,
-          "opportunity": 70.4,
-          "setup_bias": -79.9
-        },
-        "labels": {
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "volatility_state": "압축",
-          "derivatives_bias": "숏 과밀",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": true,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "bearish"
-        },
-        "indicators": {
-          "ema20": 38.515,
-          "ema50": 38.648,
-          "ema200": 39.22,
-          "rsi14": 0.04,
-          "stoch_rsi": 0.0,
-          "macd_line": -0.08484,
-          "macd_signal": -0.06144,
-          "macd_histogram": -0.0234,
-          "bollinger_lower": 38.328,
-          "bollinger_mid": 38.534,
-          "bollinger_upper": 38.74,
-          "bb_width": 1.07,
-          "atr14": 0.22982,
-          "atr_pct": 0.6,
-          "adx14": 99.1,
-          "plus_di": 0.02,
-          "minus_di": 12.95,
-          "supertrend_value": 38.999,
-          "vwap": 39.3,
-          "close_vs_vwap_pct": -2.95,
-          "roc12": -1.14,
-          "ichimoku": {
-            "tenkan": 38.382,
-            "kijun": 38.453,
-            "span_a": 38.417,
-            "span_b": 38.573,
-            "bias": "bearish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Sell",
-          "볼린저 압축",
-          "하방 돌파"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 36.9,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 65.8,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.4,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.1,
-          "weight": 35,
-          "pattern": ""
-        }
-      },
-      "source_slots": [
-        {
-          "timeframe": "1h",
-          "timeframe_label": "1h",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 70.4
-        },
-        {
-          "timeframe": "4h",
-          "timeframe_label": "4h",
-          "side": "short",
-          "side_label": "숏",
-          "opportunity": 70.1
-        }
-      ],
-      "featured_slot": {
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "side": "short",
-        "side_label": "숏",
-        "opportunity": 70.4
-      }
-    }
-  ],
-  "rows": [
     {
       "symbol": "ADAUSDT",
       "last_price": 0.714,
       "change_24h": -1.8,
-      "agreement_score": -100,
+      "agreement_score": -40,
       "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
+      "long_weight": 30,
+      "short_weight": 70,
       "primary": {
         "symbol": "ADAUSDT",
         "timeframe": "1h",
@@ -1488,72 +586,70 @@
         "long_short_ratio": 1.175,
         "liquidation_pressure_usd": 18342.82,
         "scores": {
-          "moving_average": -100,
-          "oscillator": -56.7,
-          "technical": -78.2,
-          "trend": 89.1,
-          "trend_bias": -84.8,
-          "momentum": 52.2,
-          "momentum_bias": -52.2,
-          "volatility": 90.0,
+          "moving_average": 8.0,
+          "oscillator": 56.2,
+          "technical": 20.5,
+          "trend": 34.2,
+          "trend_bias": 8.6,
+          "momentum": 47.1,
+          "momentum_bias": 47.1,
+          "volatility": 90.1,
           "derivatives": 11.9,
           "derivatives_bias": -16.7,
-          "opportunity": 67.4,
-          "setup_bias": -75.3
+          "opportunity": 39.5,
+          "setup_bias": 21.7
         },
         "labels": {
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
           "volatility_state": "압축",
           "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
+          "setup_bias": "롱 우위"
         },
-        "side": "short",
-        "side_label": "숏",
+        "side": "long",
+        "side_label": "롱",
         "signals": {
           "squeeze": true,
           "breakout_up": false,
-          "breakout_down": true,
+          "breakout_down": false,
           "divergence_candidate": false,
           "supertrend": "bearish",
-          "ichimoku_bias": "bearish"
+          "ichimoku_bias": "bullish"
         },
         "indicators": {
-          "ema20": 0.71608,
-          "ema50": 0.71721,
-          "ema200": 0.72027,
-          "rsi14": 0.21,
-          "stoch_rsi": 0.0,
-          "macd_line": -0.00062,
-          "macd_signal": -0.0005,
-          "macd_histogram": -0.00012,
-          "bollinger_lower": 0.71492,
-          "bollinger_mid": 0.7162,
-          "bollinger_upper": 0.71749,
-          "bb_width": 0.36,
-          "atr14": 0.003469,
-          "atr_pct": 0.49,
-          "adx14": 98.47,
-          "plus_di": 0.03,
-          "minus_di": 6.23,
-          "supertrend_value": 0.72655,
-          "vwap": 0.72072,
-          "close_vs_vwap_pct": -0.93,
-          "roc12": -0.36,
+          "ema20": 0.71325,
+          "ema50": 0.71352,
+          "ema200": 0.72005,
+          "rsi14": 87.62,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.00038,
+          "macd_signal": 0.00033,
+          "macd_histogram": 5e-05,
+          "bollinger_lower": 0.71246,
+          "bollinger_mid": 0.71327,
+          "bollinger_upper": 0.71408,
+          "bb_width": 0.23,
+          "atr14": 0.003596,
+          "atr_pct": 0.5,
+          "adx14": 72.21,
+          "plus_di": 5.07,
+          "minus_di": 0.53,
+          "supertrend_value": 0.72164,
+          "vwap": 0.72082,
+          "close_vs_vwap_pct": -0.95,
+          "roc12": 0.12,
           "ichimoku": {
-            "tenkan": 0.71603,
-            "kijun": 0.71646,
-            "span_a": 0.71625,
-            "span_b": 0.71795,
-            "bias": "bearish"
+            "tenkan": 0.71363,
+            "kijun": 0.71288,
+            "span_a": 0.71325,
+            "span_b": 0.71231,
+            "bias": "bullish"
           }
         },
         "pattern": null,
         "flags": [
-          "기술 Strong Sell",
-          "볼린저 압축",
-          "하방 돌파"
+          "볼린저 압축"
         ],
         "data_origin": "fallback_synthetic",
         "normalized_quote_volume": 0.0,
@@ -1567,7 +663,7 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 67.5,
+          "opportunity": 60.3,
           "weight": 15,
           "pattern": ""
         },
@@ -1577,17 +673,17 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 61.2,
+          "opportunity": 67.3,
           "weight": 20,
           "pattern": ""
         },
         "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 67.4,
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "opportunity": 39.5,
           "weight": 30,
           "pattern": ""
         },
@@ -1597,10 +693,33 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 60.7,
+          "opportunity": 67.4,
           "weight": 35,
           "pattern": ""
         }
+      },
+      "source_slots": [
+        {
+          "timeframe": "15m",
+          "timeframe_label": "15m",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 67.3
+        },
+        {
+          "timeframe": "4h",
+          "timeframe_label": "4h",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 67.4
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "15m",
+        "timeframe_label": "15m",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 67.3
       }
     },
     {
@@ -1621,20 +740,20 @@
         "funding_rate": -0.0096,
         "open_interest_usd": 164000000.0,
         "long_short_ratio": 0.85,
-        "liquidation_pressure_usd": 27894.01,
+        "liquidation_pressure_usd": 27775.64,
         "scores": {
           "moving_average": -100,
-          "oscillator": -58.3,
-          "technical": -83.1,
-          "trend": 91.2,
-          "trend_bias": -87.8,
-          "momentum": 58.7,
-          "momentum_bias": -58.7,
-          "volatility": 90.5,
+          "oscillator": -57.1,
+          "technical": -82.4,
+          "trend": 90.1,
+          "trend_bias": -86.2,
+          "momentum": 57.2,
+          "momentum_bias": -57.2,
+          "volatility": 90.3,
           "derivatives": 12.3,
           "derivatives_bias": 30.9,
-          "opportunity": 70.4,
-          "setup_bias": -79.9
+          "opportunity": 69.7,
+          "setup_bias": -78.7
         },
         "labels": {
           "technical_rating": "Strong Sell",
@@ -1655,32 +774,32 @@
           "ichimoku_bias": "bearish"
         },
         "indicators": {
-          "ema20": 38.515,
-          "ema50": 38.648,
-          "ema200": 39.22,
-          "rsi14": 0.04,
+          "ema20": 38.311,
+          "ema50": 38.482,
+          "ema200": 39.145,
+          "rsi14": 0.03,
           "stoch_rsi": 0.0,
-          "macd_line": -0.08484,
-          "macd_signal": -0.06144,
-          "macd_histogram": -0.0234,
-          "bollinger_lower": 38.328,
-          "bollinger_mid": 38.534,
-          "bollinger_upper": 38.74,
-          "bb_width": 1.07,
-          "atr14": 0.22982,
-          "atr_pct": 0.6,
-          "adx14": 99.1,
-          "plus_di": 0.02,
-          "minus_di": 12.95,
-          "supertrend_value": 38.999,
-          "vwap": 39.3,
-          "close_vs_vwap_pct": -2.95,
-          "roc12": -1.14,
+          "macd_line": -0.08518,
+          "macd_signal": -0.07941,
+          "macd_histogram": -0.00576,
+          "bollinger_lower": 38.169,
+          "bollinger_mid": 38.317,
+          "bollinger_upper": 38.466,
+          "bb_width": 0.78,
+          "atr14": 0.21213,
+          "atr_pct": 0.56,
+          "adx14": 99.65,
+          "plus_di": 0.01,
+          "minus_di": 9.26,
+          "supertrend_value": 38.839,
+          "vwap": 39.236,
+          "close_vs_vwap_pct": -2.79,
+          "roc12": -0.56,
           "ichimoku": {
-            "tenkan": 38.382,
-            "kijun": 38.453,
-            "span_a": 38.417,
-            "span_b": 38.573,
+            "tenkan": 38.263,
+            "kijun": 38.311,
+            "span_a": 38.287,
+            "span_b": 38.493,
             "bias": "bearish"
           }
         },
@@ -1702,17 +821,17 @@
           "technical_rating": "Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매수",
-          "opportunity": 36.9,
+          "opportunity": 45.9,
           "weight": 15,
           "pattern": ""
         },
         "15m": {
           "side": "short",
           "side_label": "숏",
-          "technical_rating": "Strong Sell",
+          "technical_rating": "Sell",
           "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 65.8,
+          "momentum_bias": "과매수",
+          "opportunity": 36.6,
           "weight": 20,
           "pattern": ""
         },
@@ -1722,7 +841,554 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 70.4,
+          "opportunity": 69.7,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.7,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "1h",
+          "timeframe_label": "1h",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 69.7
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 69.7
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "last_price": 587.2,
+      "change_24h": 5.4,
+      "agreement_score": 100,
+      "consensus_label": "상승 합의",
+      "long_weight": 100,
+      "short_weight": 0,
+      "primary": {
+        "symbol": "BNBUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 587.2,
+        "change_24h": 5.4,
+        "quote_volume": 734000000.0,
+        "funding_rate": 0.0,
+        "open_interest_usd": 511000000.0,
+        "long_short_ratio": 1.12,
+        "liquidation_pressure_usd": 84287.13,
+        "scores": {
+          "moving_average": 100,
+          "oscillator": 56.7,
+          "technical": 82.2,
+          "trend": 89.3,
+          "trend_bias": 85.2,
+          "momentum": 56.8,
+          "momentum_bias": 56.8,
+          "volatility": 90.2,
+          "derivatives": 10.9,
+          "derivatives_bias": -7.8,
+          "opportunity": 69.1,
+          "setup_bias": 78.2
+        },
+        "labels": {
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 585.44,
+          "ema50": 583.55,
+          "ema200": 572.853,
+          "rsi14": 99.81,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.9911,
+          "macd_signal": 0.96813,
+          "macd_histogram": 0.02297,
+          "bollinger_lower": 583.775,
+          "bollinger_mid": 585.463,
+          "bollinger_upper": 587.151,
+          "bb_width": 0.58,
+          "atr14": 3.0272,
+          "atr_pct": 0.52,
+          "adx14": 96.58,
+          "plus_di": 7.29,
+          "minus_di": 0.08,
+          "supertrend_value": 577.434,
+          "vwap": 571.452,
+          "close_vs_vwap_pct": 2.76,
+          "roc12": 0.34,
+          "ichimoku": {
+            "tenkan": 586.226,
+            "kijun": 584.745,
+            "span_a": 585.486,
+            "span_b": 583.536,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Buy",
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 48.0,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.2,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.1,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.5,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "4h",
+          "timeframe_label": "4h",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 69.5
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "4h",
+        "timeframe_label": "4h",
+        "side": "long",
+        "side_label": "롱",
+        "opportunity": 69.5
+      }
+    }
+  ],
+  "featured_rows": [
+    {
+      "symbol": "SOLUSDT",
+      "last_price": 80.06,
+      "change_24h": 3.6,
+      "agreement_score": -10,
+      "consensus_label": "혼합",
+      "long_weight": 45,
+      "short_weight": 55,
+      "primary": {
+        "symbol": "SOLUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 80.06,
+        "change_24h": 3.6,
+        "quote_volume": 1280000000.0,
+        "funding_rate": -0.0048,
+        "open_interest_usd": 987000000.0,
+        "long_short_ratio": 1.01,
+        "liquidation_pressure_usd": 97874.51,
+        "scores": {
+          "moving_average": 54.0,
+          "oscillator": -36.0,
+          "technical": 23.9,
+          "trend": 61.9,
+          "trend_bias": 47.1,
+          "momentum": 27.0,
+          "momentum_bias": -27.0,
+          "volatility": 90.3,
+          "derivatives": 14.4,
+          "derivatives_bias": 9.9,
+          "opportunity": 69.8,
+          "setup_bias": 21.8
+        },
+        "labels": {
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "neutral"
+        },
+        "indicators": {
+          "ema20": 80.116,
+          "ema50": 79.905,
+          "ema200": 78.754,
+          "rsi14": 48.31,
+          "stoch_rsi": 0.0,
+          "macd_line": 0.08444,
+          "macd_signal": 0.10171,
+          "macd_histogram": -0.01727,
+          "bollinger_lower": 79.98,
+          "bollinger_mid": 80.134,
+          "bollinger_upper": 80.288,
+          "bb_width": 0.38,
+          "atr14": 0.43374,
+          "atr_pct": 0.54,
+          "adx14": 99.98,
+          "plus_di": 6.16,
+          "minus_di": 0.0,
+          "supertrend_value": 79.025,
+          "vwap": 78.598,
+          "close_vs_vwap_pct": 1.86,
+          "roc12": -0.08,
+          "ichimoku": {
+            "tenkan": 80.232,
+            "kijun": 80.1,
+            "span_a": 80.166,
+            "span_b": 79.933,
+            "bias": "neutral"
+          }
+        },
+        "pattern": {
+          "pattern": "Gartley",
+          "status": "touch",
+          "status_label": "Realtime Touch",
+          "score": 75.6,
+          "score_breakdown": {
+            "ratio_fit": 31.4,
+            "geometry": 18.3,
+            "reaction": 12.0,
+            "indicators": 14.5
+          },
+          "summary": "Gartley 패턴이 PRZ 구간에 진입했고 실시간 터치 상태로 분류되었습니다.",
+          "preview_image": "generated/scanner/scan-top100-1h/solusdt-gartley-touch.svg",
+          "detail_page": "crypto/setups/scan-top100-1h/solusdt-gartley-touch/",
+          "legacy_detail_page": "patterns/1h/solusdt-gartley-touch/",
+          "detail_data_path": "setups/scan-top100-1h/solusdt-gartley-touch.json",
+          "side": "bullish",
+          "side_label": "Bullish (매수)",
+          "prz": {
+            "lower": 79.9831,
+            "upper": 80.0527,
+            "center": 80.018,
+            "distance_pct": 0.052
+          },
+          "targets": {
+            "tp1": 80.2336,
+            "tp2": 80.3714
+          },
+          "stop": {
+            "value": 79.1411,
+            "label": "1.13 XA"
+          },
+          "points": {
+            "X": {
+              "price": 79.92,
+              "timestamp": "2026-04-04T07:45:00+00:00",
+              "index": 24
+            },
+            "A": {
+              "price": 80.54,
+              "timestamp": "2026-04-04T08:30:00+00:00",
+              "index": 38
+            },
+            "B": {
+              "price": 80.15,
+              "timestamp": "2026-04-04T08:55:00+00:00",
+              "index": 49
+            },
+            "C": {
+              "price": 80.42,
+              "timestamp": "2026-04-04T09:30:00+00:00",
+              "index": 63
+            },
+            "D": {
+              "price": 80.06,
+              "timestamp": "2026-04-04T10:30:00+00:00",
+              "index": 79
+            }
+          },
+          "ratios": {
+            "xab": 0.629,
+            "abc": 0.692,
+            "bcd": 1.333,
+            "xad": 0.774
+          },
+          "indicator_flags": [
+            {
+              "key": "rsi",
+              "label": "RSI",
+              "status": "pass",
+              "value": "41.5",
+              "note": "과매도/과매수 구간 접근"
+            },
+            {
+              "key": "macd",
+              "label": "MACD",
+              "status": "pass",
+              "value": "0.0038",
+              "note": "히스토그램 반전 확인"
+            },
+            {
+              "key": "bollinger",
+              "label": "Bollinger",
+              "status": "pass",
+              "value": "79.98 ~ 80.62",
+              "note": "밴드 극단값 근접"
+            },
+            {
+              "key": "vwap",
+              "label": "VWAP",
+              "status": "pass",
+              "value": "80.17",
+              "note": "VWAP 회복/이탈 흐름"
+            }
+          ]
+        },
+        "flags": [
+          "볼린저 압축"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 70.6,
+          "weight": 15,
+          "pattern": "Gartley"
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매도",
+          "opportunity": 66.1,
+          "weight": 20,
+          "pattern": "Gartley"
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 69.8,
+          "weight": 30,
+          "pattern": "Gartley"
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매도",
+          "opportunity": 66.1,
+          "weight": 35,
+          "pattern": "Gartley"
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "5m",
+          "timeframe_label": "5m",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 70.6
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "5m",
+        "timeframe_label": "5m",
+        "side": "long",
+        "side_label": "롱",
+        "opportunity": 70.6
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "last_price": 3315.0,
+      "change_24h": -2.7,
+      "agreement_score": -40,
+      "consensus_label": "하락 합의",
+      "long_weight": 30,
+      "short_weight": 70,
+      "primary": {
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 3315.0,
+        "change_24h": -2.7,
+        "quote_volume": 4280000000.0,
+        "funding_rate": -0.0072,
+        "open_interest_usd": 1920000000.0,
+        "long_short_ratio": 0.955,
+        "liquidation_pressure_usd": 147744.0,
+        "scores": {
+          "moving_average": -12.0,
+          "oscillator": 56.5,
+          "technical": 8.4,
+          "trend": 22.6,
+          "trend_bias": -10.3,
+          "momentum": 46.6,
+          "momentum_bias": 46.6,
+          "volatility": 90.2,
+          "derivatives": 28.1,
+          "derivatives_bias": 18.8,
+          "opportunity": 29.9,
+          "setup_bias": 9.5
+        },
+        "labels": {
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 3307.23,
+          "ema50": 3310.56,
+          "ema200": 3351.57,
+          "rsi14": 88.76,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.39916,
+          "macd_signal": -0.26117,
+          "macd_histogram": 0.66034,
+          "bollinger_lower": 3303.15,
+          "bollinger_mid": 3306.9,
+          "bollinger_upper": 3310.64,
+          "bb_width": 0.23,
+          "atr14": 17.657,
+          "atr_pct": 0.53,
+          "adx14": 27.13,
+          "plus_di": 1.73,
+          "minus_di": 2.65,
+          "supertrend_value": 3354.27,
+          "vwap": 3356.58,
+          "close_vs_vwap_pct": -1.24,
+          "roc12": 0.25,
+          "ichimoku": {
+            "tenkan": 3306.08,
+            "kijun": 3306.33,
+            "span_a": 3306.21,
+            "span_b": 3306.88,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 71.0,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 39.5,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "opportunity": 29.9,
           "weight": 30,
           "pattern": ""
         },
@@ -1732,7 +1398,776 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 70.1,
+          "opportunity": 63.5,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "5m",
+          "timeframe_label": "5m",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 71.0
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "5m",
+        "timeframe_label": "5m",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 71.0
+      }
+    },
+    {
+      "symbol": "BTCUSDT",
+      "last_price": 68320.0,
+      "change_24h": 1.8,
+      "agreement_score": 100,
+      "consensus_label": "상승 합의",
+      "long_weight": 100,
+      "short_weight": 0,
+      "primary": {
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 68320.0,
+        "change_24h": 1.8,
+        "quote_volume": 9450000000.0,
+        "funding_rate": -0.0096,
+        "open_interest_usd": 3850000000.0,
+        "long_short_ratio": 0.74,
+        "liquidation_pressure_usd": 238140.0,
+        "scores": {
+          "moving_average": 100,
+          "oscillator": 56.6,
+          "technical": 78.1,
+          "trend": 88.9,
+          "trend_bias": 84.6,
+          "momentum": 52.0,
+          "momentum_bias": 52.0,
+          "volatility": 90.2,
+          "derivatives": 44.7,
+          "derivatives_bias": 38.0,
+          "opportunity": 73.2,
+          "setup_bias": 75.2
+        },
+        "labels": {
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "숏 과밀",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 68126.59,
+          "ema50": 68048.15,
+          "ema200": 67762.9,
+          "rsi14": 96.44,
+          "stoch_rsi": 100.0,
+          "macd_line": 76.69226,
+          "macd_signal": 68.03199,
+          "macd_histogram": 8.66027,
+          "bollinger_lower": 67977.68,
+          "bollinger_mid": 68125.52,
+          "bollinger_upper": 68273.35,
+          "bb_width": 0.43,
+          "atr14": 352.009,
+          "atr_pct": 0.52,
+          "adx14": 82.14,
+          "plus_di": 6.12,
+          "minus_di": 0.38,
+          "supertrend_value": 67420.85,
+          "vwap": 67717.77,
+          "close_vs_vwap_pct": 0.89,
+          "roc12": 0.32,
+          "ichimoku": {
+            "tenkan": 68156.11,
+            "kijun": 68025.45,
+            "span_a": 68090.78,
+            "span_b": 67967.29,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Buy",
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 41.3,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 73.9,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 73.2,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 65.1,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "15m",
+          "timeframe_label": "15m",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 73.9
+        },
+        {
+          "timeframe": "1h",
+          "timeframe_label": "1h",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 73.2
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "15m",
+        "timeframe_label": "15m",
+        "side": "long",
+        "side_label": "롱",
+        "opportunity": 73.9
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "last_price": 0.714,
+      "change_24h": -1.8,
+      "agreement_score": -40,
+      "consensus_label": "하락 합의",
+      "long_weight": 30,
+      "short_weight": 70,
+      "primary": {
+        "symbol": "ADAUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 0.714,
+        "change_24h": -1.8,
+        "quote_volume": 598000000.0,
+        "funding_rate": 0.0024,
+        "open_interest_usd": 318000000.0,
+        "long_short_ratio": 1.175,
+        "liquidation_pressure_usd": 18342.82,
+        "scores": {
+          "moving_average": 8.0,
+          "oscillator": 56.2,
+          "technical": 20.5,
+          "trend": 34.2,
+          "trend_bias": 8.6,
+          "momentum": 47.1,
+          "momentum_bias": 47.1,
+          "volatility": 90.1,
+          "derivatives": 11.9,
+          "derivatives_bias": -16.7,
+          "opportunity": 39.5,
+          "setup_bias": 21.7
+        },
+        "labels": {
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 0.71325,
+          "ema50": 0.71352,
+          "ema200": 0.72005,
+          "rsi14": 87.62,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.00038,
+          "macd_signal": 0.00033,
+          "macd_histogram": 5e-05,
+          "bollinger_lower": 0.71246,
+          "bollinger_mid": 0.71327,
+          "bollinger_upper": 0.71408,
+          "bb_width": 0.23,
+          "atr14": 0.003596,
+          "atr_pct": 0.5,
+          "adx14": 72.21,
+          "plus_di": 5.07,
+          "minus_di": 0.53,
+          "supertrend_value": 0.72164,
+          "vwap": 0.72082,
+          "close_vs_vwap_pct": -0.95,
+          "roc12": 0.12,
+          "ichimoku": {
+            "tenkan": 0.71363,
+            "kijun": 0.71288,
+            "span_a": 0.71325,
+            "span_b": 0.71231,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 60.3,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 67.3,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "opportunity": 39.5,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 67.4,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "15m",
+          "timeframe_label": "15m",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 67.3
+        },
+        {
+          "timeframe": "4h",
+          "timeframe_label": "4h",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 67.4
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "15m",
+        "timeframe_label": "15m",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 67.3
+      }
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "last_price": 38.14,
+      "change_24h": -5.4,
+      "agreement_score": -100,
+      "consensus_label": "하락 합의",
+      "long_weight": 0,
+      "short_weight": 100,
+      "primary": {
+        "symbol": "AVAXUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 38.14,
+        "change_24h": -5.4,
+        "quote_volume": 254000000.0,
+        "funding_rate": -0.0096,
+        "open_interest_usd": 164000000.0,
+        "long_short_ratio": 0.85,
+        "liquidation_pressure_usd": 27775.64,
+        "scores": {
+          "moving_average": -100,
+          "oscillator": -57.1,
+          "technical": -82.4,
+          "trend": 90.1,
+          "trend_bias": -86.2,
+          "momentum": 57.2,
+          "momentum_bias": -57.2,
+          "volatility": 90.3,
+          "derivatives": 12.3,
+          "derivatives_bias": 30.9,
+          "opportunity": 69.7,
+          "setup_bias": -78.7
+        },
+        "labels": {
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "숏 과밀",
+          "setup_bias": "숏 우위"
+        },
+        "side": "short",
+        "side_label": "숏",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": true,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bearish"
+        },
+        "indicators": {
+          "ema20": 38.311,
+          "ema50": 38.482,
+          "ema200": 39.145,
+          "rsi14": 0.03,
+          "stoch_rsi": 0.0,
+          "macd_line": -0.08518,
+          "macd_signal": -0.07941,
+          "macd_histogram": -0.00576,
+          "bollinger_lower": 38.169,
+          "bollinger_mid": 38.317,
+          "bollinger_upper": 38.466,
+          "bb_width": 0.78,
+          "atr14": 0.21213,
+          "atr_pct": 0.56,
+          "adx14": 99.65,
+          "plus_di": 0.01,
+          "minus_di": 9.26,
+          "supertrend_value": 38.839,
+          "vwap": 39.236,
+          "close_vs_vwap_pct": -2.79,
+          "roc12": -0.56,
+          "ichimoku": {
+            "tenkan": 38.263,
+            "kijun": 38.311,
+            "span_a": 38.287,
+            "span_b": 38.493,
+            "bias": "bearish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Sell",
+          "볼린저 압축",
+          "하방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 45.9,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.6,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 69.7,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.7,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "1h",
+          "timeframe_label": "1h",
+          "side": "short",
+          "side_label": "숏",
+          "opportunity": 69.7
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "side": "short",
+        "side_label": "숏",
+        "opportunity": 69.7
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "last_price": 587.2,
+      "change_24h": 5.4,
+      "agreement_score": 100,
+      "consensus_label": "상승 합의",
+      "long_weight": 100,
+      "short_weight": 0,
+      "primary": {
+        "symbol": "BNBUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 587.2,
+        "change_24h": 5.4,
+        "quote_volume": 734000000.0,
+        "funding_rate": 0.0,
+        "open_interest_usd": 511000000.0,
+        "long_short_ratio": 1.12,
+        "liquidation_pressure_usd": 84287.13,
+        "scores": {
+          "moving_average": 100,
+          "oscillator": 56.7,
+          "technical": 82.2,
+          "trend": 89.3,
+          "trend_bias": 85.2,
+          "momentum": 56.8,
+          "momentum_bias": 56.8,
+          "volatility": 90.2,
+          "derivatives": 10.9,
+          "derivatives_bias": -7.8,
+          "opportunity": 69.1,
+          "setup_bias": 78.2
+        },
+        "labels": {
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 585.44,
+          "ema50": 583.55,
+          "ema200": 572.853,
+          "rsi14": 99.81,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.9911,
+          "macd_signal": 0.96813,
+          "macd_histogram": 0.02297,
+          "bollinger_lower": 583.775,
+          "bollinger_mid": 585.463,
+          "bollinger_upper": 587.151,
+          "bb_width": 0.58,
+          "atr14": 3.0272,
+          "atr_pct": 0.52,
+          "adx14": 96.58,
+          "plus_di": 7.29,
+          "minus_di": 0.08,
+          "supertrend_value": 577.434,
+          "vwap": 571.452,
+          "close_vs_vwap_pct": 2.76,
+          "roc12": 0.34,
+          "ichimoku": {
+            "tenkan": 586.226,
+            "kijun": 584.745,
+            "span_a": 585.486,
+            "span_b": 583.536,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Buy",
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 48.0,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.2,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.1,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 69.5,
+          "weight": 35,
+          "pattern": ""
+        }
+      },
+      "source_slots": [
+        {
+          "timeframe": "4h",
+          "timeframe_label": "4h",
+          "side": "long",
+          "side_label": "롱",
+          "opportunity": 69.5
+        }
+      ],
+      "featured_slot": {
+        "timeframe": "4h",
+        "timeframe_label": "4h",
+        "side": "long",
+        "side_label": "롱",
+        "opportunity": 69.5
+      }
+    }
+  ],
+  "rows": [
+    {
+      "symbol": "AVAXUSDT",
+      "last_price": 38.14,
+      "change_24h": -5.4,
+      "agreement_score": -100,
+      "consensus_label": "하락 합의",
+      "long_weight": 0,
+      "short_weight": 100,
+      "primary": {
+        "symbol": "AVAXUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 38.14,
+        "change_24h": -5.4,
+        "quote_volume": 254000000.0,
+        "funding_rate": -0.0096,
+        "open_interest_usd": 164000000.0,
+        "long_short_ratio": 0.85,
+        "liquidation_pressure_usd": 27775.64,
+        "scores": {
+          "moving_average": -100,
+          "oscillator": -57.1,
+          "technical": -82.4,
+          "trend": 90.1,
+          "trend_bias": -86.2,
+          "momentum": 57.2,
+          "momentum_bias": -57.2,
+          "volatility": 90.3,
+          "derivatives": 12.3,
+          "derivatives_bias": 30.9,
+          "opportunity": 69.7,
+          "setup_bias": -78.7
+        },
+        "labels": {
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "숏 과밀",
+          "setup_bias": "숏 우위"
+        },
+        "side": "short",
+        "side_label": "숏",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": true,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bearish"
+        },
+        "indicators": {
+          "ema20": 38.311,
+          "ema50": 38.482,
+          "ema200": 39.145,
+          "rsi14": 0.03,
+          "stoch_rsi": 0.0,
+          "macd_line": -0.08518,
+          "macd_signal": -0.07941,
+          "macd_histogram": -0.00576,
+          "bollinger_lower": 38.169,
+          "bollinger_mid": 38.317,
+          "bollinger_upper": 38.466,
+          "bb_width": 0.78,
+          "atr14": 0.21213,
+          "atr_pct": 0.56,
+          "adx14": 99.65,
+          "plus_di": 0.01,
+          "minus_di": 9.26,
+          "supertrend_value": 38.839,
+          "vwap": 39.236,
+          "close_vs_vwap_pct": -2.79,
+          "roc12": -0.56,
+          "ichimoku": {
+            "tenkan": 38.263,
+            "kijun": 38.311,
+            "span_a": 38.287,
+            "span_b": 38.493,
+            "bias": "bearish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Sell",
+          "볼린저 압축",
+          "하방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 45.9,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.6,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 69.7,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.7,
           "weight": 35,
           "pattern": ""
         }
@@ -1759,151 +2194,17 @@
         "liquidation_pressure_usd": 84287.13,
         "scores": {
           "moving_average": 100,
-          "oscillator": 56.6,
-          "technical": 82.1,
-          "trend": 89.4,
-          "trend_bias": 85.3,
-          "momentum": 56.6,
-          "momentum_bias": 56.6,
-          "volatility": 90.1,
+          "oscillator": 56.7,
+          "technical": 82.2,
+          "trend": 89.3,
+          "trend_bias": 85.2,
+          "momentum": 56.8,
+          "momentum_bias": 56.8,
+          "volatility": 90.2,
           "derivatives": 10.9,
           "derivatives_bias": -7.8,
           "opportunity": 69.1,
-          "setup_bias": 78.1
-        },
-        "labels": {
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "롱 우위"
-        },
-        "side": "long",
-        "side_label": "롱",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": false,
-          "divergence_candidate": false,
-          "supertrend": "bullish",
-          "ichimoku_bias": "bullish"
-        },
-        "indicators": {
-          "ema20": 585.808,
-          "ema50": 583.933,
-          "ema200": 573.066,
-          "rsi14": 100.0,
-          "stoch_rsi": 100.0,
-          "macd_line": 0.87911,
-          "macd_signal": 0.87813,
-          "macd_histogram": 0.00098,
-          "bollinger_lower": 584.398,
-          "bollinger_mid": 585.833,
-          "bollinger_upper": 587.269,
-          "bb_width": 0.49,
-          "atr14": 2.9434,
-          "atr_pct": 0.5,
-          "adx14": 100.0,
-          "plus_di": 7.23,
-          "minus_di": 0.0,
-          "supertrend_value": 577.675,
-          "vwap": 571.648,
-          "close_vs_vwap_pct": 2.72,
-          "roc12": 0.28,
-          "ichimoku": {
-            "tenkan": 586.429,
-            "kijun": 585.206,
-            "span_a": 585.818,
-            "span_b": 583.855,
-            "bias": "bullish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Buy",
-          "볼린저 압축"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 48.0,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 36.0,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 69.1,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 69.3,
-          "weight": 35,
-          "pattern": ""
-        }
-      }
-    },
-    {
-      "symbol": "DOGEUSDT",
-      "last_price": 0.1834,
-      "change_24h": 2.7,
-      "agreement_score": 100,
-      "consensus_label": "상승 합의",
-      "long_weight": 100,
-      "short_weight": 0,
-      "primary": {
-        "symbol": "DOGEUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 0.1834,
-        "change_24h": 2.7,
-        "quote_volume": 836000000.0,
-        "funding_rate": 0.0048,
-        "open_interest_usd": 402000000.0,
-        "long_short_ratio": 1.07,
-        "liquidation_pressure_usd": 31673.95,
-        "scores": {
-          "moving_average": 100,
-          "oscillator": 57.2,
-          "technical": 79.4,
-          "trend": 89.3,
-          "trend_bias": 85.2,
-          "momentum": 53.9,
-          "momentum_bias": 53.9,
-          "volatility": 90.3,
-          "derivatives": 9.8,
-          "derivatives_bias": -15.1,
-          "opportunity": 67.7,
-          "setup_bias": 76.3
+          "setup_bias": 78.2
         },
         "labels": {
           "technical_rating": "Strong Buy",
@@ -1924,32 +2225,32 @@
           "ichimoku_bias": "bullish"
         },
         "indicators": {
-          "ema20": 0.18245,
-          "ema50": 0.18221,
-          "ema200": 0.18099,
-          "rsi14": 98.19,
+          "ema20": 585.44,
+          "ema50": 583.55,
+          "ema200": 572.853,
+          "rsi14": 99.81,
           "stoch_rsi": 100.0,
-          "macd_line": 0.00024,
-          "macd_signal": 0.00018,
-          "macd_histogram": 6e-05,
-          "bollinger_lower": 0.18187,
-          "bollinger_mid": 0.18242,
-          "bollinger_upper": 0.18297,
-          "bb_width": 0.6,
-          "atr14": 0.000989,
-          "atr_pct": 0.54,
-          "adx14": 82.99,
-          "plus_di": 7.53,
-          "minus_di": 0.34,
-          "supertrend_value": 0.18009,
-          "vwap": 0.18082,
-          "close_vs_vwap_pct": 1.43,
-          "roc12": 0.59,
+          "macd_line": 0.9911,
+          "macd_signal": 0.96813,
+          "macd_histogram": 0.02297,
+          "bollinger_lower": 583.775,
+          "bollinger_mid": 585.463,
+          "bollinger_upper": 587.151,
+          "bb_width": 0.58,
+          "atr14": 3.0272,
+          "atr_pct": 0.52,
+          "adx14": 96.58,
+          "plus_di": 7.29,
+          "minus_di": 0.08,
+          "supertrend_value": 577.434,
+          "vwap": 571.452,
+          "close_vs_vwap_pct": 2.76,
+          "roc12": 0.34,
           "ichimoku": {
-            "tenkan": 0.1826,
-            "kijun": 0.18244,
-            "span_a": 0.18252,
-            "span_b": 0.18216,
+            "tenkan": 586.226,
+            "kijun": 584.745,
+            "span_a": 585.486,
+            "span_b": 583.536,
             "bias": "bullish"
           }
         },
@@ -1971,7 +2272,7 @@
           "technical_rating": "Strong Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매수",
-          "opportunity": 59.1,
+          "opportunity": 48.0,
           "weight": 15,
           "pattern": ""
         },
@@ -1981,7 +2282,7 @@
           "technical_rating": "Strong Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매수",
-          "opportunity": 67.6,
+          "opportunity": 69.2,
           "weight": 20,
           "pattern": ""
         },
@@ -1991,7 +2292,7 @@
           "technical_rating": "Strong Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매수",
-          "opportunity": 67.7,
+          "opportunity": 69.1,
           "weight": 30,
           "pattern": ""
         },
@@ -2001,44 +2302,312 @@
           "technical_rating": "Strong Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매수",
-          "opportunity": 67.8,
+          "opportunity": 69.5,
           "weight": 35,
           "pattern": ""
         }
       }
     },
     {
-      "symbol": "ETHUSDT",
-      "last_price": 3315.0,
-      "change_24h": -2.7,
+      "symbol": "BTCUSDT",
+      "last_price": 68320.0,
+      "change_24h": 1.8,
+      "agreement_score": 100,
+      "consensus_label": "상승 합의",
+      "long_weight": 100,
+      "short_weight": 0,
+      "primary": {
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 68320.0,
+        "change_24h": 1.8,
+        "quote_volume": 9450000000.0,
+        "funding_rate": -0.0096,
+        "open_interest_usd": 3850000000.0,
+        "long_short_ratio": 0.74,
+        "liquidation_pressure_usd": 238140.0,
+        "scores": {
+          "moving_average": 100,
+          "oscillator": 56.6,
+          "technical": 78.1,
+          "trend": 88.9,
+          "trend_bias": 84.6,
+          "momentum": 52.0,
+          "momentum_bias": 52.0,
+          "volatility": 90.2,
+          "derivatives": 44.7,
+          "derivatives_bias": 38.0,
+          "opportunity": 73.2,
+          "setup_bias": 75.2
+        },
+        "labels": {
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "숏 과밀",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 68126.59,
+          "ema50": 68048.15,
+          "ema200": 67762.9,
+          "rsi14": 96.44,
+          "stoch_rsi": 100.0,
+          "macd_line": 76.69226,
+          "macd_signal": 68.03199,
+          "macd_histogram": 8.66027,
+          "bollinger_lower": 67977.68,
+          "bollinger_mid": 68125.52,
+          "bollinger_upper": 68273.35,
+          "bb_width": 0.43,
+          "atr14": 352.009,
+          "atr_pct": 0.52,
+          "adx14": 82.14,
+          "plus_di": 6.12,
+          "minus_di": 0.38,
+          "supertrend_value": 67420.85,
+          "vwap": 67717.77,
+          "close_vs_vwap_pct": 0.89,
+          "roc12": 0.32,
+          "ichimoku": {
+            "tenkan": 68156.11,
+            "kijun": 68025.45,
+            "span_a": 68090.78,
+            "span_b": 67967.29,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Buy",
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 41.3,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 73.9,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 73.2,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 65.1,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "LINKUSDT",
+      "last_price": 18.28,
+      "change_24h": 4.5,
+      "agreement_score": 100,
+      "consensus_label": "상승 합의",
+      "long_weight": 100,
+      "short_weight": 0,
+      "primary": {
+        "symbol": "LINKUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 18.28,
+        "change_24h": 4.5,
+        "quote_volume": 281000000.0,
+        "funding_rate": 0.0096,
+        "open_interest_usd": 176000000.0,
+        "long_short_ratio": 0.955,
+        "liquidation_pressure_usd": 22572.0,
+        "scores": {
+          "moving_average": 54.0,
+          "oscillator": -37.9,
+          "technical": 24.1,
+          "trend": 61.6,
+          "trend_bias": 46.6,
+          "momentum": 27.7,
+          "momentum_bias": -27.7,
+          "volatility": 90.4,
+          "derivatives": 8.2,
+          "derivatives_bias": -18.2,
+          "opportunity": 35.5,
+          "setup_bias": 21.6
+        },
+        "labels": {
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "neutral"
+        },
+        "indicators": {
+          "ema20": 18.321,
+          "ema50": 18.215,
+          "ema200": 17.924,
+          "rsi14": 46.78,
+          "stoch_rsi": 0.0,
+          "macd_line": 0.05028,
+          "macd_signal": 0.05801,
+          "macd_histogram": -0.00773,
+          "bollinger_lower": 18.223,
+          "bollinger_mid": 18.326,
+          "bollinger_upper": 18.429,
+          "bb_width": 1.12,
+          "atr14": 0.10405,
+          "atr_pct": 0.57,
+          "adx14": 95.18,
+          "plus_di": 10.17,
+          "minus_di": 5.09,
+          "supertrend_value": 18.076,
+          "vwap": 17.877,
+          "close_vs_vwap_pct": 2.25,
+          "roc12": -0.17,
+          "ichimoku": {
+            "tenkan": 18.373,
+            "kijun": 18.292,
+            "span_a": 18.333,
+            "span_b": 18.209,
+            "bias": "neutral"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 68.8,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 68.4,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 35.5,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 45.0,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "SUIUSDT",
+      "last_price": 1.64,
+      "change_24h": -3.6,
       "agreement_score": -100,
       "consensus_label": "하락 합의",
       "long_weight": 0,
       "short_weight": 100,
       "primary": {
-        "symbol": "ETHUSDT",
+        "symbol": "SUIUSDT",
         "timeframe": "1h",
         "timeframe_label": "1h",
-        "last_price": 3315.0,
-        "change_24h": -2.7,
-        "quote_volume": 4280000000.0,
-        "funding_rate": -0.0072,
-        "open_interest_usd": 1920000000.0,
-        "long_short_ratio": 0.955,
-        "liquidation_pressure_usd": 147744.0,
+        "last_price": 1.64,
+        "change_24h": -3.6,
+        "quote_volume": 326000000.0,
+        "funding_rate": 0.0072,
+        "open_interest_usd": 145000000.0,
+        "long_short_ratio": 0.9,
+        "liquidation_pressure_usd": 15660.0,
         "scores": {
           "moving_average": -54.0,
-          "oscillator": 43.2,
-          "technical": -20.3,
-          "trend": 62.1,
-          "trend_bias": -47.3,
-          "momentum": 34.8,
-          "momentum_bias": 34.8,
-          "volatility": 90.0,
-          "derivatives": 28.1,
-          "derivatives_bias": 18.8,
-          "opportunity": 39.3,
-          "setup_bias": -18.7
+          "oscillator": 28.2,
+          "technical": -26.2,
+          "trend": 62.8,
+          "trend_bias": -48.4,
+          "momentum": 20.3,
+          "momentum_bias": 20.3,
+          "volatility": 90.3,
+          "derivatives": 9.0,
+          "derivatives_bias": -9.3,
+          "opportunity": 35.3,
+          "setup_bias": -24.7
         },
         "labels": {
           "technical_rating": "Sell",
@@ -2054,38 +2623,307 @@
           "squeeze": true,
           "breakout_up": false,
           "breakout_down": false,
-          "divergence_candidate": false,
+          "divergence_candidate": true,
           "supertrend": "bearish",
           "ichimoku_bias": "neutral"
         },
         "indicators": {
-          "ema20": 3311.23,
-          "ema50": 3319.29,
-          "ema200": 3353.26,
-          "rsi14": 58.17,
+          "ema20": 1.6395,
+          "ema50": 1.6466,
+          "ema200": 1.6669,
+          "rsi14": 44.8,
           "stoch_rsi": 100.0,
-          "macd_line": -2.34385,
-          "macd_signal": -2.89679,
-          "macd_histogram": 0.55294,
-          "bollinger_lower": 3306.29,
-          "bollinger_mid": 3311.09,
-          "bollinger_upper": 3315.88,
-          "bb_width": 0.29,
-          "atr14": 16.163,
-          "atr_pct": 0.49,
-          "adx14": 99.45,
+          "macd_line": -0.00305,
+          "macd_signal": -0.00342,
+          "macd_histogram": 0.00037,
+          "bollinger_lower": 1.634,
+          "bollinger_mid": 1.6393,
+          "bollinger_upper": 1.6446,
+          "bb_width": 0.65,
+          "atr14": 0.008816,
+          "atr_pct": 0.54,
+          "adx14": 99.6,
           "plus_di": 0.01,
-          "minus_di": 6.74,
-          "supertrend_value": 3358.04,
-          "vwap": 3358.16,
-          "close_vs_vwap_pct": -1.29,
-          "roc12": 0.08,
+          "minus_di": 9.19,
+          "supertrend_value": 1.6616,
+          "vwap": 1.67,
+          "close_vs_vwap_pct": -1.79,
+          "roc12": -0.02,
           "ichimoku": {
-            "tenkan": 3308.97,
-            "kijun": 3311.29,
-            "span_a": 3310.13,
-            "span_b": 3322.02,
+            "tenkan": 1.6366,
+            "kijun": 1.6407,
+            "span_a": 1.6387,
+            "span_b": 1.6472,
             "bias": "neutral"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축",
+          "다이버전스 후보"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 66.2,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 35.4,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 35.3,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 61.6,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "last_price": 0.642,
+      "change_24h": -4.5,
+      "agreement_score": -100,
+      "consensus_label": "하락 합의",
+      "long_weight": 0,
+      "short_weight": 100,
+      "primary": {
+        "symbol": "XRPUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 0.642,
+        "change_24h": -4.5,
+        "quote_volume": 1140000000.0,
+        "funding_rate": -0.0024,
+        "open_interest_usd": 602000000.0,
+        "long_short_ratio": 0.905,
+        "liquidation_pressure_usd": 80900.59,
+        "scores": {
+          "moving_average": -100,
+          "oscillator": -57.4,
+          "technical": -81.7,
+          "trend": 90.4,
+          "trend_bias": -86.6,
+          "momentum": 56.6,
+          "momentum_bias": -56.6,
+          "volatility": 90.3,
+          "derivatives": 12.1,
+          "derivatives_bias": 11.5,
+          "opportunity": 69.4,
+          "setup_bias": -78.4
+        },
+        "labels": {
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "숏 우위"
+        },
+        "side": "short",
+        "side_label": "숏",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": true,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bearish"
+        },
+        "indicators": {
+          "ema20": 0.64582,
+          "ema50": 0.64849,
+          "ema200": 0.65681,
+          "rsi14": 0.06,
+          "stoch_rsi": 0.0,
+          "macd_line": -0.00146,
+          "macd_signal": -0.00129,
+          "macd_histogram": -0.00018,
+          "bollinger_lower": 0.64324,
+          "bollinger_mid": 0.64598,
+          "bollinger_upper": 0.64872,
+          "bb_width": 0.85,
+          "atr14": 0.003569,
+          "atr_pct": 0.56,
+          "adx14": 99.38,
+          "plus_di": 0.02,
+          "minus_di": 10.3,
+          "supertrend_value": 0.65416,
+          "vwap": 0.65801,
+          "close_vs_vwap_pct": -2.43,
+          "roc12": -0.72,
+          "ichimoku": {
+            "tenkan": 0.64471,
+            "kijun": 0.64614,
+            "span_a": 0.64543,
+            "span_b": 0.64898,
+            "bias": "bearish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "기술 Strong Sell",
+          "볼린저 압축",
+          "하방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 36.1,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 48.0,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 69.4,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 67.0,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "last_price": 0.714,
+      "change_24h": -1.8,
+      "agreement_score": -40,
+      "consensus_label": "하락 합의",
+      "long_weight": 30,
+      "short_weight": 70,
+      "primary": {
+        "symbol": "ADAUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 0.714,
+        "change_24h": -1.8,
+        "quote_volume": 598000000.0,
+        "funding_rate": 0.0024,
+        "open_interest_usd": 318000000.0,
+        "long_short_ratio": 1.175,
+        "liquidation_pressure_usd": 18342.82,
+        "scores": {
+          "moving_average": 8.0,
+          "oscillator": 56.2,
+          "technical": 20.5,
+          "trend": 34.2,
+          "trend_bias": 8.6,
+          "momentum": 47.1,
+          "momentum_bias": 47.1,
+          "volatility": 90.1,
+          "derivatives": 11.9,
+          "derivatives_bias": -16.7,
+          "opportunity": 39.5,
+          "setup_bias": 21.7
+        },
+        "labels": {
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 0.71325,
+          "ema50": 0.71352,
+          "ema200": 0.72005,
+          "rsi14": 87.62,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.00038,
+          "macd_signal": 0.00033,
+          "macd_histogram": 5e-05,
+          "bollinger_lower": 0.71246,
+          "bollinger_mid": 0.71327,
+          "bollinger_upper": 0.71408,
+          "bb_width": 0.23,
+          "atr14": 0.003596,
+          "atr_pct": 0.5,
+          "adx14": 72.21,
+          "plus_di": 5.07,
+          "minus_di": 0.53,
+          "supertrend_value": 0.72164,
+          "vwap": 0.72082,
+          "close_vs_vwap_pct": -0.95,
+          "roc12": 0.12,
+          "ichimoku": {
+            "tenkan": 0.71363,
+            "kijun": 0.71288,
+            "span_a": 0.71325,
+            "span_b": 0.71231,
+            "bias": "bullish"
           }
         },
         "pattern": null,
@@ -2104,7 +2942,7 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 71.2,
+          "opportunity": 60.3,
           "weight": 15,
           "pattern": ""
         },
@@ -2114,17 +2952,17 @@
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
           "momentum_bias": "과매도",
-          "opportunity": 68.6,
+          "opportunity": 67.3,
           "weight": 20,
           "pattern": ""
         },
         "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Buy",
+          "trend_bias": "혼조",
           "momentum_bias": "과매수",
-          "opportunity": 39.3,
+          "opportunity": 39.5,
           "weight": 30,
           "pattern": ""
         },
@@ -2133,8 +2971,276 @@
           "side_label": "숏",
           "technical_rating": "Strong Sell",
           "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 67.4,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "last_price": 3315.0,
+      "change_24h": -2.7,
+      "agreement_score": -40,
+      "consensus_label": "하락 합의",
+      "long_weight": 30,
+      "short_weight": 70,
+      "primary": {
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 3315.0,
+        "change_24h": -2.7,
+        "quote_volume": 4280000000.0,
+        "funding_rate": -0.0072,
+        "open_interest_usd": 1920000000.0,
+        "long_short_ratio": 0.955,
+        "liquidation_pressure_usd": 147744.0,
+        "scores": {
+          "moving_average": -12.0,
+          "oscillator": 56.5,
+          "technical": 8.4,
+          "trend": 22.6,
+          "trend_bias": -10.3,
+          "momentum": 46.6,
+          "momentum_bias": 46.6,
+          "volatility": 90.2,
+          "derivatives": 28.1,
+          "derivatives_bias": 18.8,
+          "opportunity": 29.9,
+          "setup_bias": 9.5
+        },
+        "labels": {
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
           "momentum_bias": "과매수",
-          "opportunity": 50.7,
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": true,
+          "breakout_down": false,
+          "divergence_candidate": false,
+          "supertrend": "bearish",
+          "ichimoku_bias": "bullish"
+        },
+        "indicators": {
+          "ema20": 3307.23,
+          "ema50": 3310.56,
+          "ema200": 3351.57,
+          "rsi14": 88.76,
+          "stoch_rsi": 100.0,
+          "macd_line": 0.39916,
+          "macd_signal": -0.26117,
+          "macd_histogram": 0.66034,
+          "bollinger_lower": 3303.15,
+          "bollinger_mid": 3306.9,
+          "bollinger_upper": 3310.64,
+          "bb_width": 0.23,
+          "atr14": 17.657,
+          "atr_pct": 0.53,
+          "adx14": 27.13,
+          "plus_di": 1.73,
+          "minus_di": 2.65,
+          "supertrend_value": 3354.27,
+          "vwap": 3356.58,
+          "close_vs_vwap_pct": -1.24,
+          "roc12": 0.25,
+          "ichimoku": {
+            "tenkan": 3306.08,
+            "kijun": 3306.33,
+            "span_a": 3306.21,
+            "span_b": 3306.88,
+            "bias": "bullish"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축",
+          "상방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 71.0,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 39.5,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매수",
+          "opportunity": 29.9,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Strong Sell",
+          "trend_bias": "하락 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 63.5,
+          "weight": 35,
+          "pattern": ""
+        }
+      }
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "last_price": 0.1834,
+      "change_24h": 2.7,
+      "agreement_score": -10,
+      "consensus_label": "혼합",
+      "long_weight": 45,
+      "short_weight": 55,
+      "primary": {
+        "symbol": "DOGEUSDT",
+        "timeframe": "1h",
+        "timeframe_label": "1h",
+        "last_price": 0.1834,
+        "change_24h": 2.7,
+        "quote_volume": 836000000.0,
+        "funding_rate": 0.0048,
+        "open_interest_usd": 402000000.0,
+        "long_short_ratio": 1.07,
+        "liquidation_pressure_usd": 31673.95,
+        "scores": {
+          "moving_average": 54.0,
+          "oscillator": -46.6,
+          "technical": 19.2,
+          "trend": 61.0,
+          "trend_bias": 45.8,
+          "momentum": 37.9,
+          "momentum_bias": -37.9,
+          "volatility": 90.2,
+          "derivatives": 9.8,
+          "derivatives_bias": -15.1,
+          "opportunity": 36.0,
+          "setup_bias": 17.1
+        },
+        "labels": {
+          "technical_rating": "Neutral",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "volatility_state": "압축",
+          "derivatives_bias": "중립",
+          "setup_bias": "롱 우위"
+        },
+        "side": "long",
+        "side_label": "롱",
+        "signals": {
+          "squeeze": true,
+          "breakout_up": false,
+          "breakout_down": true,
+          "divergence_candidate": false,
+          "supertrend": "bullish",
+          "ichimoku_bias": "neutral"
+        },
+        "indicators": {
+          "ema20": 0.18393,
+          "ema50": 0.18317,
+          "ema200": 0.18142,
+          "rsi14": 39.16,
+          "stoch_rsi": 0.0,
+          "macd_line": 0.00032,
+          "macd_signal": 0.00043,
+          "macd_histogram": -0.0001,
+          "bollinger_lower": 0.18344,
+          "bollinger_mid": 0.18404,
+          "bollinger_upper": 0.18464,
+          "bb_width": 0.65,
+          "atr14": 0.000949,
+          "atr_pct": 0.52,
+          "adx14": 93.56,
+          "plus_di": 7.69,
+          "minus_di": 4.26,
+          "supertrend_value": 0.18136,
+          "vwap": 0.18113,
+          "close_vs_vwap_pct": 1.25,
+          "roc12": -0.33,
+          "ichimoku": {
+            "tenkan": 0.18418,
+            "kijun": 0.18371,
+            "span_a": 0.18394,
+            "span_b": 0.18271,
+            "bias": "neutral"
+          }
+        },
+        "pattern": null,
+        "flags": [
+          "볼린저 압축",
+          "하방 돌파"
+        ],
+        "data_origin": "fallback_synthetic",
+        "normalized_quote_volume": 0.0,
+        "normalized_open_interest_usd": 0.0,
+        "universe_score": 0.0
+      },
+      "timeframes": {
+        "5m": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Strong Buy",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매수",
+          "opportunity": 67.3,
+          "weight": 15,
+          "pattern": ""
+        },
+        "15m": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Neutral",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매도",
+          "opportunity": 37.4,
+          "weight": 20,
+          "pattern": ""
+        },
+        "1h": {
+          "side": "long",
+          "side_label": "롱",
+          "technical_rating": "Neutral",
+          "trend_bias": "상승 추세",
+          "momentum_bias": "과매도",
+          "opportunity": 36.0,
+          "weight": 30,
+          "pattern": ""
+        },
+        "4h": {
+          "side": "short",
+          "side_label": "숏",
+          "technical_rating": "Sell",
+          "trend_bias": "혼조",
+          "momentum_bias": "과매도",
+          "opportunity": 38.7,
           "weight": 35,
           "pattern": ""
         }
@@ -2144,10 +3250,10 @@
       "symbol": "SOLUSDT",
       "last_price": 80.06,
       "change_24h": 3.6,
-      "agreement_score": 100,
-      "consensus_label": "상승 합의",
-      "long_weight": 100,
-      "short_weight": 0,
+      "agreement_score": -10,
+      "consensus_label": "혼합",
+      "long_weight": 45,
+      "short_weight": 55,
       "primary": {
         "symbol": "SOLUSDT",
         "timeframe": "1h",
@@ -2160,23 +3266,23 @@
         "long_short_ratio": 1.01,
         "liquidation_pressure_usd": 97874.51,
         "scores": {
-          "moving_average": 100,
-          "oscillator": -11.4,
-          "technical": 58.3,
-          "trend": 90.1,
-          "trend_bias": 86.3,
-          "momentum": 5.5,
-          "momentum_bias": -5.5,
-          "volatility": 90.2,
+          "moving_average": 54.0,
+          "oscillator": -36.0,
+          "technical": 23.9,
+          "trend": 61.9,
+          "trend_bias": 47.1,
+          "momentum": 27.0,
+          "momentum_bias": -27.0,
+          "volatility": 90.3,
           "derivatives": 14.4,
           "derivatives_bias": 9.9,
-          "opportunity": 72.8,
-          "setup_bias": 55.3
+          "opportunity": 69.8,
+          "setup_bias": 21.8
         },
         "labels": {
-          "technical_rating": "Strong Buy",
+          "technical_rating": "Buy",
           "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
+          "momentum_bias": "과매도",
           "volatility_state": "압축",
           "derivatives_bias": "중립",
           "setup_bias": "롱 우위"
@@ -2187,38 +3293,38 @@
           "squeeze": true,
           "breakout_up": false,
           "breakout_down": false,
-          "divergence_candidate": true,
+          "divergence_candidate": false,
           "supertrend": "bullish",
-          "ichimoku_bias": "bullish"
+          "ichimoku_bias": "neutral"
         },
         "indicators": {
-          "ema20": 79.852,
-          "ema50": 79.521,
-          "ema200": 78.77,
-          "rsi14": 90.65,
+          "ema20": 80.116,
+          "ema50": 79.905,
+          "ema200": 78.754,
+          "rsi14": 48.31,
           "stoch_rsi": 0.0,
-          "macd_line": 0.1973,
-          "macd_signal": 0.2025,
-          "macd_histogram": -0.0052,
-          "bollinger_lower": 79.539,
-          "bollinger_mid": 79.864,
-          "bollinger_upper": 80.189,
-          "bb_width": 0.81,
-          "atr14": 0.41391,
-          "atr_pct": 0.52,
-          "adx14": 96.44,
-          "plus_di": 9.59,
-          "minus_di": 0.11,
-          "supertrend_value": 78.832,
-          "vwap": 78.647,
-          "close_vs_vwap_pct": 1.8,
-          "roc12": 0.32,
+          "macd_line": 0.08444,
+          "macd_signal": 0.10171,
+          "macd_histogram": -0.01727,
+          "bollinger_lower": 79.98,
+          "bollinger_mid": 80.134,
+          "bollinger_upper": 80.288,
+          "bb_width": 0.38,
+          "atr14": 0.43374,
+          "atr_pct": 0.54,
+          "adx14": 99.98,
+          "plus_di": 6.16,
+          "minus_di": 0.0,
+          "supertrend_value": 79.025,
+          "vwap": 78.598,
+          "close_vs_vwap_pct": 1.86,
+          "roc12": -0.08,
           "ichimoku": {
-            "tenkan": 79.997,
-            "kijun": 79.699,
-            "span_a": 79.848,
-            "span_b": 79.373,
-            "bias": "bullish"
+            "tenkan": 80.232,
+            "kijun": 80.1,
+            "span_a": 80.166,
+            "span_b": 79.933,
+            "bias": "neutral"
           }
         },
         "pattern": {
@@ -2318,277 +3424,6 @@
           ]
         },
         "flags": [
-          "기술 Strong Buy",
-          "볼린저 압축",
-          "다이버전스 후보"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 75.9,
-          "weight": 15,
-          "pattern": "Gartley"
-        },
-        "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 70.0,
-          "weight": 20,
-          "pattern": "Gartley"
-        },
-        "1h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 72.8,
-          "weight": 30,
-          "pattern": "Gartley"
-        },
-        "4h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 69.7,
-          "weight": 35,
-          "pattern": "Gartley"
-        }
-      }
-    },
-    {
-      "symbol": "SUIUSDT",
-      "last_price": 1.64,
-      "change_24h": -3.6,
-      "agreement_score": -100,
-      "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
-      "primary": {
-        "symbol": "SUIUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 1.64,
-        "change_24h": -3.6,
-        "quote_volume": 326000000.0,
-        "funding_rate": 0.0072,
-        "open_interest_usd": 145000000.0,
-        "long_short_ratio": 0.9,
-        "liquidation_pressure_usd": 15660.0,
-        "scores": {
-          "moving_average": -100,
-          "oscillator": -57.3,
-          "technical": -80.5,
-          "trend": 88.1,
-          "trend_bias": -83.5,
-          "momentum": 55.1,
-          "momentum_bias": -55.1,
-          "volatility": 90.3,
-          "derivatives": 9.0,
-          "derivatives_bias": -9.3,
-          "opportunity": 67.8,
-          "setup_bias": -76.5
-        },
-        "labels": {
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": true,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "bearish"
-        },
-        "indicators": {
-          "ema20": 1.6501,
-          "ema50": 1.6506,
-          "ema200": 1.6691,
-          "rsi14": 13.12,
-          "stoch_rsi": 0.0,
-          "macd_line": -0.00013,
-          "macd_signal": 0.00054,
-          "macd_histogram": -0.00067,
-          "bollinger_lower": 1.6452,
-          "bollinger_mid": 1.6505,
-          "bollinger_upper": 1.6558,
-          "bb_width": 0.64,
-          "atr14": 0.00879,
-          "atr_pct": 0.54,
-          "adx14": 63.43,
-          "plus_di": 4.45,
-          "minus_di": 7.85,
-          "supertrend_value": 1.6753,
-          "vwap": 1.6714,
-          "close_vs_vwap_pct": -1.88,
-          "roc12": -0.65,
-          "ichimoku": {
-            "tenkan": 1.649,
-            "kijun": 1.649,
-            "span_a": 1.649,
-            "span_b": 1.649,
-            "bias": "bearish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Sell",
-          "볼린저 압축",
-          "하방 돌파"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 60.4,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 61.8,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 67.8,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 68.2,
-          "weight": 35,
-          "pattern": ""
-        }
-      }
-    },
-    {
-      "symbol": "XRPUSDT",
-      "last_price": 0.642,
-      "change_24h": -4.5,
-      "agreement_score": -100,
-      "consensus_label": "하락 합의",
-      "long_weight": 0,
-      "short_weight": 100,
-      "primary": {
-        "symbol": "XRPUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 0.642,
-        "change_24h": -4.5,
-        "quote_volume": 1140000000.0,
-        "funding_rate": -0.0024,
-        "open_interest_usd": 602000000.0,
-        "long_short_ratio": 0.905,
-        "liquidation_pressure_usd": 80900.59,
-        "scores": {
-          "moving_average": -100,
-          "oscillator": -24.6,
-          "technical": -70.8,
-          "trend": 89.8,
-          "trend_bias": -85.8,
-          "momentum": 27.2,
-          "momentum_bias": -27.2,
-          "volatility": 90.2,
-          "derivatives": 12.1,
-          "derivatives_bias": 11.5,
-          "opportunity": 61.5,
-          "setup_bias": -67.3
-        },
-        "labels": {
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": false,
-          "divergence_candidate": false,
-          "supertrend": "bearish",
-          "ichimoku_bias": "bearish"
-        },
-        "indicators": {
-          "ema20": 0.64328,
-          "ema50": 0.64567,
-          "ema200": 0.65528,
-          "rsi14": 7.84,
-          "stoch_rsi": 100.0,
-          "macd_line": -0.00104,
-          "macd_signal": -0.00104,
-          "macd_histogram": -0.0,
-          "bollinger_lower": 0.64161,
-          "bollinger_mid": 0.64333,
-          "bollinger_upper": 0.64505,
-          "bb_width": 0.54,
-          "atr14": 0.00329,
-          "atr_pct": 0.51,
-          "adx14": 99.47,
-          "plus_di": 0.01,
-          "minus_di": 8.39,
-          "supertrend_value": 0.65191,
-          "vwap": 0.65659,
-          "close_vs_vwap_pct": -2.22,
-          "roc12": -0.28,
-          "ichimoku": {
-            "tenkan": 0.64255,
-            "kijun": 0.64363,
-            "span_a": 0.64309,
-            "span_b": 0.64651,
-            "bias": "bearish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Sell",
           "볼린저 압축"
         ],
         "data_origin": "fallback_synthetic",
@@ -2598,318 +3433,49 @@
       },
       "timeframes": {
         "5m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 68.9,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 35.4,
-          "weight": 20,
-          "pattern": ""
-        },
-        "1h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 61.5,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "short",
-          "side_label": "숏",
-          "technical_rating": "Strong Sell",
-          "trend_bias": "하락 추세",
-          "momentum_bias": "과매도",
-          "opportunity": 68.7,
-          "weight": 35,
-          "pattern": ""
-        }
-      }
-    },
-    {
-      "symbol": "LINKUSDT",
-      "last_price": 18.28,
-      "change_24h": 4.5,
-      "agreement_score": 40,
-      "consensus_label": "상승 합의",
-      "long_weight": 70,
-      "short_weight": 30,
-      "primary": {
-        "symbol": "LINKUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 18.28,
-        "change_24h": 4.5,
-        "quote_volume": 281000000.0,
-        "funding_rate": 0.0096,
-        "open_interest_usd": 176000000.0,
-        "long_short_ratio": 0.955,
-        "liquidation_pressure_usd": 22572.0,
-        "scores": {
-          "moving_average": -8.0,
-          "oscillator": -56.0,
-          "technical": -18.1,
-          "trend": 33.0,
-          "trend_bias": -7.0,
-          "momentum": 44.2,
-          "momentum_bias": -44.2,
-          "volatility": 90.4,
-          "derivatives": 8.2,
-          "derivatives_bias": -18.2,
-          "opportunity": 37.4,
-          "setup_bias": -19.4
-        },
-        "labels": {
-          "technical_rating": "Neutral",
-          "trend_bias": "혼조",
-          "momentum_bias": "과매도",
-          "volatility_state": "압축",
-          "derivatives_bias": "중립",
-          "setup_bias": "숏 우위"
-        },
-        "side": "short",
-        "side_label": "숏",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": false,
-          "breakout_down": true,
-          "divergence_candidate": false,
-          "supertrend": "bullish",
-          "ichimoku_bias": "bearish"
-        },
-        "indicators": {
-          "ema20": 18.392,
-          "ema50": 18.302,
-          "ema200": 17.964,
-          "rsi14": 31.2,
-          "stoch_rsi": 0.0,
-          "macd_line": 0.032,
-          "macd_signal": 0.04544,
-          "macd_histogram": -0.01344,
-          "bollinger_lower": 18.313,
-          "bollinger_mid": 18.403,
-          "bollinger_upper": 18.493,
-          "bb_width": 0.97,
-          "atr14": 0.10253,
-          "atr_pct": 0.56,
-          "adx14": 93.22,
-          "plus_di": 8.17,
-          "minus_di": 9.11,
-          "supertrend_value": 18.124,
-          "vwap": 17.913,
-          "close_vs_vwap_pct": 2.05,
-          "roc12": -0.64,
-          "ichimoku": {
-            "tenkan": 18.397,
-            "kijun": 18.377,
-            "span_a": 18.387,
-            "span_b": 18.288,
-            "bias": "bearish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "볼린저 압축",
-          "하방 돌파"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 68.6,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
           "side": "long",
           "side_label": "롱",
           "technical_rating": "Buy",
           "trend_bias": "상승 추세",
           "momentum_bias": "과매도",
-          "opportunity": 35.6,
-          "weight": 20,
-          "pattern": ""
+          "opportunity": 70.6,
+          "weight": 15,
+          "pattern": "Gartley"
         },
-        "1h": {
+        "15m": {
           "side": "short",
           "side_label": "숏",
           "technical_rating": "Neutral",
           "trend_bias": "혼조",
           "momentum_bias": "과매도",
-          "opportunity": 37.4,
-          "weight": 30,
-          "pattern": ""
-        },
-        "4h": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 67.0,
-          "weight": 35,
-          "pattern": ""
-        }
-      }
-    },
-    {
-      "symbol": "BTCUSDT",
-      "last_price": 68320.0,
-      "change_24h": 1.8,
-      "agreement_score": 30,
-      "consensus_label": "상승 합의",
-      "long_weight": 65,
-      "short_weight": 35,
-      "primary": {
-        "symbol": "BTCUSDT",
-        "timeframe": "1h",
-        "timeframe_label": "1h",
-        "last_price": 68320.0,
-        "change_24h": 1.8,
-        "quote_volume": 9450000000.0,
-        "funding_rate": -0.0096,
-        "open_interest_usd": 3850000000.0,
-        "long_short_ratio": 0.74,
-        "liquidation_pressure_usd": 238140.0,
-        "scores": {
-          "moving_average": 100,
-          "oscillator": 57.1,
-          "technical": 78.6,
-          "trend": 89.8,
-          "trend_bias": 85.8,
-          "momentum": 52.9,
-          "momentum_bias": 52.9,
-          "volatility": 90.1,
-          "derivatives": 44.7,
-          "derivatives_bias": 38.0,
-          "opportunity": 73.7,
-          "setup_bias": 76.0
-        },
-        "labels": {
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "volatility_state": "압축",
-          "derivatives_bias": "숏 과밀",
-          "setup_bias": "롱 우위"
-        },
-        "side": "long",
-        "side_label": "롱",
-        "signals": {
-          "squeeze": true,
-          "breakout_up": true,
-          "breakout_down": false,
-          "divergence_candidate": false,
-          "supertrend": "bullish",
-          "ichimoku_bias": "bullish"
-        },
-        "indicators": {
-          "ema20": 67987.72,
-          "ema50": 67813.95,
-          "ema200": 67643.79,
-          "rsi14": 98.51,
-          "stoch_rsi": 100.0,
-          "macd_line": 134.03373,
-          "macd_signal": 122.75029,
-          "macd_histogram": 11.28344,
-          "bollinger_lower": 67749.47,
-          "bollinger_mid": 67987.97,
-          "bollinger_upper": 68226.47,
-          "bb_width": 0.7,
-          "atr14": 347.699,
-          "atr_pct": 0.51,
-          "adx14": 90.82,
-          "plus_di": 8.77,
-          "minus_di": 0.24,
-          "supertrend_value": 67058.67,
-          "vwap": 67602.98,
-          "close_vs_vwap_pct": 1.06,
-          "roc12": 0.55,
-          "ichimoku": {
-            "tenkan": 68072.04,
-            "kijun": 67876.75,
-            "span_a": 67974.4,
-            "span_b": 67704.35,
-            "bias": "bullish"
-          }
-        },
-        "pattern": null,
-        "flags": [
-          "기술 Strong Buy",
-          "볼린저 압축",
-          "상방 돌파"
-        ],
-        "data_origin": "fallback_synthetic",
-        "normalized_quote_volume": 0.0,
-        "normalized_open_interest_usd": 0.0,
-        "universe_score": 0.0
-      },
-      "timeframes": {
-        "5m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 73.2,
-          "weight": 15,
-          "pattern": ""
-        },
-        "15m": {
-          "side": "long",
-          "side_label": "롱",
-          "technical_rating": "Strong Buy",
-          "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 65.2,
+          "opportunity": 66.1,
           "weight": 20,
-          "pattern": ""
+          "pattern": "Gartley"
         },
         "1h": {
           "side": "long",
           "side_label": "롱",
-          "technical_rating": "Strong Buy",
+          "technical_rating": "Buy",
           "trend_bias": "상승 추세",
-          "momentum_bias": "과매수",
-          "opportunity": 73.7,
+          "momentum_bias": "과매도",
+          "opportunity": 69.8,
           "weight": 30,
-          "pattern": ""
+          "pattern": "Gartley"
         },
         "4h": {
           "side": "short",
           "side_label": "숏",
-          "technical_rating": "Sell",
+          "technical_rating": "Neutral",
           "trend_bias": "혼조",
           "momentum_bias": "과매도",
-          "opportunity": 46.0,
+          "opportunity": 66.1,
           "weight": 35,
-          "pattern": ""
+          "pattern": "Gartley"
         }
       }
     }
   ],
   "data_origin": "batch_fallback",
   "fallback_reason": "실시간 Binance 요청 실패 또는 제한 시 표시하는 최근 배치 fallback 데이터입니다.",
-  "fallback_generated_at": "2026-05-31T16:37:42+00:00"
+  "fallback_generated_at": "2026-05-31T18:18:29+00:00"
 }
