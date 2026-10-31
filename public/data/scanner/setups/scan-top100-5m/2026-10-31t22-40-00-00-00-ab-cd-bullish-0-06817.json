@@ -1,0 +1,350 @@
+{
+  "generated_at": "2026-10-31T23:27:30+00:00",
+  "scan_id": "scan-top100-5m",
+  "market": "binance-usdt-perpetual",
+  "universe_key": "top100",
+  "universe_label": "Top 100 Symbols",
+  "timeframe": "5m",
+  "timeframe_label": "5m",
+  "result": {
+    "pattern": "AB=CD",
+    "status": "complete",
+    "status_label": "Complete",
+    "score": 88.0,
+    "score_breakdown": {
+      "ratio_fit": 40.0,
+      "geometry": 19.4,
+      "reaction": 20.0,
+      "indicators": 8.6
+    },
+    "summary": "AB=CD 패턴이 PRZ 구간에 진입했고 Complete 상태로 분류되었습니다.",
+    "preview_image": "generated/scanner/scan-top100-5m/bullausdt-ab-cd-complete.svg",
+    "detail_page": "crypto/setups/scan-top100-5m/2026-10-31t22-40-00-00-00-ab-cd-bullish-0-06817/",
+    "legacy_detail_page": "patterns/5m/bullausdt-442108af28/",
+    "detail_data_path": "setups/scan-top100-5m/2026-10-31t22-40-00-00-00-ab-cd-bullish-0-06817.json",
+    "side": "bullish",
+    "side_label": "Bullish (매수)",
+    "prz": {
+      "lower": 0.068188,
+      "upper": 0.06853,
+      "center": 0.068359,
+      "distance_pct": 0.276
+    },
+    "targets": {
+      "tp1": 0.06846,
+      "tp2": 0.06864
+    },
+    "stop": {
+      "value": 0.068095,
+      "label": "1.13 XA"
+    },
+    "points": {
+      "X": {
+        "price": 0.06863,
+        "timestamp": "2026-10-31T21:00:00+00:00",
+        "index": 190
+      },
+      "A": {
+        "price": 0.06921,
+        "timestamp": "2026-10-31T21:15:00+00:00",
+        "index": 193
+      },
+      "B": {
+        "price": 0.06863,
+        "timestamp": "2026-10-31T22:00:00+00:00",
+        "index": 202
+      },
+      "C": {
+        "price": 0.06893,
+        "timestamp": "2026-10-31T22:15:00+00:00",
+        "index": 205
+      },
+      "D": {
+        "price": 0.06817,
+        "timestamp": "2026-10-31T22:40:00+00:00",
+        "index": 210
+      }
+    },
+    "ratios": {
+      "xab": 1.0,
+      "abc": 0.517,
+      "bcd": 2.533,
+      "xad": 0.793
+    },
+    "indicator_flags": [
+      {
+        "key": "rsi",
+        "label": "RSI",
+        "status": "pass",
+        "value": "44.7",
+        "note": "과매도/과매수 구간 접근"
+      },
+      {
+        "key": "macd",
+        "label": "MACD",
+        "status": "pass",
+        "value": "0.0000",
+        "note": "히스토그램 반전 확인"
+      },
+      {
+        "key": "bollinger",
+        "label": "Bollinger",
+        "status": "pass",
+        "value": "0.0683 ~ 0.0689",
+        "note": "밴드 극단값 근접"
+      },
+      {
+        "key": "vwap",
+        "label": "VWAP",
+        "status": "neutral",
+        "value": "0.0689",
+        "note": "VWAP 회복/이탈 흐름"
+      },
+      {
+        "key": "funding",
+        "label": "Funding",
+        "status": "neutral",
+        "value": "0.0050%",
+        "note": "반대 포지션 과열 여부"
+      },
+      {
+        "key": "open_interest",
+        "label": "Open Interest",
+        "status": "pass",
+        "value": "$6,947,788",
+        "note": "체결 관심도 유지"
+      },
+      {
+        "key": "long_short",
+        "label": "Long/Short",
+        "status": "neutral",
+        "value": "1.15",
+        "note": "군중 포지션 반대편 우위"
+      }
+    ]
+  },
+  "analysis": {
+    "symbol": "BULLAUSDT",
+    "timeframe": "5m",
+    "timeframe_label": "5m",
+    "last_price": 0.06852,
+    "change_24h": -11.01,
+    "quote_volume": 30343853.59,
+    "funding_rate": 0.005,
+    "open_interest_usd": 6947788.01,
+    "long_short_ratio": 1.149,
+    "liquidation_pressure_usd": 2396.45,
+    "scores": {
+      "moving_average": -90.0,
+      "oscillator": 28.0,
+      "technical": -44.6,
+      "trend": 61.8,
+      "trend_bias": -73.5,
+      "momentum": 23.1,
+      "momentum_bias": 23.1,
+      "volatility": 89.5,
+      "derivatives": 8.3,
+      "derivatives_bias": -20.7,
+      "opportunity": 73.4,
+      "setup_bias": -41.2
+    },
+    "labels": {
+      "technical_rating": "Sell",
+      "trend_bias": "하락 추세",
+      "momentum_bias": "상승 모멘텀",
+      "volatility_state": "압축",
+      "derivatives_bias": "롱 과밀",
+      "setup_bias": "숏 우위"
+    },
+    "side": "short",
+    "side_label": "숏",
+    "signals": {
+      "squeeze": true,
+      "breakout_up": false,
+      "breakout_down": false,
+      "divergence_candidate": true,
+      "supertrend": "bearish",
+      "ichimoku_bias": "bearish"
+    },
+    "indicators": {
+      "ema20": 0.068615,
+      "ema50": 0.068825,
+      "ema200": 0.07109,
+      "rsi14": 44.67,
+      "stoch_rsi": 75.32,
+      "macd_line": -0.0001,
+      "macd_signal": -0.00013,
+      "macd_histogram": 3e-05,
+      "bollinger_lower": 0.068255,
+      "bollinger_mid": 0.068579,
+      "bollinger_upper": 0.068903,
+      "bb_width": 0.94,
+      "atr14": 0.000247,
+      "atr_pct": 0.36,
+      "adx14": 15.94,
+      "plus_di": 18.28,
+      "minus_di": 17.67,
+      "supertrend_value": 0.06904,
+      "vwap": 0.068949,
+      "close_vs_vwap_pct": -0.62,
+      "roc12": -0.07,
+      "ichimoku": {
+        "tenkan": 0.068555,
+        "kijun": 0.06867,
+        "span_a": 0.068612,
+        "span_b": 0.06904,
+        "bias": "bearish"
+      }
+    },
+    "pattern": {
+      "pattern": "AB=CD",
+      "status": "complete",
+      "status_label": "Complete",
+      "score": 88.0,
+      "score_breakdown": {
+        "ratio_fit": 40.0,
+        "geometry": 19.4,
+        "reaction": 20.0,
+        "indicators": 8.6
+      },
+      "summary": "AB=CD 패턴이 PRZ 구간에 진입했고 Complete 상태로 분류되었습니다.",
+      "preview_image": "generated/scanner/scan-top100-5m/bullausdt-ab-cd-complete.svg",
+      "detail_page": "crypto/setups/scan-top100-5m/2026-10-31t22-40-00-00-00-ab-cd-bullish-0-06817/",
+      "legacy_detail_page": "patterns/5m/bullausdt-442108af28/",
+      "detail_data_path": "setups/scan-top100-5m/2026-10-31t22-40-00-00-00-ab-cd-bullish-0-06817.json",
+      "side": "bullish",
+      "side_label": "Bullish (매수)",
+      "prz": {
+        "lower": 0.068188,
+        "upper": 0.06853,
+        "center": 0.068359,
+        "distance_pct": 0.276
+      },
+      "targets": {
+        "tp1": 0.06846,
+        "tp2": 0.06864
+      },
+      "stop": {
+        "value": 0.068095,
+        "label": "1.13 XA"
+      },
+      "points": {
+        "X": {
+          "price": 0.06863,
+          "timestamp": "2026-10-31T21:00:00+00:00",
+          "index": 190
+        },
+        "A": {
+          "price": 0.06921,
+          "timestamp": "2026-10-31T21:15:00+00:00",
+          "index": 193
+        },
+        "B": {
+          "price": 0.06863,
+          "timestamp": "2026-10-31T22:00:00+00:00",
+          "index": 202
+        },
+        "C": {
+          "price": 0.06893,
+          "timestamp": "2026-10-31T22:15:00+00:00",
+          "index": 205
+        },
+        "D": {
+          "price": 0.06817,
+          "timestamp": "2026-10-31T22:40:00+00:00",
+          "index": 210
+        }
+      },
+      "ratios": {
+        "xab": 1.0,
+        "abc": 0.517,
+        "bcd": 2.533,
+        "xad": 0.793
+      },
+      "indicator_flags": [
+        {
+          "key": "rsi",
+          "label": "RSI",
+          "status": "pass",
+          "value": "44.7",
+          "note": "과매도/과매수 구간 접근"
+        },
+        {
+          "key": "macd",
+          "label": "MACD",
+          "status": "pass",
+          "value": "0.0000",
+          "note": "히스토그램 반전 확인"
+        },
+        {
+          "key": "bollinger",
+          "label": "Bollinger",
+          "status": "pass",
+          "value": "0.0683 ~ 0.0689",
+          "note": "밴드 극단값 근접"
+        },
+        {
+          "key": "vwap",
+          "label": "VWAP",
+          "status": "neutral",
+          "value": "0.0689",
+          "note": "VWAP 회복/이탈 흐름"
+        },
+        {
+          "key": "funding",
+          "label": "Funding",
+          "status": "neutral",
+          "value": "0.0050%",
+          "note": "반대 포지션 과열 여부"
+        },
+        {
+          "key": "open_interest",
+          "label": "Open Interest",
+          "status": "pass",
+          "value": "$6,947,788",
+          "note": "체결 관심도 유지"
+        },
+        {
+          "key": "long_short",
+          "label": "Long/Short",
+          "status": "neutral",
+          "value": "1.15",
+          "note": "군중 포지션 반대편 우위"
+        }
+      ]
+    },
+    "flags": [
+      "볼린저 압축",
+      "다이버전스 후보"
+    ],
+    "normalized_quote_volume": 0.74,
+    "normalized_open_interest_usd": 0.09,
+    "universe_score": 0.51
+  },
+  "related_timeframes": {
+    "5m": {
+      "technical_rating": "Sell",
+      "trend_bias": "하락 추세",
+      "momentum_bias": "상승 모멘텀",
+      "opportunity": 73.4
+    },
+    "15m": {
+      "technical_rating": "Strong Sell",
+      "trend_bias": "하락 추세",
+      "momentum_bias": "하락 모멘텀",
+      "opportunity": 81.9
+    },
+    "1h": {
+      "technical_rating": "Strong Sell",
+      "trend_bias": "하락 추세",
+      "momentum_bias": "하락 모멘텀",
+      "opportunity": 76.3
+    },
+    "4h": {
+      "technical_rating": "Strong Sell",
+      "trend_bias": "하락 추세",
+      "momentum_bias": "과매도",
+      "opportunity": 76.2
+    }
+  }
+}
